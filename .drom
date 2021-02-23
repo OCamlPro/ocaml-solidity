@@ -1,0 +1,306 @@
+# Keep this file in your GIT repo to help drom track generated files
+
+# hash of toml configuration files
+# used for generation of all files
+5ecad24f37a35ee40a01a24c40054300:.
+# end context for .
+
+# begin context for .github/workflows/doc-deploy.yml
+# file .github/workflows/doc-deploy.yml
+4f52233da53d478d8ed397b12c037e41:.github/workflows/doc-deploy.yml
+# end context for .github/workflows/doc-deploy.yml
+
+# begin context for .github/workflows/workflow.yml
+# file .github/workflows/workflow.yml
+bbfe3912a26429877b54d0aae71cfb4a:.github/workflows/workflow.yml
+# end context for .github/workflows/workflow.yml
+
+# begin context for .gitignore
+# file .gitignore
+d92ef290ca303a8de82a38a6a33d7b07:.gitignore
+# end context for .gitignore
+
+# begin context for .ocamlformat
+# file .ocamlformat
+51f788c6dcd47d33ffec6427b686ed4f:.ocamlformat
+# end context for .ocamlformat
+
+# begin context for .ocamlformat-ignore
+# file .ocamlformat-ignore
+a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
+# end context for .ocamlformat-ignore
+
+# begin context for .ocp-indent
+# file .ocp-indent
+6048407431b8d9baf725ae5365d4c2f2:.ocp-indent
+# end context for .ocp-indent
+
+# begin context for CHANGES.md
+# file CHANGES.md
+6fbc92b42c8cfcafcbd338f2a6b87380:CHANGES.md
+# end context for CHANGES.md
+
+# begin context for LICENSE.md
+# file LICENSE.md
+2d7e95f352181b45d0bd8294ba9326c8:LICENSE.md
+# end context for LICENSE.md
+
+# begin context for Makefile
+# file Makefile
+d5d7943d71711a56145b69ed267f371d:Makefile
+# end context for Makefile
+
+# begin context for README.md
+# file README.md
+b22414170742e50b7cf590c2945304d9:README.md
+# end context for README.md
+
+# begin context for docs/README.txt
+# file docs/README.txt
+bfbacf00053bb9ab2a6e2ce94ed4a642:docs/README.txt
+# end context for docs/README.txt
+
+# begin context for docs/doc/index.html
+# file docs/doc/index.html
+442e31ee0804bab069369d3259058d29:docs/doc/index.html
+# end context for docs/doc/index.html
+
+# begin context for docs/favicon.png
+# file docs/favicon.png
+e739f3026aa997af4026bc428f4c9ef6:docs/favicon.png
+# end context for docs/favicon.png
+
+# begin context for docs/index.html
+# file docs/index.html
+9aaa8adf52906df63bbcc0f059c7bf34:docs/index.html
+# end context for docs/index.html
+
+# begin context for docs/sphinx/index.html
+# file docs/sphinx/index.html
+b70f467532a5e806cdbbeef83fceb6e8:docs/sphinx/index.html
+# end context for docs/sphinx/index.html
+
+# begin context for docs/style.css
+# file docs/style.css
+c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
+# end context for docs/style.css
+
+# begin context for drom.toml
+# file drom.toml
+742a1363a5dbea9735c9f663d70aa886:drom.toml
+# end context for drom.toml
+
+# begin context for dune
+# file dune
+0d57afa9756f983af2551804954af609:dune
+# end context for dune
+
+# begin context for dune-project
+# file dune-project
+fdc43e329b1df6685f4d96f7d8851d6c:dune-project
+# end context for dune-project
+
+# begin context for ez-hash.opam
+# file ez-hash.opam
+4d59ff36e012ea539b5fd15bd3ac37c0:ez-hash.opam
+# end context for ez-hash.opam
+
+# begin context for ocaml-solidity-common.opam
+# file ocaml-solidity-common.opam
+4fa9a754b3dc73d6e58071a3a1adf129:ocaml-solidity-common.opam
+# end context for ocaml-solidity-common.opam
+
+# begin context for ocaml-solidity-parser.opam
+# file ocaml-solidity-parser.opam
+3f227f800f90920f4ae77f75ed8a4c2f:ocaml-solidity-parser.opam
+# end context for ocaml-solidity-parser.opam
+
+# begin context for ocaml-solidity-test.opam
+# file ocaml-solidity-test.opam
+7853bf208ff08fc8ba51468b92745510:ocaml-solidity-test.opam
+# end context for ocaml-solidity-test.opam
+
+# begin context for ocaml-solidity-typechecker.opam
+# file ocaml-solidity-typechecker.opam
+1a2b851f44fec62965a74cd612035373:ocaml-solidity-typechecker.opam
+# end context for ocaml-solidity-typechecker.opam
+
+# begin context for scripts/after.sh
+# file scripts/after.sh
+1112fbe7067fce342365a25613b5659d:scripts/after.sh
+# end context for scripts/after.sh
+
+# begin context for scripts/before.sh
+# file scripts/before.sh
+ae050b3099ac0b43d7c7f4295f6b2319:scripts/before.sh
+# end context for scripts/before.sh
+
+# begin context for scripts/copy-bin.sh
+# file scripts/copy-bin.sh
+bb3a9d286f0dc64021db4194427263ee:scripts/copy-bin.sh
+# end context for scripts/copy-bin.sh
+
+# begin context for sphinx/_static/css/fixes.css
+# file sphinx/_static/css/fixes.css
+20bbe7a5dbb3c3278a1511d960616fe5:sphinx/_static/css/fixes.css
+# end context for sphinx/_static/css/fixes.css
+
+# begin context for sphinx/about.rst
+# file sphinx/about.rst
+c2ce508e78556464f8fc8cdb39f55f03:sphinx/about.rst
+# end context for sphinx/about.rst
+
+# begin context for sphinx/conf.py
+# file sphinx/conf.py
+d9de9153776779bea3733b33dc0c22c8:sphinx/conf.py
+# end context for sphinx/conf.py
+
+# begin context for sphinx/index.rst
+# file sphinx/index.rst
+7706d32699d4754a3e1573847f4d983d:sphinx/index.rst
+# end context for sphinx/index.rst
+
+# begin context for sphinx/install.rst
+# file sphinx/install.rst
+f481df414cb3f029bd800c66946eb287:sphinx/install.rst
+# end context for sphinx/install.rst
+
+# begin context for sphinx/license.rst
+# file sphinx/license.rst
+be5b2f331733cbbbfed0aba411d34691:sphinx/license.rst
+# end context for sphinx/license.rst
+
+# begin context for src/ez-hash/dune
+# file src/ez-hash/dune
+75c98b77db1df5bc0cd034a1fb0b8363:src/ez-hash/dune
+# end context for src/ez-hash/dune
+
+# begin context for src/ez-hash/package.toml
+# file src/ez-hash/package.toml
+d00f48ea0d1319054a3b8e349e94e5e7:src/ez-hash/package.toml
+# end context for src/ez-hash/package.toml
+
+# begin context for src/ocaml-solidity-common/dune
+# file src/ocaml-solidity-common/dune
+c0cd1f8cacf134487c1c588a400def31:src/ocaml-solidity-common/dune
+# end context for src/ocaml-solidity-common/dune
+
+# begin context for src/ocaml-solidity-common/index.mld
+# file src/ocaml-solidity-common/index.mld
+c3f9af8c85e6e728b000530b629cddec:src/ocaml-solidity-common/index.mld
+# end context for src/ocaml-solidity-common/index.mld
+
+# begin context for src/ocaml-solidity-common/package.toml
+# file src/ocaml-solidity-common/package.toml
+2eb3efb0f30ba6359520197555cfa2fa:src/ocaml-solidity-common/package.toml
+# end context for src/ocaml-solidity-common/package.toml
+
+# begin context for src/ocaml-solidity-common/version.mlt
+# file src/ocaml-solidity-common/version.mlt
+e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-common/version.mlt
+# end context for src/ocaml-solidity-common/version.mlt
+
+# begin context for src/ocaml-solidity-parser/dune
+# file src/ocaml-solidity-parser/dune
+68006c8008ac1da51c5ef2b1dc953373:src/ocaml-solidity-parser/dune
+# end context for src/ocaml-solidity-parser/dune
+
+# begin context for src/ocaml-solidity-parser/index.mld
+# file src/ocaml-solidity-parser/index.mld
+9a1ccf35fb33a83ca626e462eec875e6:src/ocaml-solidity-parser/index.mld
+# end context for src/ocaml-solidity-parser/index.mld
+
+# begin context for src/ocaml-solidity-parser/package.toml
+# file src/ocaml-solidity-parser/package.toml
+d5ab727ff73d70895e0aaaa81e7f18fc:src/ocaml-solidity-parser/package.toml
+# end context for src/ocaml-solidity-parser/package.toml
+
+# begin context for src/ocaml-solidity-parser/version.mlt
+# file src/ocaml-solidity-parser/version.mlt
+e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-parser/version.mlt
+# end context for src/ocaml-solidity-parser/version.mlt
+
+# begin context for src/ocaml-solidity-test/dune
+# file src/ocaml-solidity-test/dune
+4e249c9d77ae86c6c0a772539e4ff817:src/ocaml-solidity-test/dune
+# end context for src/ocaml-solidity-test/dune
+
+# begin context for src/ocaml-solidity-test/main.ml
+# file src/ocaml-solidity-test/main.ml
+e65c1751693f6313447d01474de379f1:src/ocaml-solidity-test/main.ml
+# end context for src/ocaml-solidity-test/main.ml
+
+# begin context for src/ocaml-solidity-test/package.toml
+# file src/ocaml-solidity-test/package.toml
+4264f162b5e7a8e3d436f965ff7617d0:src/ocaml-solidity-test/package.toml
+# end context for src/ocaml-solidity-test/package.toml
+
+# begin context for src/ocaml-solidity-test/version.mlt
+# file src/ocaml-solidity-test/version.mlt
+e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-test/version.mlt
+# end context for src/ocaml-solidity-test/version.mlt
+
+# begin context for src/ocaml-solidity-typechecker/dune
+# file src/ocaml-solidity-typechecker/dune
+8e8ec54c5f92afd11476b083c07eb9ad:src/ocaml-solidity-typechecker/dune
+# end context for src/ocaml-solidity-typechecker/dune
+
+# begin context for src/ocaml-solidity-typechecker/index.mld
+# file src/ocaml-solidity-typechecker/index.mld
+ccac046e88ad847162ecf91cfb580481:src/ocaml-solidity-typechecker/index.mld
+# end context for src/ocaml-solidity-typechecker/index.mld
+
+# begin context for src/ocaml-solidity-typechecker/package.toml
+# file src/ocaml-solidity-typechecker/package.toml
+deaf8f9d2793393b4d39e637b3b654f9:src/ocaml-solidity-typechecker/package.toml
+# end context for src/ocaml-solidity-typechecker/package.toml
+
+# begin context for src/ocaml-solidity-typechecker/version.mlt
+# file src/ocaml-solidity-typechecker/version.mlt
+e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-typechecker/version.mlt
+# end context for src/ocaml-solidity-typechecker/version.mlt
+
+# begin context for src/ocaml-solidity/package.toml
+# file src/ocaml-solidity/package.toml
+e86f9a67236dac57aaae3ca819cb7dbb:src/ocaml-solidity/package.toml
+# end context for src/ocaml-solidity/package.toml
+
+# begin context for test/expect-tests/dune
+# file test/expect-tests/dune
+518d42d6cfd761295c0153427fc7073e:test/expect-tests/dune
+# end context for test/expect-tests/dune
+
+# begin context for test/expect-tests/test.ml
+# file test/expect-tests/test.ml
+24150bafd4bec9b34e6c2987843f0d50:test/expect-tests/test.ml
+# end context for test/expect-tests/test.ml
+
+# begin context for test/inline-tests/dune
+# file test/inline-tests/dune
+2bda488ad97bad98492c75ef70ce0b7f:test/inline-tests/dune
+# end context for test/inline-tests/dune
+
+# begin context for test/inline-tests/test.ml
+# file test/inline-tests/test.ml
+37b8bc6035cda6302a80178c61f9626e:test/inline-tests/test.ml
+# end context for test/inline-tests/test.ml
+
+# begin context for test/output-tests/dune
+# file test/output-tests/dune
+d003ba13fcfabfe20fdf1a47d3c75a66:test/output-tests/dune
+# end context for test/output-tests/dune
+
+# begin context for test/output-tests/test1.expected
+# file test/output-tests/test1.expected
+dc8d6157230e9ef8e965865f990fbc49:test/output-tests/test1.expected
+# end context for test/output-tests/test1.expected
+
+# begin context for test/output-tests/test2.expected
+# file test/output-tests/test2.expected
+ee63957b3b77455a12e6c269a5032c3f:test/output-tests/test2.expected
+# end context for test/output-tests/test2.expected
+
+# begin context for test/output-tests/test2.ml
+# file test/output-tests/test2.ml
+e8eaab7626ef0aace5e570fffe81f869:test/output-tests/test2.ml
+# end context for test/output-tests/test2.ml

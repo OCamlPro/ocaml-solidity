@@ -1,0 +1,30 @@
+
+
+name = "ez-hash"
+kind = "library"
+skeleton = "c_binding"
+pack-modules = false
+
+version = "dev"
+license = "LGPL2"
+copyright = "OCamlPro"
+authors = [ "Fabrice Le Fessant <fabrice.le_fessant@ocamlpro.com>" ]
+maintainer = [ "Fabrice Le Fessant <fabrice.le_fessant@ocamlpro.com>" ]
+synopsis = "Hash functions: sha3, sha256, blake2b"
+description = """
+Hash functions: sha3, sha256, blake2b
+"""
+homepage = "https://github.com/OCamlPro/ez-hash"
+bug-reports = "https://github.com/OCamlPro/ez-hash/issues"
+dev-repo = "git+https://github.com/OCamlPro/ez-hash"
+github-organization = "OCamlPro"
+
+[dependencies]
+blake2 = ""
+
+[tools]
+
+[fields]
+c-names = "sha256 sha256-stubs sha3-ref sha3-stubs blake2b-stubs"
+c-flags = "(flags (-O3))"
+c-library-flags = ""
