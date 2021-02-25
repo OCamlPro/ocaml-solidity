@@ -12,6 +12,7 @@
 
 open Solidity_common
 open Solidity_ast
+open Solidity_checker_TYPES
 open Solidity_visitor
 open Solidity_postcheck_utils
 
@@ -29,13 +30,13 @@ let checkDetails
           match gd.gd_mutab with
           | MImmutable -> begin
               if not (Solidity_postcheck_utils.isConstructor fundet) then
-                raise (ImmutableUpdatedOutsideConstructor (writ, getLoc annots))
+                raise (ImmutableUpdatedOutsideConstructor (writ, getPos annots))
               else match inherited with
                 | Some ctrct ->
                     raise
                       (ImmutableDefinedInInheritingContract
                          (Ident.of_string (LongIdent.to_string ctrct),
-                          (writ, getLoc annots)))
+                          (writ, getPos annots)))
                 | None -> ()
             end
           | _ -> ()
@@ -49,24 +50,24 @@ let checkNoRead (env : contract_env) (fname : Ident.t) (fdetails : function_deta
   let () =
     match fdetails.fd_details.ed_read_access with
     | [] -> ()
-    | loc :: _ -> raise (ForbiddenReadAccess loc) in
+    | pos :: _ -> raise (ForbiddenReadAccess pos) in
   let () =
     match IdentMap.find_first_opt (fun _ -> true) fdetails.fd_details.ed_read with
     | None -> ()
-    | Some (g, ((annot, loc) :: _)) ->
+    | Some (g, ((annot, pos) :: _)) ->
         begin
           match annot with
           (* New is a valid key word *)
           | ANew _ -> ()
           (* Function are allowed if they are not called *)
-          | Solidity_tenv.AFunction _
-          | Solidity_tenv.AType (TFunction _) -> ()
+          | AFunction _
+          | AType (TFunction _) -> ()
           | _ -> (* Pure function can read globals iff these globals are not mutable *)
               match IdentMap.find_opt g env.env_glob with
               | None -> (* This global is not registered *)
                   raise (InvariantBroken "Unregistered global")
               | Some {gd_mutab = MMutable; _} ->
-                  raise (PureFunctionReadsGlobal (fname, g, loc))
+                  raise (PureFunctionReadsGlobal (fname, g, pos))
               | Some _ -> ()
         end
     | _ -> raise (InvariantBroken "") in
@@ -77,11 +78,11 @@ let checkNoWrite (fname : Ident.t) (fdetails : function_details) =
   let () =
     match fdetails.fd_details.ed_writ_state with
     | [] -> ()
-    | loc :: _ -> raise (ForbiddenWritState loc) in
+    | pos :: _ -> raise (ForbiddenWritState pos) in
   let () =
     match IdentMap.find_first_opt (fun _ -> true) fdetails.fd_details.ed_writ with
     | None -> ()
-    | Some (g, ((_, loc) :: _)) -> raise (ForbiddenGlobalWrite (fname, g, loc))
+    | Some (g, ((_, pos) :: _)) -> raise (ForbiddenGlobalWrite (fname, g, pos))
     | _ -> raise (InvariantBroken "") in
   ()
 
@@ -101,13 +102,13 @@ let analyseContract
         | Contract | Library -> fd
         | Interface -> {fd with fun_virtual = true} in
       let params, selector = match current_annot with
-        | Some (Solidity_tenv.AFunction {function_params; function_selector; _}) ->
+        | Some (AFunction {function_params; function_selector; _}) ->
             let function_selector =
               Option.value ~default:"" function_selector in
             function_params, function_selector
         | _ -> raise (InvariantBroken "Function should have function annot") in
       let fundet =
-        getDetails env (Method (fd, selector)) params (the current_location) in
+        getDetails env (Method (fd, selector)) params (the current_position) in
       let () = checkDetails env fd.fun_name.contents fundet in
       env <-
         addFun
@@ -129,15 +130,15 @@ let analyseContract
                  | PlaceholderStatement -> true
                  | _ -> false) l in
         if not there_is_a_placeholder then
-          raise (MissingPlaceholderStatement (md.mod_name.contents, md.mod_name.loc)) in
+          raise (MissingPlaceholderStatement (md.mod_name.contents, md.mod_name.pos)) in
       let md =
         match contract.contract_kind with
         | Contract | Library -> md
         | Interface -> {md with mod_virtual = true} in
       let params = match current_annot with
-        | Some (Solidity_tenv.AModifier {modifier_params; _}) -> modifier_params
+        | Some (AModifier {modifier_params; _}) -> modifier_params
         | _ -> raise (InvariantBroken "Modifier should have modifier annot") in
-      let fundet = getDetails env (Modifier md) params (the current_location) in
+      let fundet = getDetails env (Modifier md) params (the current_position) in
       let () = checkDetails env md.mod_name.contents fundet in
       let fd_purity = (* Inferring modifier real mutability *)
         let no_write () = try
@@ -170,14 +171,14 @@ let analyseContract
         match getGlobal svd.var_name.contents env with
           | None -> ()
           | Some _ ->
-            raise (VariableAlreadyDefined (svd.var_name.contents, svd.var_name.loc)) in
+            raise (VariableAlreadyDefined (svd.var_name.contents, svd.var_name.pos)) in
       let gd_def, gd_updates =
         match svd.var_init, svd.var_mutability with
         | None, MConstant -> raise (UndefinedConstant svd.var_name.contents)
         | None, _ -> GDeclared, []
         | Some e, _ ->
             let ed = getExpressionDetails e in
-            GDefined (ed, e), [e.annot, e.loc] in
+            GDefined (ed, e), [e.annot, e.pos] in
       let new_env =
         {env with
          env_glob =
@@ -187,18 +188,20 @@ let analyseContract
              env.env_glob} in
       let type_ =
         match self#getAnnot () with
-        | Some (Solidity_tenv.AType t) -> t
-        | Some (Solidity_tenv.AVariable v) -> v.variable_type
+        | Some (AType t) -> t
+        | Some (AVariable v) -> v.variable_type
         | Some a -> failOnAnnot a
         | None -> assert false in
       let new_env =
         match svd.var_visibility with
           | VPublic ->
             let params, _ =
-              Solidity_checker.variable_type_to_function_type svd.var_name.loc type_ in
+              Solidity_type_builder.variable_type_to_function_type
+                svd.var_name.pos type_ in
             let getter_details =
-              getDetails new_env (Getter svd) params (the current_location) in
-              let () = checkDetails new_env svd.var_name.contents getter_details in
+              getDetails new_env (Getter svd) params (the current_position) in
+              let () =
+                checkDetails new_env svd.var_name.contents getter_details in
             addFun
               svd.var_name
               params
@@ -228,10 +231,10 @@ let checkWrittenVar
   match gd.gd_mutab with
   | MImmutable -> begin
       if not in_constructor then
-        raise (ImmutableUpdatedOutsideConstructor (written, (getLoc a_list)))
+        raise (ImmutableUpdatedOutsideConstructor (written, (getPos a_list)))
       else (* Checking it is written once *)
         match gd.gd_def with
-        | GDefined (_, e) -> raise (ImmutableUpdatedTwice (written, e.loc, (getLoc a_list)))
+        | GDefined (_, e) -> raise (ImmutableUpdatedTwice (written, e.pos, (getPos a_list)))
         | GDeclared ->
             begin
               match gd.gd_updates, a_list with
@@ -243,7 +246,7 @@ let checkWrittenVar
             end
     end
   | MConstant ->
-      raise (ConstantUpdated (written, (getLoc a_list)))
+      raise (ConstantUpdated (written, (getPos a_list)))
   | MMutable -> ()
 
 
@@ -273,7 +276,7 @@ let checkUnreadVar
           Format.sprintf "Cannot find %s: %s" (Ident.to_string read) s
         )) in
   match gd.gd_mutab with
-  | MImmutable -> raise (ReadImmutable (read, getLoc a_list))
+  | MImmutable -> raise (ReadImmutable (read, getPos a_list))
   | _ -> ()
 
 (* Checks that a function does not read an immutable variable in its body
@@ -376,7 +379,7 @@ let validConstantCalls env (calls : (fun_params * ast_annot) list IdentMap.t)  =
 
   let isAllowedCall (annot : annot) : bool =
       match annot with
-      | Solidity_tenv.AType (TMagic (TMetaType _)) -> true
+      | AType (TMagic (TMetaType _)) -> true
       | _ -> false in
 
   IdentMap.for_all
@@ -554,7 +557,7 @@ let checkPurity =
     let funs_tested = addTested fident fdetails.fd_purity funs_tested in
     IdentMap.fold
       (fun fi_name l funs_tested ->
-         List.fold_left (fun funs_tested (fi_params, (annot, loc)) ->
+         List.fold_left (fun funs_tested (fi_params, (annot, pos)) ->
              let studied = {fi_name; fi_params} in
              match isTested studied funs_tested with
              | Some purity -> (* Already tested, checking valid purity *)
@@ -563,7 +566,7 @@ let checkPurity =
                  else
                    raise (
                      ForbiddenCall (
-                       fident.fi_name, max_purity, fi_name, purity, loc
+                       fident.fi_name, max_purity, fi_name, purity, pos
                      )
                    )
              | None -> begin
@@ -571,16 +574,16 @@ let checkPurity =
                  | None -> begin
                    (* It should be a primitive *)
                      match annot with
-                       | Solidity_tenv.AType
+                       | AType
                            (TFunction ({function_mutability; _},_))
-                       | Solidity_tenv.AFunction {function_mutability; _} ->
+                       | AFunction {function_mutability; _} ->
                            if callablePurity max_purity function_mutability then
                              funs_tested
                            else
                              raise (
                                ForbiddenCall (
                                  fident.fi_name, max_purity,
-                                 fi_name, function_mutability, loc))
+                                 fi_name, function_mutability, pos))
                        | ANew _ ->
                            if callablePurity max_purity MPayable then
                              funs_tested
@@ -588,7 +591,7 @@ let checkPurity =
                              raise (
                                ForbiddenCall (
                                  fident.fi_name, max_purity,
-                                 fi_name, MPayable, loc))
+                                 fi_name, MPayable, pos))
                        | _a ->
                            raise (
                              InvariantBroken (
@@ -610,7 +613,7 @@ let checkPurity =
                              max_purity,
                              fi_name,
                              studied_details.fd_purity,
-                             loc))
+                             pos))
                end
            )
            funs_tested
@@ -697,9 +700,9 @@ let checkEnv _name (envs : env) (env : contract_env) =
 
 let checkModule (m : module_) : env =
   List.fold_left
-    (fun (env : env) {contents; annot; loc = _} ->
+    (fun (env : env) {contents; annot; pos = _} ->
       match contents, annot with
-      | ContractDefinition contract, Solidity_tenv.AContract cd ->
+      | ContractDefinition contract, AContract cd ->
           let name = cd.contract_abs_name in
           let contract = {
               contract with
@@ -712,7 +715,7 @@ let checkModule (m : module_) : env =
                 else
                   inheritFrom id acc env)
               (empty_contract_env contract)
-              cd.Solidity_tenv.contract_hierarchy in
+              cd.contract_hierarchy in
           let ctrct_env = analyseContract initial_env contract in
           let env = addContractEnv name ctrct_env env in
           checkEnv name env ctrct_env;

@@ -19,7 +19,7 @@
 
 (executable
  (name test2)
- (libraries ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-typechecker) ; add your own library here
+ (libraries ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker) ; add your own library here
  )
 
 (alias

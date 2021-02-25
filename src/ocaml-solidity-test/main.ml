@@ -10,9 +10,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-let () =
-  Solidity_primitives.init ()
-
 let main () =
   let arg_list = Arg.align [
       "--version", Arg.Unit (fun () ->
@@ -48,7 +45,8 @@ let main () =
       let module_ = Solidity_parser.top_module Solidity_lexer.token lb in
       Format.printf "Parsed code:\n%s@."
         (Solidity_printer.string_of_module module_);
-      let () = Solidity_checker.type_module module_ in
+      let () = Solidity_typechecker.type_module module_ in
+      let _ = Solidity_postprocess.checkModule module_ in
       ()
 
 

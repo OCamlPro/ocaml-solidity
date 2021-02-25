@@ -12,13 +12,14 @@
 
 open Solidity_common
 open Solidity_ast
+open Solidity_checker_TYPES
 open Solidity_visitor
 
 (** 1 Type definitions *)
 
-type fun_params = (Solidity_tenv.type_ * Ident.t option) list
+type fun_params = (Solidity_checker_TYPES.type_ * Ident.t option) list
 
-type ast_annot = annot * loc
+type ast_annot = annot * pos
 
 type expr_details = {
   ed_read : ast_annot list IdentMap.t;
@@ -34,14 +35,14 @@ type expr_details = {
   (* A submap of ed_writ.
      Registers memory-updated variables (for ex. a[0] = 42). *)
 
-  ed_read_access : loc list;
-  (*  Location for each :
+  ed_read_access : pos list;
+  (*  Position for each :
       1/ Accessing address(this).balance or <address>.balance.
       2/ Accessing any of the members of block, tx, msg
          (with the exception of msg.sig and msg.data). *)
 
-  ed_writ_state : loc list
-  (* Location for each :
+  ed_writ_state : pos list
+  (* Position for each :
      1/ Emitting events.
      2/ Creating other contracts.
      3/ Using selfdestruct.
@@ -104,34 +105,34 @@ type contract_env = {
 
 type env = contract_env AbsLongIdentMap.t
 
-type annot += ANew of Solidity_tenv.type_
+type annot += ANew of Solidity_checker_TYPES.type_
 
 (** 2. Exceptions raised by the postprocessor *)
 
 exception InvariantBroken of string
 
-exception ImmutableUpdatedOutsideConstructor of Ident.t * loc
-exception ImmutableUpdatedTwice of Ident.t * loc * loc
-exception ConstantUpdatedTwice of Ident.t * loc * loc
-exception ConstantUpdated of Ident.t * loc
-exception ReadImmutable of Ident.t * loc
+exception ImmutableUpdatedOutsideConstructor of Ident.t * pos
+exception ImmutableUpdatedTwice of Ident.t * pos * pos
+exception ConstantUpdatedTwice of Ident.t * pos * pos
+exception ConstantUpdated of Ident.t * pos
+exception ReadImmutable of Ident.t * pos
 exception UndefinedConstant of Ident.t
 exception UndefinedImmutable of Ident.t
 exception ConstantCycle of Ident.t list
 exception ConstantRequiringComputation of Ident.t
-exception CalldataModified of Ident.t * loc
-exception UninitializedReadLocal of storage_location * Ident.t * loc
-exception VariableAlreadyDefined of Ident.t * loc
-exception FunctionAlreadyDefined of Ident.t * loc
-exception ImmutableDefinedInInheritingContract of Ident.t * (Ident.t * loc)
+exception CalldataModified of Ident.t * pos
+exception UninitializedReadLocal of storage_location * Ident.t * pos
+exception VariableAlreadyDefined of Ident.t * pos
+exception FunctionAlreadyDefined of Ident.t * pos
+exception ImmutableDefinedInInheritingContract of Ident.t * (Ident.t * pos)
 exception OverridingNonVirtual of
   Ident.t * (* Fun name *)
-  loc * (* Loc of the override *)
-  loc (* Loc of the virtual *)
+  pos * (* Pos of the override *)
+  pos (* Pos of the virtual *)
 
-exception UnexpectedOverride of Ident.t * loc
-exception ExpectedOverride of Ident.t * loc
-exception WrongOverride of Ident.t * loc * string * string
+exception UnexpectedOverride of Ident.t * pos
+exception ExpectedOverride of Ident.t * pos
+exception WrongOverride of Ident.t * pos * string * string
 
 exception NoOverrideMultipleFunDefs of
   IdentSet.t * (* the contracts inherited *)
@@ -141,42 +142,42 @@ exception NoOverrideMultipleFunDefs of
 exception PureFunctionReadsGlobal of
     Ident.t * (* The function *)
     Ident.t * (* The global *)
-    loc (* The read location *)
+    pos (* The read position *)
 
 exception ForbiddenGlobalWrite of
     Ident.t * (* The function *)
     Ident.t * (* The global *)
-    loc (* The read location *)
+    pos (* The read position *)
 
 exception ForbiddenCall of
     Ident.t * fun_mutability * (* Caller function & its purity *)
     Ident.t * fun_mutability * (* Called function & its purity *)
-    loc (* Call location *)
+    pos (* Call position *)
 
-exception ForbiddenReadAccess of loc
+exception ForbiddenReadAccess of pos
 
-exception ForbiddenWritState of loc
+exception ForbiddenWritState of pos
 
 exception InconsistentVisibility of
     Ident.t * (* Name of the function *)
     string * (* Name of the selector *)
-    loc * (* Location of first definition *)
-    loc (* Location of second definition *)
+    pos * (* Position of first definition *)
+    pos (* Position of second definition *)
 
 exception MissingPlaceholderStatement of
     Ident.t (* Modifier name with an empty body *) *
-    loc
+    pos
 
 
 let failOnAnnot = function
-  | Solidity_tenv.AType _ -> raise (InvariantBroken "AType")
-  | Solidity_tenv.AImport _ -> raise (InvariantBroken "AImport")
-  | Solidity_tenv.AContract _ -> raise (InvariantBroken "AContract")
-  | Solidity_tenv.AFunction _ -> raise (InvariantBroken "AFunction")
-  | Solidity_tenv.AModifier _ -> raise (InvariantBroken "AModifier")
-  | Solidity_tenv.AVariable _ -> raise (InvariantBroken "AVariable")
-  | Solidity_tenv.APrimitive -> raise (InvariantBroken "APrimitive")
-  | Solidity_common.ANone -> raise (InvariantBroken "ANone")
+  | AType _ -> raise (InvariantBroken "AType")
+  | AImport _ -> raise (InvariantBroken "AImport")
+  | AContract _ -> raise (InvariantBroken "AContract")
+  | AFunction _ -> raise (InvariantBroken "AFunction")
+  | AModifier _ -> raise (InvariantBroken "AModifier")
+  | AVariable _ -> raise (InvariantBroken "AVariable")
+  | APrimitive -> raise (InvariantBroken "APrimitive")
+  | ANone -> raise (InvariantBroken "ANone")
   | ANew _ -> raise (InvariantBroken "ANew")
   | _ -> raise (InvariantBroken "Unknown")
 
@@ -233,7 +234,7 @@ let equal_opt (=) o1 o2 =
 
 let typeOf elt =
   match elt.annot with
-    | Solidity_tenv.AType t -> t
+    | AType t -> t
     | _ -> raise (InvariantBroken "Annot is not a type")
 
 let list_assoc_opt (=) key l =
@@ -285,7 +286,7 @@ let equalParams ~check_ident (params1 : fun_params) (params2 : fun_params) =
     match p1, p2 with
     | [], [] -> true
     | (t1, io1) :: tl1, (t2, io2) :: tl2 ->
-      Solidity_tenv.same_type t1 t2 &&
+      Solidity_type.same_type t1 t2 &&
       (not check_ident || equal_opt Ident.equal io1 io2) &&
       loop tl1 tl2
     | _ -> false
@@ -366,7 +367,7 @@ let paramsFromExprs (args : expression list) =
   List.map
     (fun (exp : expression) ->
       match exp.annot with
-        | Solidity_tenv.AType t -> t, None
+        | AType t -> t, None
         | a -> failOnAnnot a) args
 
 let getFunInEnvs (id : absolute LongIdent.t) (fi_params : fun_params) (envs : env) =
@@ -459,8 +460,8 @@ let addFun
                     InconsistentVisibility (
                       fun_name.contents,
                       selector,
-                      fundef.fun_name.loc,
-                      fun_name.loc))
+                      fundef.fun_name.pos,
+                      fun_name.pos))
               | _ -> ())
             selector
             env
@@ -527,7 +528,8 @@ let pp_ident fmt id = Format.fprintf fmt "%a" Ident.printf id
 let pp_fun_params =
   pp_list
     (fun fmt (t, i) ->
-       Format.fprintf fmt "%a%s" (pp_opt pp_ident) i (Solidity_tenv.string_of_type t))
+       Format.fprintf fmt "%a%s" (pp_opt pp_ident) i
+         (Solidity_type_printer.string_of_type t))
 
 let pp_pair pp1 pp2 fmt (x,y) = Format.fprintf fmt "(%a, %a)" pp1 x pp2 y
 
@@ -539,8 +541,8 @@ let rec pp_env fmt env =
 
 let (++) a elt =
   match IdentMap.find_opt elt.contents a with
-  | None -> IdentMap.add elt.contents [elt.annot, elt.loc] a
-  | Some elts -> IdentMap.add elt.contents ((elt.annot, elt.loc) :: elts) a
+  | None -> IdentMap.add elt.contents [elt.annot, elt.pos] a
+  | Some elts -> IdentMap.add elt.contents ((elt.annot, elt.pos) :: elts) a
 
 let (--) a elt = IdentMap.remove elt a
 
@@ -566,9 +568,9 @@ let removeFromAssignDetails elts a = {
   ed_deep_writ = a.ed_deep_writ --- elts;
 }
 
-let getLoc al =
+let getPos al =
   match al with
-  | [] -> raise (InvariantBroken "getLoc failed")
+  | [] -> raise (InvariantBroken "getPos failed")
   | (_,hd) :: _ -> hd
 
 let addWrit w ad = {ad with ed_writ = ad.ed_writ ++ w}
@@ -613,7 +615,7 @@ let sortContractParts parts =
 
 let getAbsoluteContractName cnode =
   match cnode.annot with
-  | Solidity_tenv.AContract cd -> cd.contract_abs_name
+  | AContract cd -> cd.contract_abs_name
   | a -> failOnAnnot a
 
 let minPurity (p1 : fun_mutability) (p2 : fun_mutability) =
@@ -663,7 +665,7 @@ let rec variablesInExpression (e : expression) =
         | IdentifierExpression i -> begin
             let () =
               match i.annot with
-              | Solidity_tenv.AVariable _ ->
+              | AVariable _ ->
                   vars <- vars ++ i
               | _a -> () in
             SkipChildren
@@ -701,9 +703,9 @@ let rec getExpressionDetails e =
           let () =
             match e.annot, i.annot with
 
-            | _, Solidity_tenv.AVariable _
-            | Solidity_tenv.AFunction _, _
-            | Solidity_tenv.AType (TFunction _), _ ->
+            | _, AVariable _
+            | AFunction _, _
+            | AType (TFunction _), _ ->
                 expr_details <- addRead {i with annot = e.annot} expr_details
             | _ -> () in
           SkipChildren
@@ -723,12 +725,12 @@ let rec getExpressionDetails e =
         | NewExpression _d ->
             let annot =
               match e.annot with
-              | Solidity_tenv.AType t -> ANew t
+              | AType t -> ANew t
               | a -> failOnAnnot a in
             let new_node = {
               contents = Ident.of_string "@new";
               annot;
-              loc = e.loc
+              pos = e.pos
             } in
             expr_details <- {
               expr_details with
@@ -740,7 +742,7 @@ let rec getExpressionDetails e =
             Ident.equal i.contents (Ident.of_string "selfdestruct") ->
             expr_details <- {
               expr_details with
-              ed_writ_state = e.loc :: expr_details.ed_writ_state
+              ed_writ_state = e.pos :: expr_details.ed_writ_state
             };
             DoChildren
         | FunctionCallExpression (e, l) -> begin
@@ -752,7 +754,7 @@ let rec getExpressionDetails e =
                       let acc_dets = unionAssignDetails acc_dets (getExpressionDetails e) in
                       let acc_params =
                         match e.annot with
-                          | Solidity_tenv.AType t -> (t, None) :: acc_params
+                          | AType t -> (t, None) :: acc_params
                           | _ -> raise (InvariantBroken "Annot of expression should be a type") in
                       acc_dets, acc_params
                     )
@@ -764,7 +766,7 @@ let rec getExpressionDetails e =
                       let acc_dets = unionAssignDetails acc_dets (getExpressionDetails e) in
                       let acc_params =
                         match e.annot with
-                          | Solidity_tenv.AType t -> (t, Some name.contents) :: acc_params
+                          | AType t -> (t, Some name.contents) :: acc_params
                           | _ ->
                               raise (
                                 InvariantBroken
@@ -780,9 +782,9 @@ let rec getExpressionDetails e =
               identmap_list_partition
                 (fun _id -> function
                    | (ANew _
-                     | Solidity_tenv.AFunction _
-                     | Solidity_tenv.AType (TFunction _)
-                     | Solidity_tenv.APrimitive), _ -> true
+                     | AFunction _
+                     | AType (TFunction _)
+                     | APrimitive), _ -> true
                   | _ -> false)
                 expression_details.ed_read in
             let funs : (fun_params * ast_annot) list IdentMap.t =
@@ -811,34 +813,34 @@ let rec getExpressionDetails e =
         | FieldExpression (e', field) -> begin
             let () = (* Checking if there is a balance, block, tx or msg access *)
               match e.annot with
-              | Solidity_tenv.AType (TAddress _) when
+              | AType (TAddress _) when
                   (Ident.equal field.contents (Ident.of_string "balance")) ->
                   expr_details <- {
                     expr_details with
-                    ed_read_access = e'.loc :: expr_details.ed_read_access
+                    ed_read_access = e'.pos :: expr_details.ed_read_access
                   }
-              | Solidity_tenv.AType (TAddress _) when
+              | AType (TAddress _) when
                   (Ident.equal field.contents (Ident.of_string "transfer") ||
                    Ident.equal field.contents (Ident.of_string "send")) ->
                   (* Not optimal : maybe there is an unused reference to such a call,
                      which is legal. *)
                   expr_details <- {
                     expr_details with
-                    ed_writ_state = e'.loc :: expr_details.ed_writ_state
+                    ed_writ_state = e'.pos :: expr_details.ed_writ_state
                   };
-              | Solidity_tenv.AType (TMagic (TBlock | TTx)) ->
+              | AType (TMagic (TBlock | TTx)) ->
                   expr_details <- {
                     expr_details with
-                    ed_read_access = e'.loc :: expr_details.ed_read_access
+                    ed_read_access = e'.pos :: expr_details.ed_read_access
                   }
-              | Solidity_tenv.AType (TMagic TMsg) when
+              | AType (TMagic TMsg) when
                   not (Ident.equal field.contents (Ident.of_string "sig") ||
                        Ident.equal field.contents (Ident.of_string "data")) ->
                   expr_details <- {
                     expr_details with
-                    ed_read_access = e'.loc :: expr_details.ed_read_access
+                    ed_read_access = e'.pos :: expr_details.ed_read_access
                   }
-              | Solidity_tenv.AType (TFunction _) ->
+              | AType (TFunction _) ->
                  (* Adding the field as 'read' with the annotation of the
                     whole expression visited.
                     Ex : a.pop -> save '@pop' with the annotation of 'a.pop' *)
@@ -849,7 +851,7 @@ let rec getExpressionDetails e =
                     expr_details with
                       ed_read = expr_details.ed_read ++ {field with annot = e.annot}
                   }
-              | Solidity_tenv.AType _ -> ()
+              | AType _ -> ()
               | a -> failOnAnnot a in
             DoChildren
           end
@@ -869,9 +871,9 @@ let isInherited (cname : absolute LongIdent.t) ctrct =
   loop ctrct.contract_inheritance
 
 
-let getterOfVariable (svd : state_variable_definition) (loc : loc) : expr_details = {
+let getterOfVariable (svd : state_variable_definition) (pos : pos) : expr_details = {
       empty_expr_details with
-      ed_read = IdentMap.singleton svd.var_name.contents [svd.var_name.annot, loc]
+      ed_read = IdentMap.singleton svd.var_name.contents [svd.var_name.annot, pos]
   }
 
 (* Returns the contracts defining the virtual equivalent of the function in argument *)
@@ -908,8 +910,8 @@ let getOverriddenContracts
                 raise (
                   OverridingNonVirtual (
                     fun_name.contents,
-                    fun_name.loc,
-                    (getName fundet).loc))
+                    fun_name.pos,
+                    (getName fundet).pos))
           end
       | None -> (* Not found in current module, searching above *)
         List.fold_left
@@ -925,7 +927,7 @@ let getDetails
   (contract_env : contract_env)
   (fd_kind : fun_kind)
   (fun_params : fun_params)
-  (loc : loc) : function_details =
+  (pos : pos) : function_details =
   let
     name, overriding, params, visit_function,
     is_constructor, returns, fd_purity, fd_defined,
@@ -971,7 +973,7 @@ let getDetails
         svd.var_name,
         svd.var_override,
         [],
-        (fun _ -> getterOfVariable svd loc),
+        (fun _ -> getterOfVariable svd pos),
         false,
         [],
         MPayable,
@@ -994,13 +996,13 @@ let getDetails
           match is_getter with
           | None
           | Some (VPublic | VExternal) ->
-              raise (ExpectedOverride (name.contents, name.loc))
+              raise (ExpectedOverride (name.contents, name.pos))
           | Some _ ->
               IdentMap.iter
                 (fun _ -> function
                    | VExternal | VPublic | VPrivate -> ()
                    | VInternal ->
-                       raise (ExpectedOverride (name.contents, name.loc)))
+                       raise (ExpectedOverride (name.contents, name.pos)))
                 overrides
         end
 
@@ -1011,7 +1013,7 @@ let getDetails
          of relative idents  *)
     | Some declared_overrides ->
         if IdentMap.is_empty overrides then
-          raise (UnexpectedOverride (name.contents, name.loc))
+          raise (UnexpectedOverride (name.contents, name.pos))
         else
           (* Lists must be equal *)
           let overrides =
@@ -1028,7 +1030,7 @@ let getDetails
             raise
               (WrongOverride
                  (name.contents,
-                  name.loc,
+                  name.pos,
                   String.concat " & " overrides,
                   String.concat " & " declared_overrides))
   in
@@ -1105,7 +1107,7 @@ let getDetails
         | Emit _ ->
             expr_details <- {
               expr_details with
-              ed_writ_state = s.loc :: expr_details.ed_writ_state
+              ed_writ_state = s.pos :: expr_details.ed_writ_state
             };
             DoChildren
       | _ -> DoChildren
@@ -1121,14 +1123,14 @@ let getDetails
              | Some {loc_mem = None; _}
              | Some {loc_def = LDeclared; loc_mem = Some Memory} -> ()
              | Some {loc_def = LDeclared; loc_mem = Some loc} ->
-               raise (UninitializedReadLocal (loc, read, e.loc)))
+               raise (UninitializedReadLocal (loc, read, e.pos)))
           expr_det.ed_read in
       let () =
         IdentMap.iter
           (fun deep_writ _annots ->
              match IdentMap.find_opt deep_writ local_vars with
                | Some {loc_mem = Some Calldata; _} ->
-                   raise (CalldataModified (deep_writ, e.loc))
+                   raise (CalldataModified (deep_writ, e.pos))
                | _ -> ())
         expr_det.ed_deep_writ in
       let ad = removeFromAssignDetails local_vars expr_det in
@@ -1143,11 +1145,11 @@ let getDetails
            match args with
            | None -> []
            | Some l -> paramsFromExprs l in
-         let ast_annot = i.annot, i.loc in
+         let ast_annot = i.annot, i.pos in
          match i.annot with
-         | Solidity_tenv.AModifier md ->
+         | AModifier md ->
              longidentmap_add_list md.modifier_abs_name (params, Modifier ast_annot) fd_mods
-         | Solidity_tenv.AFunction fd ->
+         | AFunction fd ->
              longidentmap_add_list fd.function_abs_name (params, Constructor ast_annot) fd_mods
           | a -> failOnAnnot a
       )

@@ -1,6 +1,6 @@
 
 # name of package
-name = "ocaml-solidity-typechecker"
+name = "ocaml-solidity-checker"
 skeleton = "library"
 
 # version if different from project version

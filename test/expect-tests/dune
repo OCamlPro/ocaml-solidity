@@ -6,5 +6,5 @@
   (pps ppx_expect))
  (inline_tests
   (modes best)) ; add js for testing with nodejs
- (libraries ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-typechecker) ; add your project libraries here
+ (libraries ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker) ; add your project libraries here
  )

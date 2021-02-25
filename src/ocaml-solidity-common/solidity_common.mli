@@ -10,13 +10,13 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type loc = (int * int) * (int * int)
+type pos = (int * int) * (int * int)
 
 exception GenericError of string
-exception SyntaxError of string * loc
-exception TypecheckError of string * loc
+exception SyntaxError of string * pos
+exception TypecheckError of string * pos
 
-val dummy_loc : loc
+val dummy_pos : pos
 
 val error : ('a, Format.formatter, unit, 'b) format4 -> 'a
 
@@ -171,9 +171,9 @@ end
 
 type annot = ..
 type annot += ANone
-type 'a node = { contents : 'a; mutable annot : annot; loc : loc }
+type 'a node = { contents : 'a; mutable annot : annot; pos : pos }
 
-val annot : 'a -> annot -> loc -> 'a node
+val annot : 'a -> annot -> pos -> 'a node
 val strip : 'a node -> 'a
 val get_annot : 'a node -> annot
 val set_annot : 'a node -> annot -> unit

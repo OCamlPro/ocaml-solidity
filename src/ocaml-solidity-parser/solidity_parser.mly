@@ -14,10 +14,10 @@
   open Solidity_common
   open Solidity_ast
 
-  let to_loc loc =
+  let to_pos pos =
     let open Lexing in
     let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; _ },
-         { pos_lnum = l2; pos_bol = b2; pos_cnum = c2; _ }) = loc in
+         { pos_lnum = l2; pos_bol = b2; pos_cnum = c2; _ }) = pos in
     let c1 = c1 - b1 in
     let c2 = c2 - b2 in
     let l1 = min l1 65535 in
@@ -25,8 +25,8 @@
     let c1 = min c1 255 in
     let c2 = min c2 255 in ((l1, c1), (l2, c2))
 
-  let error loc fmt =
-    Format.kasprintf (fun s -> raise (SyntaxError (s, to_loc loc))) fmt
+  let error pos fmt =
+    Format.kasprintf (fun s -> raise (SyntaxError (s, to_pos pos))) fmt
 
   type modifier =
     | Visibility of visibility
@@ -36,7 +36,7 @@
     | Override of longident list
     | Invocation of longident * expression list option
 
-  let add_var_modifiers loc var ml =
+  let add_var_modifiers pos var ml =
     let has_vis = ref false in
     let has_mut = ref false in
     let has_over = ref false in
@@ -44,26 +44,26 @@
       match m with
         | Visibility vis ->
             if !has_vis then
-              error loc "Visibility already specified";
+              error pos "Visibility already specified";
             if is_external vis then
-              error loc "Variable visibility can't be external";
+              error pos "Variable visibility can't be external";
             has_vis := true;
             { var with var_visibility = vis }
         | VMutability mut ->
             if !has_mut then
-              error loc "Mutability already specified";
+              error pos "Mutability already specified";
             has_mut := true;
             { var with var_mutability = mut }
         | Override ol ->
             if !has_over then
-              error loc "Override already specified";
+              error pos "Override already specified";
             has_over := true;
             { var with var_override = Some ol }
         | _ ->
-            error loc "Invalid modifier for variable declaration"
+            error pos "Invalid modifier for variable declaration"
       ) var ml
 
-  let add_fun_modifiers loc fct ml =
+  let add_fun_modifiers pos fct ml =
     let has_vis = ref false in
     let has_mut = ref false in
     let has_over = ref false in
@@ -71,72 +71,72 @@
       match m with
         | Visibility vis ->
             if !has_vis then
-              error loc "Visibility already specified";
+              error pos "Visibility already specified";
             has_vis := true;
             { fct with fun_visibility = vis }
         | FMutability mut ->
             if !has_mut then
-              error loc "Mutability already specified";
+              error pos "Mutability already specified";
             has_mut := true;
             { fct with fun_mutability = mut }
         | Override ol ->
             if !has_over then
-              error loc "Override already specified";
+              error pos "Override already specified";
             has_over := true;
             { fct with fun_override = Some ol }
         | Virtual ->
             if fct.fun_virtual then
-              error loc "Virtual already specified";
+              error pos "Virtual already specified";
             { fct with fun_virtual = true }
         | Invocation (lid, exp_list_opt) ->
             { fct with fun_modifiers =
                          (lid, exp_list_opt) :: fct.fun_modifiers }
         | _ ->
-            error loc "Invalid modifier for function declaration"
+            error pos "Invalid modifier for function declaration"
       ) fct ml
     in
     { fct with fun_modifiers = List.rev fct.fun_modifiers }
 
-  let add_fun_type_modifiers loc ft ml =
+  let add_fun_type_modifiers pos ft ml =
     let has_vis = ref false in
     let has_mut = ref false in
     List.fold_left (fun ft m ->
       match m with
         | Visibility vis ->
             if !has_vis then
-              error loc "Visibility already specified";
+              error pos "Visibility already specified";
             if not (is_external vis || is_internal vis) then
-              error loc "Function type visibility must be internal or external";
+              error pos "Function type visibility must be internal or external";
             has_vis := true;
             { ft with fun_type_visibility = vis }
         | FMutability mut ->
             if !has_mut then
-              error loc "Mutability already specified";
+              error pos "Mutability already specified";
             has_mut := true;
             { ft with fun_type_mutability = mut }
         | _ ->
-            error loc "Invalid modifier for function type"
+            error pos "Invalid modifier for function type"
       ) ft ml
 
-  let add_mod_modifiers loc md ml =
+  let add_mod_modifiers pos md ml =
     List.fold_left (fun md m ->
       match m with
         | Override ol ->
             begin match md.mod_override with
               | None -> { md with mod_override = Some ol }
-              | Some _ -> error loc "Override already specified"
+              | Some _ -> error pos "Override already specified"
             end
         | Virtual ->
             begin match md.mod_virtual with
               | false -> { md with mod_virtual = true }
-              | true -> error loc "Virtual already specified"
+              | true -> error pos "Virtual already specified"
             end
         | _ ->
-            error loc "Invalid modifier for function declaration"
+            error pos "Invalid modifier for function declaration"
       ) md ml
 
-  let mk loc c =
-    { contents = c; annot = ANone; loc = to_loc loc }
+  let mk pos c =
+    { contents = c; annot = ANone; pos = to_pos pos }
 
   type raw_ambiguous_type_name_or_expression =
     | AmbiguousIdentifier of ident list
@@ -149,13 +149,13 @@
     | [] ->
         assert false
     | [x] ->
-        { contents = IdentifierExpression x; annot = ANone; loc = x.loc }
+        { contents = IdentifierExpression x; annot = ANone; pos = x.pos }
     | x :: y ->
         let e = expression_of_identifiers y in
-	let loc = match x.loc, e.loc with
+	let pos = match x.pos, e.pos with
           | ((l1, c1), _), (_, (l2, c2)) -> ((l1, c1), (l2, c2))
         in
-        { contents = FieldExpression (e, x); annot = ANone; loc }
+        { contents = FieldExpression (e, x); annot = ANone; pos }
 
   let rec expression_of_ambiguity a =
     match a.contents with
@@ -889,22 +889,14 @@ elementary_type_name:
   | BYTES                      { TypeBytes ($1) }
   | BYTE                       { TypeBytes (Some 1) }
   | BOOL                       { TypeBool }
-  | INT                        { TypeInt ($1) }
-  | UINT                       { TypeUint ($1) }
+  | INT                        { TypeInt (Option.value ~default:256 $1) }
+  | UINT                       { TypeUint (Option.value ~default:256 $1) }
   | FIXED
-      { let (sz_opt, dec) =
-          match $1 with
-          | None -> None, 18
-          | Some (sz, dec) -> Some (sz), dec
-        in
-        TypeFixed (sz_opt, dec) }
+      { let (sz, dec) = Option.value ~default:(128,18) $1 in
+        TypeFixed (sz, dec) }
   | UFIXED
-      { let (sz_opt, dec) =
-          match $1 with
-          | None -> None, 18
-          | Some (sz, dec) -> Some (sz), dec
-        in
-        TypeUfixed (sz_opt, dec) }
+      { let (sz, dec) = Option.value ~default:(128,18) $1 in
+        TypeUfixed (sz, dec) }
 ;;
 
 expression:

@@ -38,7 +38,7 @@ pack-modules = false
 [dependencies]
 ocaml-solidity-common = ""
 ocaml-solidity-parser = ""
-ocaml-solidity-typechecker = ""
+ocaml-solidity-checker = ""
 
 # package tools dependencies
 [tools]

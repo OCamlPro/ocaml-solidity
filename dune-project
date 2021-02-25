@@ -10,7 +10,7 @@
 (package
  (name ocaml-solidity)
  (synopsis "The ocaml-solidity project")
- (description "Ocaml-solidity provides a Solidity parser and typechecker\n")
+ (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
    ppx_inline_test
@@ -22,7 +22,7 @@
 (package
  (name ez-hash)
  (synopsis "Hash functions: sha3, sha256, blake2b")
- (description "Hash functions: sha3, sha256, blake2b\n")
+ (description "\nHash functions: sha3, sha256, blake2b\n")
  (depends
    (ocaml (>= 4.08.0))
    blake2
@@ -35,10 +35,11 @@
 (package
  (name ocaml-solidity-common)
  (synopsis "The ocaml-solidity project")
- (description "Ocaml-solidity provides a Solidity parser and typechecker\n")
+ (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
    zarith
+   hex
    ppx_inline_test
    ppx_expect
    odoc
@@ -48,7 +49,7 @@
 (package
  (name ocaml-solidity-parser)
  (synopsis "The ocaml-solidity project")
- (description "Ocaml-solidity provides a Solidity parser and typechecker\n")
+ (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
    ocaml-solidity-common
@@ -60,9 +61,9 @@
  ))
 
 (package
- (name ocaml-solidity-typechecker)
+ (name ocaml-solidity-checker)
  (synopsis "The ocaml-solidity project")
- (description "Ocaml-solidity provides a Solidity parser and typechecker\n")
+ (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
    ocaml-solidity-parser
@@ -77,12 +78,12 @@
 (package
  (name ocaml-solidity-test)
  (synopsis "The ocaml-solidity project")
- (description "Ocaml-solidity provides a Solidity parser and typechecker\n")
+ (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
-   ocaml-solidity-typechecker
    ocaml-solidity-parser
    ocaml-solidity-common
+   ocaml-solidity-checker
    ppx_inline_test
    ppx_expect
    odoc

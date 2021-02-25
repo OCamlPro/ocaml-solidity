@@ -105,21 +105,13 @@ let string_of_cmpop = function
 let string_of_elementary_type = function
   | TypeBool ->
       "bool"
-  | TypeInt (None) ->
-      "int"
-  | TypeInt (Some size)->
+  | TypeInt (size)->
       Format.sprintf "int%d" size
-  | TypeUint (None) ->
-      "uint"
-  | TypeUint (Some size)->
+  | TypeUint (size)->
       Format.sprintf "uint%d" size
-  | TypeFixed (None, dec) ->
-      Format.sprintf "fixed%d" dec
-  | TypeFixed (Some size, dec) ->
+  | TypeFixed (size, dec) ->
       Format.sprintf "fixed%dx%d" size dec
-  | TypeUfixed (None, dec) ->
-      Format.sprintf "ufixed%d" dec
-  | TypeUfixed (Some size, dec) ->
+  | TypeUfixed (size, dec) ->
       Format.sprintf "ufixed%dx%d" size dec
   | TypeAddress (false) ->
       "address"
@@ -496,7 +488,7 @@ and string_of_expression e =
   | StringLiteral s ->
       Format.sprintf "%S" s
   | AddressLiteral s ->
-      Format.sprintf "%S" s
+      Format.sprintf "0x%s" (Hex.show (Hex.of_string s))
   | IdentifierExpression id ->
       string_of_ident id
   | ImmediateArray el ->

@@ -153,7 +153,7 @@ rule token = parse
   | ("hex" as h)? '"' (([^ '"' '\r' '\n' '\\'] | "\\" _)* as s) '"'
       { match h with
         | None ->
-            STRINGLITERAL (s)
+            STRINGLITERAL (Scanf.unescaped s)
         | Some _ ->
             let s =
               try Hex.to_string (`Hex s)

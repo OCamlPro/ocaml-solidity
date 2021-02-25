@@ -108,10 +108,10 @@ and type_ =
 
 and elementary_type =
   | TypeBool
-  | TypeInt of int option (* None = int, Some (N) = intN *)
-  | TypeUint of int option (* None = uint, Some (N) = uintN *)
-  | TypeFixed of int option * int (* None = fixedN, Some (M,N) = fixedMxN *)
-  | TypeUfixed of int option * int (* None = ufixedN, Some (M,N) = ufixedMxN *)
+  | TypeInt of int
+  | TypeUint of int
+  | TypeFixed of int * int
+  | TypeUfixed of int * int
   | TypeAddress of bool (* false = address, true = address payable *)
   | TypeBytes of int option (* None = bytes, Some (N) = bytesN *)
   | TypeString

@@ -55,7 +55,7 @@ jobs:
 
       - run: opam pin add . -y --no-action
 
-      - run: opam depext -y ocaml-solidity ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-typechecker ocaml-solidity-test
+      - run: opam depext -y ocaml-solidity ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker ocaml-solidity-test
         if: steps.cache-opam.outputs.cache-hit != 'true'
 
       - run: opam install -y ./*.opam --deps-only --with-test
