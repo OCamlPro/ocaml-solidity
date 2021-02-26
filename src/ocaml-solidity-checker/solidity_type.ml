@@ -80,6 +80,8 @@ let rec same_type ?(ignore_loc=false) t1 t2 =
       same_options fo1 fo2
   | TModifier (md1), TModifier (md2) ->
       same_type_pl ~ignore_loc md1.modifier_params md2.modifier_params
+  | TEvent (ed1), TEvent (ed2) ->
+      same_type_pl ~ignore_loc ed1.event_params ed2.event_params
   | TArraySlice (t1, loc1), TArraySlice (t2, loc2) ->
       same_type ~ignore_loc t1 t2 &&
       (ignore_loc || same_location loc1 loc2)
@@ -147,12 +149,9 @@ and same_magic_type ?(ignore_loc=false) t1 t2 =
 
 (* ---------- Equality between signatures (internal use) ---------- *)
 
-let same_signature fd1 fd2 =
-  if not (ExtList.same_lengths fd1.function_params fd2.function_params) then
-    false
-  else
-    List.for_all2 (fun (t1, _) (t2, _) -> same_type t1 t2)
-      fd1.function_params fd2.function_params
+let same_signature fp1 fp2 =
+  ExtList.same_lengths fp1 fp2 &&
+    List.for_all2 (fun (t1, _) (t2, _) -> same_type t1 t2) fp1 fp2
 
 
 
@@ -161,8 +160,8 @@ let same_signature fd1 fd2 =
 let rec has_mapping = function
   | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
   | TAddress _ | TFixBytes _ | TBytes _ | TString _ | TEnum _
-  | TContract _ | TFunction _ | TModifier _ | TMagic _ | TType _
-  | TRationalConst _ | TLiteralString _ ->
+  | TContract _ | TFunction _ | TModifier _ | TEvent _
+  | TMagic _ | TType _ | TRationalConst _ | TLiteralString _ ->
       false
   | TMapping _ ->
       true
@@ -205,7 +204,7 @@ let is_comparable op t =
   | TTuple _ (* may become comparable in the future *)
   | TBytes _ | TString _ | TLiteralString _
   | TArray _ | TArraySlice _ | TMapping _ | TStruct _
-  | TType _ | TMagic _ | TModifier _  ->
+  | TType _ | TMagic _ | TModifier _ | TEvent _ ->
       false
   (* TON-specific *)
   | TTvmCell | TTvmSlice | TTvmBuilder | TExtraCurrencyCollection ->
@@ -215,13 +214,40 @@ let is_comparable op t =
 
 
 
+(* ---------- Check if type is a reference type (external) ---------- *)
+let rec is_reference_type = function
+  (* Reference types *)
+  | TBytes _ | TString _ | TStruct _
+  | TArray _ | TArraySlice _ | TMapping _ ->
+      true
+
+  (* Value types and literals *)
+  | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
+  | TAddress _ | TFixBytes _ | TEnum _ | TContract _
+  | TFunction _ | TModifier _ | TEvent _ | TMagic _ | TType _
+  | TRationalConst _ | TLiteralString _ ->
+      false
+
+  (* Tuple: is a reference type if at least one member is *)
+  | TTuple (tl) ->
+      List.exists (function
+          | None -> false
+          | Some (t) -> is_reference_type t
+        ) tl
+
+  (* TON-specific *)
+  | TTvmCell | TTvmSlice | TTvmBuilder
+  | TExtraCurrencyCollection | TOptional (_) ->
+      false
+
+
 (* ---------- Check if type has storage location (external) ---------- *)
 
 let rec is_storage_type = function
   (* Value types and literals are never in storage *)
   | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
   | TAddress _ | TFixBytes _ | TEnum _ | TContract _
-  | TFunction _ | TModifier _ | TMagic _ | TType _
+  | TFunction _ | TModifier _ | TEvent _ | TMagic _ | TType _
   | TRationalConst _ | TLiteralString _ ->
       false
 

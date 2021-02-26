@@ -86,6 +86,9 @@ and string_of_type = function
   | TModifier (md) ->
       Format.sprintf "modifier(%s)"
         (string_of_param_list md.modifier_params)
+  | TEvent (ed) ->
+      Format.sprintf "event(%s)"
+        (string_of_param_list ed.event_params)
   | TArraySlice (t, loc) ->
       Format.sprintf "%s[] %s" (string_of_type t) (string_of_location loc)
   | TType (t) ->
@@ -195,6 +198,7 @@ let rec string_of_type_canonical pos ~library = function
 
   | TContract (_, _, true)
   | TModifier (_)
+  | TEvent (_)
   | TTuple (_)
   | TArraySlice (_)
   | TType (_)

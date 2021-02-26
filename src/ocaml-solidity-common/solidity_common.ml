@@ -78,6 +78,8 @@ module StringMap = ExtMap.Make (struct
     let to_string s = s
   end)
 
+module StringSet = Set.Make (String)
+
 module Ident = struct
   type t = string
   let compare = String.compare

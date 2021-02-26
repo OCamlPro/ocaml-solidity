@@ -12,4 +12,4 @@
 
 val reset : unit -> unit
 
-val token : Lexing.lexbuf -> Solidity_parser.token
+val token : Lexing.lexbuf -> Solidity_raw_parser.token

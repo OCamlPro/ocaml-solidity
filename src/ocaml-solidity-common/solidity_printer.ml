@@ -606,8 +606,17 @@ and string_of_function_call_arguments = function
                   (string_of_ident id) (string_of_expression e)
               ) id_exp_list))
 
-let string_of_module module_ =
+let string_of_module_units module_units =
   let b = Buffer.create 1000 in
   let indent = 0 in
-  bprint_contract b indent module_;
+  bprint_contract b indent module_units;
+  Buffer.contents b
+
+let string_of_program p =
+  let b = Buffer.create 1000 in
+  List.iter (fun m ->
+      bprint b 0 (Format.sprintf "%s: %s" (
+                      Ident.to_string m.module_id) m.module_file);
+      bprint b 0 (string_of_module_units m.module_units)
+    ) p.program_modules;
   Buffer.contents b

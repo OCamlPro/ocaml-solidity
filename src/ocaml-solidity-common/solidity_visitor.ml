@@ -545,5 +545,5 @@ module Ast = struct
     handleAction v#visitImportSymbols continueVisit is
 
   and visitModule (v : ast_visitor) (m : module_) : unit =
-    visitList (visitNode visitSourceUnit) v m
+    visitList (visitNode visitSourceUnit) v m.module_units
 end

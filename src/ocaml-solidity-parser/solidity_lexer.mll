@@ -12,7 +12,7 @@
 
 {
   open Solidity_common
-  open Solidity_parser
+  open Solidity_raw_parser
 
   let to_loc loc =
     let open Lexing in

@@ -40,13 +40,18 @@ let main () =
       Arg.usage arg_list arg_usage;
       exit 1
   | Some file ->
-      let c = open_in file in
-      let lb = Lexing.from_channel c in
-      let module_ = Solidity_parser.top_module Solidity_lexer.token lb in
+      let program = Solidity_parser.parse file in
+
       Format.printf "Parsed code:\n%s@."
-        (Solidity_printer.string_of_module module_);
-      let () = Solidity_typechecker.type_module module_ in
-      let _ = Solidity_postprocess.checkModule module_ in
+        (Solidity_printer.string_of_program program);
+
+      let () = Solidity_typechecker.type_program program in
+
+      List.iter (fun m ->
+          let _ = Solidity_postprocess.checkModule m in
+          ()
+        ) program.program_modules;
+
       ()
 
 

@@ -74,16 +74,22 @@ let filter_by_visibility lookup idl =
           true
       | (Contract _, _), (LExternal | LStatic (_) | LSuper) ->
           false
+      | (Modifier _, _), LInternal -> (* Maybe allow Lib.Mod ? *)
+          true                        (* and Cnt.Mod when Cnt is parent ? *)
+      | (Modifier _, _), (LExternal | LStatic (_) | LSuper) ->
+          false
       | (Type _, _), (LInternal | LStatic ((Library | Interface), _)) ->
           true
       | (Type _, _), (LExternal | LSuper) ->
           false
       | (Type _, inherited), LStatic (Contract, _) ->
           not inherited
-      | (Modifier _, _), LInternal ->
+      | (Event _, _), (LInternal | LStatic (Library, _)) ->
           true
-      | (Modifier _, _), (LExternal | LStatic (_) | LSuper) ->
+      | (Event _, _), (LExternal | LSuper) ->
           false
+      | (Event _, inherited), LStatic ((Contract | Interface), is_parent) ->
+          is_parent && not inherited
       | (Variable { variable_visibility; _ }, inherited), _ ->
           (* TODO: return as function when external ? *)
           is_visible lookup variable_visibility ~inherited ~variable:true
@@ -180,39 +186,44 @@ let find_constructor pos { contract_abs_name; contract_env; _ } =
 
 (* ---------- Environment construction (internal/external) ---------- *)
 
+let error_already_declared pos ident =
+  error pos "Identifier %s already declared" (Ident.to_string ident)
+
+let error_defined_twice pos kind =
+  error pos "%s with same name and arguments defined twice" kind
+
+let error_inherited_over_non_inherited pos =
+  error pos "Can not add an inherited variable over a non-inherited symbol !"
+
 let ensure_undefined pos env ident =
   if IdentMap.mem ident env.ident_map then
-    error pos "Identifier %s already declared" (Ident.to_string ident);
-  if String.equal (Ident.to_string ident) "default" then
-    error pos "Identifier \"default\" is reserved"
-
-let replace_idents pos env ident descl =
-  if String.equal (Ident.to_string ident) "default" then
-    error pos "Identifier \"default\" is reserved";
-  env.ident_map <- IdentMap.add ident descl env.ident_map
+    error_already_declared pos ident
 
 let add_unique_ident pos env ident desc =
   ensure_undefined pos env ident;
   env.ident_map <- IdentMap.add ident [desc] env.ident_map
 
-
-
-let add_type pos env ~inherited type_name type_desc =
-  add_unique_ident pos env type_name (Type (type_desc), inherited)
+let replace_idents _pos env ident descl =
+  env.ident_map <- IdentMap.add ident descl env.ident_map
 
 let add_contract pos env contract_name contract_desc =
   add_unique_ident pos env contract_name (Contract (contract_desc), false)
 
-let add_enum pos env ~inherited enum_abs_name enum_name values =
-  let values, _ =
+let add_type pos env ~inherited type_name type_desc =
+  add_unique_ident pos env type_name (Type (type_desc), inherited)
+
+(* Enums are inheritable, but not overloadable nor overridable *)
+let add_enum pos env ~inherited enum_name enum_abs_name values =
+  let values_rev, _ =
     List.fold_left (fun (enum_values, i) enum_value ->
         IdentAList.add_uniq enum_value i enum_values, (i+1)
       ) ([], 0) values
   in
-  let enum_desc = { enum_abs_name; enum_values = List.rev values } in
+  let enum_desc = { enum_abs_name; enum_values = List.rev values_rev } in
   add_type pos env ~inherited enum_name (TDEnum enum_desc)
 
-let add_struct pos env ~inherited struct_abs_name struct_name struct_def =
+(* Structs are inheritable, but not overloadable nor overridable *)
+let add_struct pos env ~inherited struct_name struct_abs_name struct_def =
   let struct_desc = {
     struct_abs_name; struct_fields = []; has_mapping = false;
     struct_def; struct_env = env }
@@ -229,6 +240,7 @@ let add_struct_fields struct_desc fields =
   in
   struct_desc.struct_fields <- IdentAList.rev fields
 
+(* Non-public variables are inheritable, but not overloadable nor overridable *)
 let add_nonpublic_variable pos env ~inherited variable_name variable_desc =
 (*  add_unique_ident pos env variable_name (Variable (variable_desc), inherited)
 *)
@@ -237,17 +249,15 @@ let add_nonpublic_variable pos env ~inherited variable_name variable_desc =
   let iddl_rev =
     List.fold_left (fun iddl (id, inh) ->
         if inherited && not inh then
-          error pos "Can not add an inherited variable \
-                     over a non-inherited symbol !";
+          error_inherited_over_non_inherited pos;
         match id with
-        | Modifier _ | Variable _ | Type _ | Contract _ ->
-            error pos "Identifier %s already declared"
-              (Ident.to_string variable_name)
+        | Modifier _ | Variable _ | Type _ | Event _ | Contract _ ->
+            error_already_declared pos variable_name
         | Function (fd)
+(* TODO: What if public, since it also has external ? *)
           when not inh || not (is_external fd.function_visibility) ->
             (* Note: multiple definition in the same contract *)
-            error pos "Identifier %s already declared"
-              (Ident.to_string variable_name)
+            error_already_declared pos variable_name
         | Function (fd) ->
             (Function (fd), inh) :: iddl
       ) [] iddl
@@ -255,6 +265,7 @@ let add_nonpublic_variable pos env ~inherited variable_name variable_desc =
   replace_idents pos env variable_name
     (List.rev ((Variable (variable_desc), inherited) :: iddl_rev))
 
+(* Public variables are inheritable, overloadable and overridable *)
 let add_public_variable pos env ~inherited variable_name variable_desc =
   let function_desc =
     match variable_desc.variable_getter with
@@ -266,18 +277,16 @@ let add_public_variable pos env ~inherited variable_name variable_desc =
   let iddl_rev =
     List.fold_left (fun iddl (id, inh) ->
         if inherited && not inh then
-          error pos "Can not add an inherited variable \
-                     over a non-inherited symbol !";
+          error_inherited_over_non_inherited pos;
         match id with
-        | Modifier _ | Variable _ | Type _ | Contract _ ->
-            error pos "Identifier %s already declared"
-              (Ident.to_string variable_name)
+        | Modifier _ | Variable _ | Type _ | Event _ | Contract _ ->
+            error_already_declared pos variable_name
         | Function (_fd) when not inh ->
             (* Note: multiple definition in the same contract *)
-            error pos "Identifier %s already declared"
-              (Ident.to_string variable_name)
+            error_already_declared pos variable_name
         | Function (fd)
-          when not (Solidity_type.same_signature fd function_desc) ->
+          when not (Solidity_type.same_signature
+                      fd.function_params function_desc.function_params) ->
             (* Note: overload (hierachy-wise), because signature is different *)
             (Function (fd), inh) :: iddl
         | Function (fd) (* when inh *) ->
@@ -317,25 +326,25 @@ let add_variable pos env ~inherited variable_name variable_desc =
   | _ ->
       add_nonpublic_variable pos env ~inherited variable_name variable_desc
 
+(* Functions are inheritable, overloadable and overridable *)
 let add_function pos env ~inherited function_name function_desc =
   let iddl =
     Option.value ~default:[] (IdentMap.find_opt function_name env.ident_map) in
   let iddl_rev =
     List.fold_left (fun iddl (id, inh) ->
         if inherited && not inh then
-          error pos "Can not add an inherited function \
-                     over a non-inherited symbol !";
+          error_inherited_over_non_inherited pos;
         match id with
-        | Modifier _ | Variable _ | Type _ | Contract _ ->
-            error pos "Identifier %s already declared"
-              (Ident.to_string function_name)
+        | Modifier _ | Variable _ | Type _ | Event _ | Contract _ ->
+            error_already_declared pos function_name
         | Function (fd)
-          when not (Solidity_type.same_signature fd function_desc) ->
+          when not (Solidity_type.same_signature
+                      fd.function_params function_desc.function_params) ->
             (* Note: overload (hierachy-wise), because signature is different *)
             (Function (fd), inh) :: iddl
         | Function (_fd) when not inh ->
             (* Note: multiple definition in the same contract *)
-            error pos "Function with same name and arguments defined twice"
+            error_defined_twice pos "Function"
         | Function (fd) (* when inh *) ->
             (* Note: override because previous function is inherited *)
             begin
@@ -372,6 +381,7 @@ let add_function pos env ~inherited function_name function_desc =
   replace_idents pos env function_name
     (List.rev ((Function (function_desc), inherited) :: iddl_rev))
 
+(* Modifiers are inheritable and overridable, but not overloadable *)
 let add_modifier pos env ~inherited modifier_name modifier_desc =
   begin
     match IdentMap.find_opt modifier_name env.ident_map with
@@ -381,16 +391,48 @@ let add_modifier pos env ~inherited modifier_name modifier_desc =
         if List.exists (fun (id, inh) ->
             match id with
             | Modifier (_md) -> not inh
-            | Function _ | Variable _ | Type _ | Contract _ -> true) idl
+(* TODO: if trying to change signature, error:
+   Override changes modifier signature *)
+(*
+when adding inherited over inherited, keep both ?
+and replace by a single one when non-inherited
+this allows to give more expressive message when overriding with non-inherited
+*)
+            | Function _ | Variable _ | Type _
+            | Event _ | Contract _ -> true) idl
         then
-          error pos "Identifier %s already declared"
-            (Ident.to_string modifier_name)
+          error_already_declared pos modifier_name
   end;
-  (* add_unique_ident pos env modifier_name
-   *   (Modifier (modifier_desc), inherited) *)
   replace_idents pos env modifier_name
     [(Modifier (modifier_desc), inherited)]
 
+(* Events are inheritable and overloadable, but not overridable *)
+let add_event pos env ~inherited event_name event_desc =
+  let iddl =
+    Option.value ~default:[] (IdentMap.find_opt event_name env.ident_map) in
+  let iddl_rev =
+    List.fold_left (fun iddl (id, inh) ->
+        if inherited && not inh then
+          error_inherited_over_non_inherited pos;
+        match id with
+        | Modifier _ | Variable _ | Function _ | Type _ | Contract _ ->
+            error_already_declared pos event_name
+        | Event (ed)
+          when not (Solidity_type.same_signature
+                      ed.event_params event_desc.event_params) ->
+            (* Note: overload (hierachy-wise), because signature is different *)
+            (Event (ed), inh) :: iddl
+        | Event (_ed) ->
+            (* Note: multiple definition in the same contract *)
+            error_defined_twice pos "Event"
+      ) [] iddl
+  in
+  replace_idents pos env event_name
+    (List.rev ((Event (event_desc), inherited) :: iddl_rev))
+
+
+
+(* Add everything from the contract's hierarchy in the contract's environment *)
 let add_parent_definitions pos ~preprocess c =
   List.iter (fun (_lid, cd) ->
       IdentMap.iter (fun id idl ->
@@ -399,6 +441,8 @@ let add_parent_definitions pos ~preprocess c =
                 match id_desc, preprocess with
                 | Type (td), true ->
                     add_type pos c.contract_env ~inherited:true id td
+                | Event (ed), false ->
+                    add_event pos c.contract_env ~inherited:true id ed
                 | Variable (vd), false ->
                     if is_inheritable vd.variable_visibility then
                       add_variable pos c.contract_env ~inherited:true id vd
@@ -407,7 +451,7 @@ let add_parent_definitions pos ~preprocess c =
                 | Modifier (md), false ->
                     add_modifier pos c.contract_env ~inherited:true id md
                 | Function (_fd), false when Ident.equal id Ident.constructor ->
-                    ()
+                    () (* are fallback/receive inherited ? *)
                 | Function (fd), false ->
                     (* TODO: overriding function should have same visibility *)
                     if is_inheritable fd.function_visibility then
@@ -423,12 +467,10 @@ let add_parent_definitions pos ~preprocess c =
 
 
 
-
-
-
-
 let new_env ?upper_env () =
   { ident_map = IdentMap.empty; upper_env }
+
+
 
 let new_fun_options = {
   kind = KOther;

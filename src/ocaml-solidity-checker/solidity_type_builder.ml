@@ -173,9 +173,8 @@ and var_type_to_type pos env ~arg ~ext loc_opt t =
     storage_location_to_location (Option.value ~default:Memory loc_opt) in
   let t = ast_type_to_type pos ~loc env t in
   begin
-    match t with
-    (* Reference type -> is_reference_type ? *)
-    | TBytes _ | TString _ | TStruct _ | TArray _ | TMapping _ ->
+    if Solidity_type.is_reference_type t then
+      begin
         let valid =
           match loc_opt with
           | None -> false
@@ -197,22 +196,23 @@ and var_type_to_type pos env ~arg ~ext loc_opt t =
             | Some loc -> Solidity_printer.string_of_storage_location loc
           in
           error pos "Data location must be %s for %s, \
-                        but %s was given" expected context given
+                     but %s was given" expected context given
         else if Solidity_type.has_mapping t &&
-           not (Solidity_type.is_storage_type t) then
+                  not (Solidity_type.is_storage_type t) then
           error pos "Type %s is only valid in storage because \
                      it contains a (nested) mapping"
-            (Solidity_type_printer.string_of_type t);
-    | _ ->
-        begin
-          match loc_opt with
-          | Some (loc) ->
-              error pos "Data location can only be specified for array, \
-                            struct or mapping types, but \"%s\" was given"
-                (Solidity_printer.string_of_storage_location loc)
-          | None ->
-              ()
-        end
+            (Solidity_type_printer.string_of_type t)
+      end
+    else
+      begin
+        match loc_opt with
+        | Some (loc) ->
+            error pos "Data location can only be specified for array, \
+                       struct or mapping types, but \"%s\" was given"
+              (Solidity_printer.string_of_storage_location loc)
+        | None ->
+            ()
+      end
   end;
   t
 
@@ -326,17 +326,18 @@ let variable_desc_to_function_desc pos vid variable_abs_name vt :
     Some (compute_selector pos ~library:false vid function_params) in
   { function_abs_name = variable_abs_name;
     function_params; function_returns;
-    function_visibility = VExternal; function_mutability = MView;
+    function_visibility = VExternal;
+    function_mutability = MView;
     function_returns_lvalue = false;
-    function_def = None; function_override = None;
+    function_def = None;
+    function_override = None;
     function_selector; }
 
 let state_variable_def_to_desc pos (c : contract_desc) vd : variable_desc =
   let vid = strip (vd.var_name) in
   let variable_abs_name = LongIdent.append c.contract_abs_name vid in
   let variable_type =
-    ast_type_to_type pos ~loc:(LStorage (false))
-      c.contract_env vd.var_type in
+    ast_type_to_type pos ~loc:(LStorage (false)) c.contract_env vd.var_type in
   let variable_getter =
     match vd.var_visibility with
     | VPublic ->
@@ -373,3 +374,25 @@ let local_variable_desc variable_type : variable_desc =
     variable_init = None;
     variable_override = None;
     variable_getter = None; }
+
+let event_def_to_desc pos (c : contract_desc) event_def : event_desc =
+  let eid = strip (event_def.event_name) in
+  let event_abs_name = LongIdent.append c.contract_abs_name eid in
+  let event_params =
+    List.map (fun (t, _indexed, name_opt) ->
+        ast_type_to_type pos ~loc:LMemory c.contract_env t,
+        Option.map strip name_opt
+      ) event_def.event_params
+  in
+  { event_abs_name; event_params; event_def }
+
+let event_desc_to_function_desc (ed : event_desc) : function_desc =
+  { function_abs_name = ed.event_abs_name;
+    function_params = ed.event_params;
+    function_returns = [];
+    function_visibility = VInternal;
+    function_mutability = MNonPayable;
+    function_returns_lvalue = false;
+    function_def = None;
+    function_override = None;
+    function_selector = None; }

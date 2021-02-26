@@ -22,12 +22,12 @@ let error pos fmt =
 
 let is_storage = function
   | LMemory -> false
-  | LStorage _b -> true
+  | LStorage (_b) -> true
   | LCalldata -> false
 
 let is_storage_ptr = function
   | LMemory -> false
-  | LStorage b -> b
+  | LStorage (b) -> b
   | LCalldata -> false
 
 (* TODO: improve rules according to solc (Types.cpp:1600) *)
@@ -166,19 +166,19 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
   let if_true cond = if cond then Some to_ else None in
 
   match from, to_ with
-  | (TInt isz | TUint isz), TFixBytes bsz ->
+  | (TInt (isz) | TUint (isz)), TFixBytes (bsz) ->
       if_true (bsz = (isz/8))
 
-  | TAddress _, TFixBytes bsz ->
+  | TAddress _, TFixBytes (bsz) ->
       if_true (bsz = 20 || bsz = 21)
 
-  | TFixBytes bsz, TAddress _ ->
+  | TFixBytes (bsz), TAddress (_) ->
       if (bsz = 20 || bsz = 21) then
         Some (TAddress (true))
       else
         None
 
-  | TAddress _, TContract _ -> Some (to_)
+  | TAddress (_), TContract (_) -> Some (to_)
   | TContract (_, cd, _), TAddress (payable) ->
       if not payable then Some (to_)
       else begin
@@ -202,11 +202,11 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
   | (TInt _ | TUint _), TAddress (false) ->
       Some (TAddress (true))
 
-  | TRationalConst (q, _), TAddress _ ->
+  | TRationalConst (q, _), TAddress (_) ->
       if ExtQ.is_int q then Some (TAddress true)
       else None
 
-  | TRationalConst (q, sz_opt), TFixBytes bsz ->
+  | TRationalConst (q, sz_opt), TFixBytes (bsz) ->
       if_true (
         ExtQ.is_int q &&
         not (ExtQ.is_neg q) &&
@@ -218,11 +218,11 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
     (TInt _ | TUint _ | TContract _ | TEnum _) ->
       if_true (ExtQ.is_int q)
 
-  | TLiteralString s, TString (LMemory | LStorage (false)) ->
+  | TLiteralString (s), TString (LMemory | LStorage (false)) ->
       if_true (valid_string s)
 
-  | TLiteralString s, TFixBytes sz ->
-      if_true ((String.length s <= sz))
+  | TLiteralString (s), TFixBytes (bsz) ->
+      if_true ((String.length s <= bsz))
 
   | (TString (loc1) | TBytes (loc1)),
     (TString (loc2) | TBytes (loc2)) ->
@@ -243,7 +243,7 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
 
     end
 
-  | TTuple tl1, TTuple tl2 -> begin
+  | TTuple (tl1), TTuple (tl2) -> begin
       match explicitly_convertible_ol ~from:tl1 ~to_:tl2 with
       | None -> None
       | Some (l) -> Some (TTuple l)
@@ -318,13 +318,13 @@ let rec mobile_type pos t =
           error pos "Invalid rational number";
         if ExtQ.is_neg q then TFixed (sz, nb_dec)
         else TUfixed (sz, nb_dec)
-  | TLiteralString _s ->
+  | TLiteralString (_s) ->
       (* Note: even if not a valid string *)
       TString LMemory
   | TArraySlice (bt, LCalldata) ->
       (* Array slices of dynamic calldata arrays are of type array *)
       TArray (bt, None, LCalldata)
-  | TTuple tl ->
+  | TTuple (tl) ->
       TTuple (List.map (function
           | Some t -> Some (mobile_type pos t)
           | None -> None) tl)

@@ -54,7 +54,7 @@ let immediate_array_element_type pos tl : type_ =
         | TRationalConst _ | TLiteralString _ ->
             error pos "immediate_array_element_type: invariant broken"
         | (TTuple _ | TArraySlice _ | TFunction _ |
-           TModifier _ | TType _ | TMagic _) as t ->
+           TModifier _ | TEvent _ | TType _ | TMagic _) as t ->
             error pos "Type %s is only valid in storage"
               (Solidity_type_printer.string_of_type t)
         | t ->
@@ -266,6 +266,9 @@ let type_ident opt base_t_opt env lookup id_node
   | [Modifier (md)] ->
       set_annot id_node (AModifier md);
       TModifier (md), false
+  | [Event (ed)] ->
+      set_annot id_node (AEvent ed);
+      TEvent (ed), false
   | [Variable (vd)] when external_lookup ->
       if vd.variable_local then
         error id_node.pos "External lookup returning a local variable !";
@@ -290,36 +293,46 @@ let type_ident opt base_t_opt env lookup id_node
         | Some (args) ->
             let iddl =
               List.fold_left (fun iddl idd ->
-                  match idd with
-                  | Function (fd) ->
+                  let fd_opt =
+                    match idd with
+                    | Function (fd) ->
+                        Some (fd, idd)
+                    | Variable (vd) when external_lookup ->
+                        if vd.variable_local then
+                          error id_node.pos
+                            "External lookup returning a local variable !";
+                        begin
+                          match vd.variable_getter with
+                          | Some (fd) ->
+                              Some (fd, idd)
+                          | None ->
+                              error id_node.pos "Variable is missing a getter !"
+                        end
+                    | Event (ed) ->
+                        Some (
+                          Solidity_type_builder.event_desc_to_function_desc ed,
+                          idd)
+                    | _ ->
+                        None
+                  in
+                  match fd_opt with
+                  | Some (fd, idd) ->
                       if compatible_function_type fd args then
                         idd :: iddl
                       else
                         iddl
-                  | Variable (vd) when external_lookup ->
-                      if vd.variable_local then
-                        error id_node.pos
-                          "External lookup returning a local variable !";
-                      let fd =
-                        match vd.variable_getter with
-                        | Some (fd) -> fd
-                        | None ->
-                            error id_node.pos "Variable is missing a getter !"
-                      in
-                      if compatible_function_type fd args then
-                        Function (fd) :: iddl
-                      else
-                        iddl
-                  | _ ->
+                  | None ->
                       iddl
                 ) [] iddl
             in
             begin
-       (* TODO: annot should tell whether to make the fct internal/external *)
               match iddl with
               | [Function (fd)] ->
                   set_annot id_node (AFunction fd);
                   TFunction (fd, fun_opt lookup fd), false
+              | [Event (ed)] ->
+                  set_annot id_node (AEvent ed);
+                  TEvent (ed), false
               | [] ->
                   err_nomatch ()
               | _ ->
@@ -442,7 +455,7 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
         | TFixBytes (sz) ->
             ignore (expect_array_index_type opt env (Some (Z.of_int sz)) e2);
             TFixBytes (1), false
-         (* TODO: "Single bytes in fixed bytes arrays cannot be modified"*)
+   (* TODO: "Single bytes in fixed bytes arrays cannot be modified"*)
         | TBytes (_loc) ->
             ignore (expect_array_index_type opt env None e2);
             TFixBytes (1), true
@@ -694,6 +707,12 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
                       fd.function_returns_lvalue
             end
 
+        (* Event invocation *)
+        | TEvent (ed), args ->
+            check_function_application pos "function call"
+              ed.event_params args;
+            TTuple [], false
+
         (* Struct constructor *)
         | TType (TStruct (_lid, sd, _loc) as t), args ->
             let t = Solidity_type.change_type_location LMemory t in
@@ -887,6 +906,7 @@ let rec type_statement opt env s =
       type_statement { opt with in_loop = true } env s2;
 
   | TryStatement (e, _returns, body, catch_clauses) ->
+(* TODO: more checks ? *)
       ignore (type_expression opt env e);
       List.iter (type_statement opt env) body;
       List.iter (fun (_id_opt, _params, body) ->
@@ -998,18 +1018,15 @@ let rec type_statement opt env s =
 
   | Emit (e, args) ->
       let args = type_function_args opt env args in
-      let _t = type_expression { opt with call_args = Some (args) } env e in
-      assert false
-(* TODO: emit events *)
-(*
+      let t = type_expression { opt with call_args = Some (args) } env e in
       begin
         match t with
-        | TEvent _ ->
-            check_function_application pos "event" fd.function_params args;
+        | TEvent (ed) ->
+            check_function_application pos "function call" ed.event_params args
         | _ ->
-            assert false
+            error pos "Expression has to be an event invocation"
       end
-*)
+
 
 
 
@@ -1144,6 +1161,7 @@ TODO: check not both defined
             | Modifier (_) ->
                 () (* Note: no body *)
             | Type (_)
+            | Event (_)
             | Contract (_) ->
                 ()
         ) iddl
@@ -1324,8 +1342,11 @@ let type_contract_definitions pos c =
             ~inherited:false modifier_name md;
           set_annot part_node (AModifier md)
 
-      | EventDefinition (_event_def) ->
-          failwith "Events are not supported yet"
+      | EventDefinition (event_def) ->
+          let ed = Solidity_type_builder.event_def_to_desc pos c event_def in
+          Solidity_tenv.add_event pos c.contract_env
+            ~inherited:false (strip event_def.event_name) ed;
+          set_annot part_node (AEvent ed)
 
       | UsingForDeclaration (_) ->
           failwith "Using for is not supported yet"
@@ -1417,16 +1438,16 @@ let c3_linearization pos ~module_env:_
 
 
 let preprocess_type_definition pos env
-    (path_prefix : absolute LongIdent.t) type_def _parents =
+    (mlid : absolute LongIdent.t) type_def _parents =
   match type_def with
   | StructDefinition (name, fields) ->
-      let struct_abs_name = LongIdent.append path_prefix (strip name) in
-      Solidity_tenv.add_struct pos env ~inherited:false struct_abs_name
-        (strip name) (strip name, fields)
+      let struct_abs_name = LongIdent.append mlid (strip name) in
+      Solidity_tenv.add_struct pos env ~inherited:false (strip name)
+        struct_abs_name (strip name, fields)
   | EnumDefinition (name, values) ->
-      let enum_abs_name = LongIdent.append path_prefix (strip name) in
-      Solidity_tenv.add_enum pos env ~inherited:false enum_abs_name
-        (strip name) (List.map strip values)
+      let enum_abs_name = LongIdent.append mlid (strip name) in
+      Solidity_tenv.add_enum pos env ~inherited:false (strip name)
+        enum_abs_name (List.map strip values)
 
 
 let preprocess_contract_definition
@@ -1519,6 +1540,7 @@ let rec update_struct_fields ~env =
           | Contract (c) ->
               update_struct_fields ~env:c.contract_env
           | Type (TDStruct (s)) ->
+(* TODO: this probably fails when inner struct is not yet available... *)
               let fields =
                 List.map (fun (t, id_node) ->
                     strip id_node,
@@ -1528,6 +1550,7 @@ let rec update_struct_fields ~env =
               in
               Solidity_tenv.add_struct_fields s fields
           | Type (TDEnum _)
+          | Event (_)
           | Variable (_)
           | Function (_)
           | Modifier (_) -> ()
@@ -1571,6 +1594,7 @@ let check_types_acyclicity ~env =
                 in
                 AbsLongIdentMap.add s.struct_abs_name ty_deps deps
             | Type (TDEnum (_))
+            | Event (_)
             | Variable (_)
             | Function (_)
             | Modifier (_) -> deps
@@ -1631,7 +1655,7 @@ let preprocess_module pos mlid module_ =
 (* TODO: this could be done when adding things in env *)
   contents, module_env
 
-let type_module pos mlid module_ =
+let type_module_units pos mlid module_ =
   (* Types and contract linearization *)
   let contents, module_env = preprocess_module pos mlid module_ in
   (* State variables, functions, modifiers, events *)
@@ -1647,10 +1671,14 @@ let type_module pos mlid module_ =
   module_env
 
 let type_module m =
-  let mlid = LongIdent.of_ident_abs (Ident.root 1) in
-  let pos = Solidity_tenv.node_list_pos m in
-  ignore (type_module pos mlid m)
+  let mlid = LongIdent.of_ident_abs m.module_id in
+  let pos = Solidity_tenv.node_list_pos m.module_units in
+  ignore (type_module_units pos mlid m.module_units)
 
+let type_program p =
+  List.iter (fun m ->
+      type_module m
+    ) p.program_modules
 
 
 let () =

@@ -10,26 +10,4 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(*
-val change_type_location :
-  Solidity_checker_TYPES.location ->
-  Solidity_checker_TYPES.type_ ->
-  Solidity_checker_TYPES.type_
-*)
-(*
-val add_primitive_type :
-  int ->
-  (Solidity_common.pos ->
-   Solidity_checker_TYPES.options ->
-   Solidity_checker_TYPES.type_ option ->
-   Solidity_checker_TYPES.type_ option) ->
-  unit
-*)
-val type_module : Solidity_ast.module_ -> unit
-(*
-val variable_type_to_function_type :
-  Solidity_common.pos ->
-  Solidity_checker_TYPES.type_ ->
-  (Solidity_checker_TYPES.type_ * Solidity_common.Ident.t option) list *
-  (Solidity_checker_TYPES.type_ * Solidity_common.Ident.t option) list
-*)
+val type_program : Solidity_ast.program -> unit

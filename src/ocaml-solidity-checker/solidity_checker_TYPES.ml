@@ -13,18 +13,19 @@
 open Solidity_common
 
 type env = {
-  mutable ident_map : ((ident_desc * bool) list) IdentMap.t;
+  mutable ident_map : ((ident_desc * bool (* inherited *)) list) IdentMap.t;
   upper_env : env option; (* i.e module/contract/fonction *)
+(* add a list of contracts open with using for ? *)
 }
 
 and ident_desc =
-  (* | Module of module_desc *)
-  | Contract of contract_desc
-  | Type of type_desc
-  | Variable of variable_desc
-  | Modifier of modifier_desc
-  | Function of function_desc
-  (* | Event (\* TODO *\) *)
+  (* | Module of module_desc *) (* In: modules *)
+  | Contract of contract_desc (* In: modules *)
+  | Type of type_desc         (* In: modules, contracts*)
+  | Variable of variable_desc (* In: modules, contracts, functions *)
+  | Function of function_desc (* In: modules, contracts*)
+  | Modifier of modifier_desc (* In: contracts *)
+  | Event of event_desc       (* In: contracts*)
 (* see how to deal with using for *)
 
 (* This is just a container for things imported using the import directive *)
@@ -86,9 +87,17 @@ and modifier_desc = {
   modifier_abs_name : absolute LongIdent.t;
   modifier_params : (type_ * Ident.t option) list;
   modifier_def : Solidity_ast.modifier_definition; (* REMOVE ? change to body ?  *)
+(* TODO: override, virtual ? *)
   (* Note: Modifiers have no visibility nor mutability *)
 }
 
+and event_desc = {
+  event_abs_name : absolute LongIdent.t;
+  event_params : (type_ * Ident.t option) list;
+  event_def : Solidity_ast.event_definition;
+}
+
+(* More kinds: regular, new, ext, event, getter, primitive *)
 and fun_kind =
   | KOther
   | KNewContract
@@ -132,6 +141,7 @@ and type_ =
 
   (* Internal use only *)
   | TModifier of modifier_desc
+  | TEvent of event_desc
   | TTuple of type_ option list
   | TArraySlice of type_ * location (* is never an lvalue *)
   | TType of type_ (* a type is an expression of type 'type' *)
@@ -167,6 +177,9 @@ type annot += AFunction of function_desc
 
 (* contract_part (ModifierDefinition), ident/field *)
 type annot += AModifier of modifier_desc
+
+(* contract_part (EventDefinition), ident/field *)
+type annot += AEvent of event_desc
 
 (* contract_part (StateVariableDeclaration), ident/field *)
 type annot += AVariable of variable_desc

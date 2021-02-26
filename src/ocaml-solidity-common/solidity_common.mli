@@ -47,6 +47,8 @@ module IntMap : ExtMap.S with type key = int
 
 module StringMap : ExtMap.S with type key = string
 
+module StringSet : Set.S with type elt = string
+
 module Ident : sig
   type t
   val compare : t -> t -> int

@@ -724,4 +724,4 @@ let checkModule (m : module_) : env =
           raise (InvariantBroken "Contract should have contract annot")
       | _ -> env)
     empty_project_env
-    m
+    m.module_units

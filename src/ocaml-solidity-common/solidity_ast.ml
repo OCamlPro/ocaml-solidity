@@ -16,7 +16,19 @@ type ident = Ident.t node
 
 type longident = relative LongIdent.t node
 
-type module_ = (source_unit node) list
+type program = {
+  program_modules : module_ list;
+  program_modules_by_id : module_ IdentMap.t;
+  program_modules_by_file : module_ StringMap.t;
+}
+
+and module_ = {
+  module_file : string; (* *absolute* path *)
+  module_id : Ident.t; (* the module id: @n *)
+  module_units : module_units;
+}
+
+and module_units = (source_unit node) list
 
 and source_unit =
   | Pragma of (Ident.t * string)

@@ -372,12 +372,12 @@
 %left DOT
 
 (* Entry points *)
-%type <Solidity_ast.module_> top_module
-%start top_module
+%type <Solidity_ast.module_units> module_units
+%start module_units
 
 %%
 
-top_module:
+module_units:
   | midrule({ ctxt_modifier := false; ctxt_interface := false })
       source_unit* EOF { $2 }
 ;;
