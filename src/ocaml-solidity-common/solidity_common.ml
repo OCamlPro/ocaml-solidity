@@ -212,6 +212,10 @@ module RelLongIdentSet = Set.Make (struct
 module ExtList = struct
   include List
 
+  let is_empty = function
+    | [] -> true
+    | _ -> false
+
   let same_lengths l1 l2 =
     List.compare_lengths l1 l2 = 0
 

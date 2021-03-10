@@ -28,7 +28,12 @@ type lookup_kind =
   | LExternal
   | LStatic of contract_kind * bool (* true = contract is a parent *)
   | LSuper
-
+  | LUsingFor
+(*
+let is_external_lookup = function
+  | LExternal -> true
+  | LAny | LInternal | LStatic (_) | LSuper -> false
+*)
 let is_internally_visible = function
   | VPublic | VInternal | VPrivate -> true
   | VExternal -> false
@@ -64,29 +69,33 @@ let is_visible lookup visibility ~inherited ~variable =
       variable && is_public visibility
   | LSuper ->
       is_statically_visible visibility ~library:false && not variable
+  | LUsingFor ->
+      is_statically_visible visibility ~library:true && not variable
 
 let filter_by_visibility lookup idl =
   List.filter (fun id ->
       match id, lookup with
+      | ((Field _ | Constr _), _), _ ->
+          false
       | _, LAny ->
           true
       | (Contract _, _), LInternal ->
           true
-      | (Contract _, _), (LExternal | LStatic (_) | LSuper) ->
+      | (Contract _, _), (LExternal | LStatic (_) | LSuper | LUsingFor) ->
           false
       | (Modifier _, _), LInternal -> (* Maybe allow Lib.Mod ? *)
           true                        (* and Cnt.Mod when Cnt is parent ? *)
-      | (Modifier _, _), (LExternal | LStatic (_) | LSuper) ->
+      | (Modifier _, _), (LExternal | LStatic (_) | LSuper | LUsingFor) ->
           false
       | (Type _, _), (LInternal | LStatic ((Library | Interface), _)) ->
           true
-      | (Type _, _), (LExternal | LSuper) ->
+      | (Type _, _), (LExternal | LSuper | LUsingFor) ->
           false
       | (Type _, inherited), LStatic (Contract, _) ->
           not inherited
       | (Event _, _), (LInternal | LStatic (Library, _)) ->
           true
-      | (Event _, _), (LExternal | LSuper) ->
+      | (Event _, _), (LExternal | LSuper | LUsingFor) ->
           false
       | (Event _, inherited), LStatic ((Contract | Interface), is_parent) ->
           is_parent && not inherited
@@ -96,6 +105,7 @@ let filter_by_visibility lookup idl =
       | (Function ({ function_visibility; _ }), inherited), _ ->
           is_visible lookup function_visibility ~inherited ~variable:false
     ) idl
+
 
 let rec lookup_ident
     (env : env) ~(upper : bool) ~(lookup : lookup_kind)
@@ -178,7 +188,9 @@ let find_constructor pos { contract_abs_name; contract_env; _ } =
         function_mutability = MNonPayable;
         function_def = None;
         function_override = None;
-        function_selector = None; }
+        function_selector = None;
+        function_is_method = true;
+        function_is_primitive = false; }
 
 
 
@@ -251,6 +263,8 @@ let add_nonpublic_variable pos env ~inherited variable_name variable_desc =
         if inherited && not inh then
           error_inherited_over_non_inherited pos;
         match id with
+        | Field _ | Constr _ ->
+            failwith "Invariant broken"
         | Modifier _ | Variable _ | Type _ | Event _ | Contract _ ->
             error_already_declared pos variable_name
         | Function (fd)
@@ -279,6 +293,8 @@ let add_public_variable pos env ~inherited variable_name variable_desc =
         if inherited && not inh then
           error_inherited_over_non_inherited pos;
         match id with
+        | Field _ | Constr _ ->
+            failwith "Invariant broken"
         | Modifier _ | Variable _ | Type _ | Event _ | Contract _ ->
             error_already_declared pos variable_name
         | Function (_fd) when not inh ->
@@ -335,6 +351,8 @@ let add_function pos env ~inherited function_name function_desc =
         if inherited && not inh then
           error_inherited_over_non_inherited pos;
         match id with
+        | Field _ | Constr _ ->
+            failwith "Invariant broken"
         | Modifier _ | Variable _ | Type _ | Event _ | Contract _ ->
             error_already_declared pos function_name
         | Function (fd)
@@ -390,6 +408,8 @@ let add_modifier pos env ~inherited modifier_name modifier_desc =
     | Some (idl) ->
         if List.exists (fun (id, inh) ->
             match id with
+            | Field _ | Constr _ ->
+                failwith "Invariant broken"
             | Modifier (_md) -> not inh
 (* TODO: if trying to change signature, error:
    Override changes modifier signature *)
@@ -415,6 +435,8 @@ let add_event pos env ~inherited event_name event_desc =
         if inherited && not inh then
           error_inherited_over_non_inherited pos;
         match id with
+        | Field _ | Constr _ ->
+            failwith "Invariant broken"
         | Modifier _ | Variable _ | Function _ | Type _ | Contract _ ->
             error_already_declared pos event_name
         | Event (ed)
@@ -429,6 +451,25 @@ let add_event pos env ~inherited event_name event_desc =
   in
   replace_idents pos env event_name
     (List.rev ((Event (event_desc), inherited) :: iddl_rev))
+
+(* type_opt = None => all_types = * *)
+let add_using_for env lib type_opt =
+  let uf_opt = AbsLongIdentMap.find_opt lib.contract_abs_name env.using_for in
+  let lib_env, tl =
+    match uf_opt, type_opt with
+    | None, None -> lib.contract_env, []
+    | None, Some (t) -> lib.contract_env, [t]
+    | Some (env, []), _ -> env, []
+    | Some (env, _), None -> env, []
+    | Some (env, tl), Some (t) ->
+        if List.exists (fun t' ->
+               Solidity_type.same_type ~ignore_loc:true t t') tl then
+          env, tl
+        else
+          env, t :: tl
+  in
+  env.using_for <-
+    AbsLongIdentMap.add lib.contract_abs_name (lib_env, tl) env.using_for
 
 
 
@@ -468,7 +509,7 @@ let add_parent_definitions pos ~preprocess c =
 
 
 let new_env ?upper_env () =
-  { ident_map = IdentMap.empty; upper_env }
+  { upper_env;  ident_map = IdentMap.empty; using_for = AbsLongIdentMap.empty }
 
 
 
@@ -493,27 +534,59 @@ let primitive_type ?(kind=KOther) ?(returns_lvalue=false)
     function_mutability;
     function_def = None;
     function_override = None;
-    function_selector = None; }
+    function_selector = None;
+    function_is_method = false; (* can be true *)
+    function_is_primitive = true; }
   in
   TFunction (fd, { new_fun_options with kind })
 
 
+let primitive_fun_desc ?(returns_lvalue=false)
+    arg_types ret_types function_mutability =
+  let fd = {
+    function_abs_name = LongIdent.empty;
+    function_params = List.map (fun t -> (t, None)) arg_types;
+    function_returns = List.map (fun t -> (t, None)) ret_types;
+    function_returns_lvalue = returns_lvalue;
+    function_visibility = VPublic; (* or private for builtins *)
+    function_mutability;
+    function_def = None;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false; (* can be true *)
+    function_is_primitive = true; }
+  in
+  Function (fd)
+
+let primitive_var_desc (*?(is_lvalue=false)*) variable_type =
+  let vd = {
+    variable_abs_name = LongIdent.empty;
+    variable_type;
+    variable_visibility = VPublic; (* or private for builtins *)
+    variable_mutability = MImmutable; (* depends ? *)
+    variable_local = false;
+    variable_init = None;
+    variable_override = None;
+    variable_getter = None;
+    variable_is_primitive = true; }
+  in
+  Variable (vd)
 
 
-let prim_type =
+let prim_desc =
   Array.make (Solidity_common.max_primitives + 1) (fun _ -> assert false)
 
-let add_primitive_type id
+let add_primitive_desc id
     (f : Solidity_common.pos ->
          options ->
          Solidity_checker_TYPES.type_ option ->
-         Solidity_checker_TYPES.type_ option)
+         Solidity_checker_TYPES.ident_desc option)
   =
   if (id < 0) then
     error dummy_pos "Negative primitive id";
   if (id > Solidity_common.max_primitives) then
     error dummy_pos "Primitive id above limit";
-  prim_type.(id) <- f
+  prim_desc.(id) <- f
 
 
 

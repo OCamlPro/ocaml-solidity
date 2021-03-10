@@ -216,7 +216,7 @@ and var_type_to_type pos env ~arg ~ext loc_opt t =
   end;
   t
 
-and make_function_desc pos env ~funtype ~library
+and make_function_desc pos env ~funtype ~library ~is_method
     fid function_abs_name params returns function_returns_lvalue
     function_visibility function_mutability function_def : function_desc =
   let ext =
@@ -262,12 +262,14 @@ and make_function_desc pos env ~funtype ~library
   { function_abs_name; function_params; function_returns;
     function_visibility; function_mutability;
     function_returns_lvalue; function_def;
-    function_override; function_selector; }
+    function_override; function_selector;
+    function_is_method = is_method;
+    function_is_primitive = false; }
 
 and function_type_to_desc pos env ft =
   (* Note: library and fid parameters not used when funtype=true *)
   let function_abs_name = LongIdent.empty in
-  make_function_desc pos env ~funtype:true ~library:true
+  make_function_desc pos env ~funtype:true ~library:true ~is_method:false
     (Ident.of_string "") function_abs_name ft.fun_type_params
     (List.map (fun (t, loc_opt) -> (t, loc_opt, None)) ft.fun_type_returns)
     false ft.fun_type_visibility ft.fun_type_mutability None
@@ -276,11 +278,15 @@ let function_def_to_desc pos (c : contract_desc) fd : function_desc =
   let function_abs_name =
     LongIdent.append c.contract_abs_name (strip fd.fun_name) in
   let library = is_library c.contract_def.contract_kind in
+  let is_method =
+    is_contract c.contract_def.contract_kind ||
+      is_interface c.contract_def.contract_kind
+  in
   let fd = {
     fd with fun_virtual =
               fd.fun_virtual ||
               is_interface c.contract_def.contract_kind } in
-  make_function_desc pos c.contract_env ~funtype:false ~library
+  make_function_desc pos c.contract_env ~funtype:false ~library ~is_method
     (strip fd.fun_name) function_abs_name fd.fun_params fd.fun_returns false
     fd.fun_visibility fd.fun_mutability (Some fd)
 
@@ -331,16 +337,22 @@ let variable_desc_to_function_desc pos vid variable_abs_name vt :
     function_returns_lvalue = false;
     function_def = None;
     function_override = None;
-    function_selector; }
+    function_selector;
+    function_is_method = true;
+    function_is_primitive = false; }
 
 let state_variable_def_to_desc pos (c : contract_desc) vd : variable_desc =
   let vid = strip (vd.var_name) in
   let variable_abs_name = LongIdent.append c.contract_abs_name vid in
   let variable_type =
     ast_type_to_type pos ~loc:(LStorage (false)) c.contract_env vd.var_type in
+  let is_contract =
+    is_contract c.contract_def.contract_kind ||
+      is_interface c.contract_def.contract_kind
+  in
   let variable_getter =
     match vd.var_visibility with
-    | VPublic ->
+    | VPublic when is_contract ->
         Some (variable_desc_to_function_desc pos
                 vid variable_abs_name variable_type)
     | _ -> None
@@ -363,7 +375,8 @@ let state_variable_def_to_desc pos (c : contract_desc) vd : variable_desc =
     variable_local = false;
     variable_init = vd.var_init;
     variable_override;
-    variable_getter; }
+    variable_getter;
+    variable_is_primitive = false; }
 
 let local_variable_desc variable_type : variable_desc =
   { variable_abs_name = LongIdent.empty;
@@ -373,7 +386,8 @@ let local_variable_desc variable_type : variable_desc =
     variable_local = true;
     variable_init = None;
     variable_override = None;
-    variable_getter = None; }
+    variable_getter = None;
+    variable_is_primitive = false; }
 
 let event_def_to_desc pos (c : contract_desc) event_def : event_desc =
   let eid = strip (event_def.event_name) in
@@ -395,4 +409,6 @@ let event_desc_to_function_desc (ed : event_desc) : function_desc =
     function_returns_lvalue = false;
     function_def = None;
     function_override = None;
-    function_selector = None; }
+    function_selector = None;
+    function_is_method = false;
+    function_is_primitive = false; }

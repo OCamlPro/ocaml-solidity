@@ -111,8 +111,8 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
       let n = if ExtQ.is_neg q then Z.succ (Q.num q) else Q.num q in
       ExtQ.is_int q &&
       (Z.numbits n < sz) (* TODO: <= ? *)
-  | TLiteralString (s), TString (loc) ->
-      valid_string s &&
+  | TLiteralString (_s), TString (loc) ->
+      (* valid_string s && *)
       (ignore_loc || convertible_location ~from:LMemory ~to_:loc)
   | TLiteralString (_s), TBytes (loc) ->
       (ignore_loc || convertible_location ~from:LMemory ~to_:loc)
@@ -249,16 +249,16 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
       | Some (l) -> Some (TTuple l)
     end
 
+  | TStruct (lid1, _, loc1), TStruct (lid2, _, loc2) ->
+      if_true (convertible_location ~from:loc1 ~to_:loc2 &&
+                 LongIdent.equal lid1 lid2)
+
   (* Automatic conversions *)
-  | TLiteralString _, TBytes (LMemory | LStorage (false))
   | (TInt _ | TUint _), (TInt _ | TUint _ | TAddress _ | TContract _ | TEnum _)
   | TFixBytes _, TFixBytes _
   | TAddress _, (TInt _ | TUint _ | TAddress _)
   | TEnum _, (TInt _ | TUint _) ->
       Some (to_)
-
-  (* Automatic fails *)
-  | _, TStruct _ -> None
 
   (* TON-specific *)
   | TOptional (from), TOptional (to_) ->

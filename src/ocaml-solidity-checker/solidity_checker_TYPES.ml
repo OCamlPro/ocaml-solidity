@@ -13,20 +13,22 @@
 open Solidity_common
 
 type env = {
+  upper_env : env option; (* i.e module/contract/fonction/block *)
   mutable ident_map : ((ident_desc * bool (* inherited *)) list) IdentMap.t;
-  upper_env : env option; (* i.e module/contract/fonction *)
-(* add a list of contracts open with using for ? *)
+  mutable using_for : (env * (type_ list)) AbsLongIdentMap.t;
+                          (* empty list = all types = * *)
 }
 
 and ident_desc =
-  (* | Module of module_desc *) (* In: modules *)
+(* | Module of module_desc *) (* In: modules *)
   | Contract of contract_desc (* In: modules *)
   | Type of type_desc         (* In: modules, contracts*)
   | Variable of variable_desc (* In: modules, contracts, functions *)
   | Function of function_desc (* In: modules, contracts*)
   | Modifier of modifier_desc (* In: contracts *)
-  | Event of event_desc       (* In: contracts*)
-(* see how to deal with using for *)
+  | Event of event_desc       (* In: contracts *)
+  | Field of field_desc       (* Internal use, not in envs *)
+  | Constr of constr_desc       (* Internal use, not in envs *)
 
 (* This is just a container for things imported using the import directive *)
 (* Can be imported : types, contract, libraries AND MODULES (top-level stuff) *)
@@ -44,12 +46,25 @@ and enum_desc = {
   enum_values : (Ident.t * int) list;
 }
 
+and constr_desc = {
+  constr_enum_desc : enum_desc;
+  constr_name : Ident.t;
+  constr_value : int;
+  constr_type : type_;
+}
+
 and struct_desc = {
   struct_abs_name : absolute LongIdent.t;
   mutable struct_fields : (Ident.t * type_) list; (* Note: order is important *)
   mutable has_mapping : bool;
   struct_env : env; (* Note: needed to qualify types *)
   struct_def : Ident.t * Solidity_ast.field_definition list;
+}
+
+and field_desc = {
+  field_struct_desc : struct_desc;
+  field_name : Ident.t;
+  field_type : type_;
 }
 
 and contract_desc = {
@@ -69,18 +84,21 @@ and variable_desc = {
   variable_init : Solidity_ast.expression option;
   variable_override : absolute LongIdent.t list option;
   variable_getter : function_desc option; (* when the variable has a getter *)
+  variable_is_primitive : bool;
 }
 
 and function_desc = {
   function_abs_name : absolute LongIdent.t;
   function_params : (type_ * Ident.t option) list;
   function_returns : (type_ * Ident.t option) list;
-  function_returns_lvalue : bool;
+  function_returns_lvalue : bool; (* some primitives (push/pop) return lvalues*)
   function_visibility : Solidity_ast.visibility;
   function_mutability : Solidity_ast.fun_mutability;
-  function_def : Solidity_ast.function_definition option; (* REMOVE ? change to body ? *)
+  function_def : Solidity_ast.function_definition option; (* REMOVE ? change to body ? *) (* Primitives have no definition *)
   function_override : absolute LongIdent.t list option;
   function_selector : string option;
+  function_is_method : bool;
+  function_is_primitive : bool;
 }
 
 and modifier_desc = {
@@ -172,6 +190,9 @@ type annot += AType of type_
 (* source_unit (ContractDefinition), inheritance_specifier *)
 type annot += AContract of contract_desc
 
+(* contract_part (StateVariableDeclaration), ident/field *)
+type annot += AVariable of variable_desc
+
 (* contract_part (FunctionDefinition), constructor invocation, ident/field (functions AND getters) *)
 type annot += AFunction of function_desc
 
@@ -181,8 +202,9 @@ type annot += AModifier of modifier_desc
 (* contract_part (EventDefinition), ident/field *)
 type annot += AEvent of event_desc
 
-(* contract_part (StateVariableDeclaration), ident/field *)
-type annot += AVariable of variable_desc
+type annot += AField of field_desc
+
+type annot += AConstr of constr_desc
 
 (* ident/field *)
 type annot += APrimitive (* id ? *)

@@ -111,6 +111,7 @@ module RelLongIdentSet : Set.S with type elt = relative LongIdent.t
 
 module ExtList : sig
   include module type of List
+  val is_empty : 'a list -> bool
   val same_lengths : 'a list -> 'b list -> bool
   val for_all2 : ('a -> 'b -> bool) -> 'a list -> 'b list -> bool
   val iter3 :

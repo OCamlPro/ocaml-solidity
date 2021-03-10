@@ -17,9 +17,13 @@ open Solidity_checker_TYPES
 let error pos fmt =
   Format.kasprintf (fun s -> raise (TypecheckError (s, pos))) fmt
 
-let register id p f_type =
+let register id p f_desc =
   Solidity_common.add_primitive id p;
-  Solidity_tenv.add_primitive_type id f_type
+  Solidity_tenv.add_primitive_desc id f_desc
+
+let make_fun = Solidity_tenv.primitive_fun_desc
+
+let make_var = Solidity_tenv.primitive_var_desc
 
 let make_prim_args pos opt =
   match opt.call_args with
@@ -52,7 +56,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type [TBool] [] MPure)
+           Some (make_fun [TBool] [] MPure)
        | _ -> None);
 
   register 2
@@ -61,9 +65,9 @@ let register_primitives () =
     (fun _pos opt t_opt ->
        match t_opt, opt.call_args with
        | None, Some ((AList [_] | ANamed [_])) ->
-           Some (Solidity_tenv.primitive_type [TBool] [] MPure)
+           Some (make_fun [TBool] [] MPure)
        | None, Some ((AList [_;_] | ANamed [_;_])) ->
-           Some (Solidity_tenv.primitive_type [TBool; TString LMemory] [] MPure)
+           Some (make_fun [TBool; TString LMemory] [] MPure)
        | _ -> None);
 
   register 3
@@ -72,9 +76,9 @@ let register_primitives () =
     (fun _pos opt t_opt ->
        match t_opt, opt.call_args with
        | None, Some ((AList [] | ANamed [])) ->
-           Some (Solidity_tenv.primitive_type [] [] MPure)
+           Some (make_fun [] [] MPure)
        | None, Some ((AList [_] | ANamed [_])) ->
-           Some (Solidity_tenv.primitive_type [TString LMemory] [] MPure)
+           Some (make_fun [TString LMemory] [] MPure)
        | _ -> None);
 
   (* Block/transaction properties *)
@@ -85,7 +89,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type [TUint 256] [TFixBytes 32] MView)
+           Some (make_fun [TUint 256] [TFixBytes 32] MView)
        | _ -> None);
 
   register 5
@@ -94,7 +98,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type [] [TUint 256] MView)
+           Some (make_fun [] [TUint 256] MView)
        | _ -> None);
 
   register 6
@@ -102,7 +106,7 @@ let register_primitives () =
       prim_kind = PrimVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | None -> Some (TMagic (TBlock))
+       | None -> Some (make_var (TMagic (TBlock)))
        | _ -> None);
 
   register 7
@@ -110,7 +114,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TBlock)) -> Some (TAddress (true))
+       | Some (TMagic (TBlock)) -> Some (make_var (TAddress (true)))
        | _ -> None);
 
   register 8
@@ -118,7 +122,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TBlock)) -> Some (TUint 256)
+       | Some (TMagic (TBlock)) -> Some (make_var (TUint 256))
        | _ -> None);
 
   register 9
@@ -126,7 +130,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TBlock)) -> Some (TUint 256)
+       | Some (TMagic (TBlock)) -> Some (make_var (TUint 256))
        | _ -> None);
 
   register 10
@@ -134,7 +138,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TBlock)) -> Some (TUint 256)
+       | Some (TMagic (TBlock)) -> Some (make_var (TUint 256))
        | _ -> None);
 
   register 11
@@ -142,7 +146,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TBlock)) -> Some (TUint 256)
+       | Some (TMagic (TBlock)) -> Some (make_var (TUint 256))
        | _ -> None);
 
   register 12
@@ -150,7 +154,7 @@ let register_primitives () =
       prim_kind = PrimVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | None -> Some (TMagic (TMsg))
+       | None -> Some (make_var (TMagic (TMsg)))
        | _ -> None);
 
   register 13
@@ -158,7 +162,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TMsg)) -> Some (TBytes (LCalldata))
+       | Some (TMagic (TMsg)) -> Some (make_var (TBytes (LCalldata)))
        | _ -> None);
 
   register 14
@@ -166,7 +170,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TMsg)) -> Some (TAddress (true))
+       | Some (TMagic (TMsg)) -> Some (make_var (TAddress (true)))
        | _ -> None);
 
   register 15
@@ -174,7 +178,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TMsg)) -> Some (TFixBytes 4)
+       | Some (TMagic (TMsg)) -> Some (make_var (TFixBytes 4))
        | _ -> None);
 
   register 16
@@ -183,7 +187,7 @@ let register_primitives () =
     (fun pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMsg)) ->
-           Some (TUint 256)
+           Some (make_var (TUint 256))
        | Some (TFunction (fd, _fo)) when is_external fd.function_visibility ->
            error pos "Using \".value(...)\" is deprecated. \
                       Use \"{value: ...}\" instead"
@@ -194,7 +198,7 @@ let register_primitives () =
       prim_kind = PrimVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | None -> Some (TMagic (TTx))
+       | None -> Some (make_var (TMagic (TTx)))
        | _ -> None);
 
   register 18
@@ -202,7 +206,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TTx)) -> Some (TUint 256)
+       | Some (TMagic (TTx)) -> Some (make_var (TUint 256))
        | _ -> None);
 
   register 19
@@ -210,7 +214,7 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic (TTx)) -> Some (TAddress (true))
+       | Some (TMagic (TTx)) -> Some (make_var (TAddress (true)))
        | _ -> None);
 
   (* ABI encoding/decoding *)
@@ -220,7 +224,7 @@ let register_primitives () =
       prim_kind = PrimVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | None -> Some (TMagic (TAbi))
+       | None -> Some (make_var (TMagic (TAbi)))
        | _ -> None);
 
   register 21
@@ -259,7 +263,7 @@ let register_primitives () =
                  error pos "This function takes two arguments, \
                             but %d were provided" (List.length atl)
            in
-           Some (Solidity_tenv.primitive_type atl rtl MPure)
+           Some (make_fun atl rtl MPure)
        | _ -> None);
 
   register 22
@@ -269,7 +273,7 @@ let register_primitives () =
        match t_opt with
        | Some (TMagic (TAbi)) ->
            let atl = preprocess_arg_0 pos (make_prim_args pos opt) in
-           Some (Solidity_tenv.primitive_type atl [TBytes LMemory] MPure)
+           Some (make_fun atl [TBytes LMemory] MPure)
        | _ -> None);
 
   register 23
@@ -279,7 +283,7 @@ let register_primitives () =
        match t_opt with
        | Some (TMagic (TAbi)) ->
            let atl = preprocess_arg_0 pos (make_prim_args pos opt) in
-           Some (Solidity_tenv.primitive_type atl [TBytes LMemory] MPure)
+           Some (make_fun atl [TBytes LMemory] MPure)
        | _ -> None);
 
   register 24
@@ -290,7 +294,7 @@ let register_primitives () =
        | Some (TMagic (TAbi)) ->
            let atl = preprocess_arg_1 pos (TFixBytes 4)
                (make_prim_args pos opt) in
-           Some (Solidity_tenv.primitive_type atl [TBytes LMemory] MPure)
+           Some (make_fun atl [TBytes LMemory] MPure)
        | _ -> None);
 
   register 25
@@ -301,7 +305,7 @@ let register_primitives () =
        | Some (TMagic (TAbi)) ->
            let atl = preprocess_arg_1 pos (TString (LMemory))
                (make_prim_args pos opt) in
-           Some (Solidity_tenv.primitive_type atl [TBytes LMemory] MPure)
+           Some (make_fun atl [TBytes LMemory] MPure)
        | _ -> None);
 
 
@@ -313,8 +317,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
-                   [TUint 256; TUint 256; TUint 256] [TUint 256] MPure)
+           Some (make_fun [TUint 256; TUint 256; TUint 256] [TUint 256] MPure)
        | _ -> None);
 
   register 27
@@ -323,8 +326,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
-                   [TUint 256; TUint 256; TUint 256] [TUint 256] MPure)
+           Some (make_fun [TUint 256; TUint 256; TUint 256] [TUint 256] MPure)
        | _ -> None);
 
   register 28
@@ -333,8 +335,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
-                   [TBytes LMemory] [TFixBytes 32] MPure)
+           Some (make_fun [TBytes LMemory] [TFixBytes 32] MPure)
        | _ -> None);
 
   register 29
@@ -343,8 +344,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
-                   [TBytes LMemory] [TFixBytes 32] MPure)
+           Some (make_fun [TBytes LMemory] [TFixBytes 32] MPure)
        | _ -> None);
 
   register 30
@@ -353,8 +353,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
-                   [TBytes LMemory] [TFixBytes 20] MPure)
+           Some (make_fun [TBytes LMemory] [TFixBytes 20] MPure)
        | _ -> None);
 
   register 31
@@ -363,7 +362,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
+           Some (make_fun
                    [TFixBytes 32; TUint 8; TFixBytes 32; TFixBytes 32]
                    [TAddress (false)] MPure)
        | _ -> None);
@@ -376,7 +375,8 @@ let register_primitives () =
     (fun _pos opt t_opt ->
        match t_opt, opt.current_contract with
        | None, Some (c) ->
-           Some (TContract (c.contract_abs_name, c, false (* super *)))
+           Some (make_var (TContract (
+                               c.contract_abs_name, c, false (* super *))))
        | _ ->
            None);
 
@@ -386,7 +386,8 @@ let register_primitives () =
     (fun _pos opt t_opt ->
        match t_opt, opt.current_contract with
        | None, Some (c) ->
-           Some (TContract (c.contract_abs_name, c, true (* super *)))
+           Some (make_var (TContract (
+                               c.contract_abs_name, c, true (* super *))))
        | _ ->
            None);
 
@@ -396,18 +397,18 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type [TAddress (true)] [] MNonPayable)
+           Some (make_fun [TAddress (true)] [] MNonPayable)
        | _ -> None);
 
   (* Members of address type *)
 
   register 35
     { prim_name = "balance";
-      prim_kind = PrimMemberFunction }
+      prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TAddress (_)) ->
-           Some (TUint 256)
+           Some (make_var (TUint 256))
        | _ -> None);
 
   register 36
@@ -416,7 +417,7 @@ let register_primitives () =
     (fun pos _opt t_opt ->
        match t_opt with
        | Some (TAddress (true)) ->
-           Some (Solidity_tenv.primitive_type [TUint 256] [] MNonPayable)
+           Some (make_fun [TUint 256] [] MNonPayable)
        | Some (TAddress (false)) ->
            error pos "\"send\" and \"transfer\" are only available \
                       for objects of type \"address payable\", \
@@ -429,8 +430,7 @@ let register_primitives () =
     (fun pos _opt t_opt ->
        match t_opt with
        | Some (TAddress (true)) ->
-           Some (Solidity_tenv.primitive_type
-                   [TUint 256] [TBool] MNonPayable)
+           Some (make_fun [TUint 256] [TBool] MNonPayable)
        | Some (TAddress (false)) ->
            error pos "\"send\" and \"transfer\" are only available \
                       for objects of type \"address payable\", \
@@ -443,8 +443,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TAddress (_)) ->
-           Some (Solidity_tenv.primitive_type
-                   [TBytes (LMemory)] [TBool; TBytes (LMemory)] MPayable)
+           Some (make_fun [TBytes (LMemory)] [TBool; TBytes (LMemory)] MPayable)
        | _ -> None);
 
   register 39
@@ -453,7 +452,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TAddress (_)) ->
-           Some (Solidity_tenv.primitive_type
+           Some (make_fun
                    [TBytes (LMemory)] [TBool; TBytes (LMemory)] MNonPayable)
        | _ -> None);
 
@@ -463,8 +462,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TAddress (_)) ->
-           Some (Solidity_tenv.primitive_type
-                   [TBytes (LMemory)] [TBool; TBytes (LMemory)] MView)
+           Some (make_fun [TBytes (LMemory)] [TBool; TBytes (LMemory)] MView)
        | _ -> None);
 
   (* Type information (members of type) *)
@@ -475,7 +473,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMetaType (TContract (_, _, _)))) ->
-           Some (TString (LMemory))
+           Some (make_var (TString (LMemory)))
        | _ -> None);
 
   register 42
@@ -484,7 +482,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMetaType (TContract (_, _, _)))) ->
-           Some (TBytes (LMemory))
+           Some (make_var (TBytes (LMemory)))
        | _ -> None);
 
   register 43
@@ -493,7 +491,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMetaType (TContract (_, _, _)))) ->
-           Some (TBytes (LMemory))
+           Some (make_var (TBytes (LMemory)))
        | _ -> None);
 
   register 44
@@ -502,7 +500,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMetaType (TContract (_, _, _)))) ->
-           Some (TFixBytes (4))
+           Some (make_var (TFixBytes (4)))
        | _ -> None);
 
   register 45
@@ -511,7 +509,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMetaType (TInt (_) | TUint (_) as t))) ->
-           Some (t)
+           Some (make_var (t))
        | _ -> None);
 
   register 46
@@ -520,8 +518,10 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TMagic (TMetaType (TInt (_) | TUint (_) as t))) ->
-           Some (t)
+           Some (make_var (t))
        | _ -> None);
+
+  (* Members of array type *)
 
   register 47
     { prim_name = "length";
@@ -529,9 +529,9 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TArray (_) | TBytes (_)) ->
-           Some (TUint 256)
+           Some (make_var (TUint 256))
        | Some (TFixBytes (_)) ->
-           Some (TUint 8)
+           Some (make_var (TUint 8))
        | _ -> None);
 
   register 48
@@ -545,22 +545,20 @@ let register_primitives () =
               the argument has a location of storage ref *)
            let t =
              Solidity_type.change_type_location (LStorage false) t in
-           Some (Solidity_tenv.primitive_type ~returns_lvalue:true
-                   [] [t] MNonPayable)
+           Some (make_fun ~returns_lvalue:true [] [t] MNonPayable)
        | Some (TArray (t, None, (LStorage _))),
          Some (_) ->
            (* Note: since push only works on storage arrays,
               the argument has a location of storage ref *)
            let t =
              Solidity_type.change_type_location (LStorage false) t in
-           Some (Solidity_tenv.primitive_type [t] [] MNonPayable)
+           Some (make_fun [t] [] MNonPayable)
        | Some (TBytes (LStorage _)),
          (None | Some (AList [] | ANamed [])) ->
-           Some (Solidity_tenv.primitive_type ~returns_lvalue:true
-                   [] [TFixBytes (1)] MNonPayable)
+           Some (make_fun ~returns_lvalue:true [] [TFixBytes (1)] MNonPayable)
        | Some (TBytes (LStorage _)),
          Some (_) ->
-           Some (Solidity_tenv.primitive_type [TFixBytes (1)] [] MNonPayable)
+           Some (make_fun [TFixBytes (1)] [] MNonPayable)
        | _ -> None);
 
   register 49
@@ -569,8 +567,10 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TArray (_, None, (LStorage _)) | TBytes (LStorage _)) ->
-           Some (Solidity_tenv.primitive_type [] [] MNonPayable)
+           Some (make_fun [] [] MNonPayable)
        | _ -> None);
+
+  (* Members of function type *)
 
   register 50
     { prim_name = "address";
@@ -578,7 +578,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TFunction (fd, _fo)) when is_external fd.function_visibility ->
-           Some (TAddress (false))
+           Some (make_var (TAddress (false)))
        | _ -> None);
 
   register 51
@@ -587,7 +587,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | Some (TFunction (fd, _fo)) when is_external fd.function_visibility ->
-           Some (TFixBytes (4))
+           Some (make_var (TFixBytes (4)))
        | _ -> None);
 
   register 52
@@ -607,8 +607,7 @@ let register_primitives () =
     (fun _pos _opt t_opt ->
        match t_opt with
        | None ->
-           Some (Solidity_tenv.primitive_type
-                   [TUint 256] [TUint 256] MPure)
+           Some (make_fun [TUint 256] [TUint 256] MPure)
        | _ -> None);
 
   (* Dune extension *)
@@ -617,7 +616,7 @@ let register_primitives () =
       prim_kind = PrimVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
-       | None -> Some (TFixBytes 4)
+       | None -> Some (make_var (TFixBytes 4))
        | _ -> None);
 
   ()

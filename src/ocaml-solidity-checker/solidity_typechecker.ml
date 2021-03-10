@@ -28,6 +28,7 @@ let default_options = {
   current_contract = None;
 }
 
+(* TODO: rules and messages different in 0.7+ *)
 let immediate_array_element_type pos tl : type_ =
   let rec aux t = function
     | [] -> t
@@ -152,7 +153,7 @@ let check_function_application pos kind fp args =
     | ANamed (ntl) -> List.length ntl
   in
   (* Note: named arguments in ANamed ntl are unique (checked previously) *)
-  if (nb_args_provided <> nb_args_expected) then
+  if nb_args_provided <> nb_args_expected then
     error pos "Wrong argument count for %s: \
                %d arguments given but expected %d"
       kind nb_args_provided nb_args_expected
@@ -176,7 +177,7 @@ let check_function_application pos kind fp args =
                   check_argument_type pos kind ~expected:ft ~provided:at
               | None ->
                   error pos "Named argument \"%s\" does not \
-                                match function declaration"
+                             match function declaration"
                     (Ident.to_string fid)
             ) ntl
     end
@@ -189,7 +190,7 @@ let compatible_function_type (fd : function_desc) args  =
     | ANamed (ntl) -> List.length ntl
   in
   (* Note: named arguments in ANamed ntl are unique (checked previously) *)
-  if (nb_args_provided <> nb_args_expected) then
+  if nb_args_provided <> nb_args_expected then
     false
   else
     begin
@@ -212,167 +213,391 @@ let compatible_function_type (fd : function_desc) args  =
             ) ntl
     end
 
-let fun_opt (lookup : Solidity_tenv.lookup_kind) (fd : function_desc) =
+
+
+let is_contract_instance base_t_opt =
+  match base_t_opt with
+  | Some (TContract (_lid, _cd, false (* super *))) ->
+      true
+  | Some (_) | None ->
+      false
+
+(* Base types on which "using for" is allowed.
+   These are the types the user can express, as well as the types coercible
+   to these types. In particular, this excludes internal types. *)
+let using_for_allowed base_t_opt =
+  match base_t_opt with
+  | None
+  | Some (TModifier (_) | TEvent (_) | TTuple (_) |
+          TArraySlice (_) | TType (_) | TMagic (_) |
+          TContract (_, _, true (* super *))) ->
+      false
+  | Some (_) ->
+      true
+
+
+let fun_opt base_t_opt (fd : function_desc) =
   let kind =
-    match lookup, fd.function_visibility with
-    | LExternal, (VExternal | VPublic) -> KExtContractFun
-    | _ -> KOther
+    match fd.function_visibility with
+    | (VExternal | VPublic) when is_contract_instance base_t_opt ->
+        KExtContractFun
+    | _ ->
+        KOther
   in
   { Solidity_tenv.new_fun_options with kind }
 
-let type_ident opt base_t_opt env lookup id_node
-    ~err_notfound ~err_notunique ~err_nomatch ~err_manymatch =
-  let external_lookup =
-    match lookup with
-    | Solidity_tenv.LExternal -> true
-    | _ -> false
-  in
-  match Solidity_tenv.find_ident env ~lookup (strip id_node) with
-  | [] ->
-      let pid =
-        match prim_of_ident (strip id_node) with
-        | None ->
-            err_notfound ()
-        | Some (pid, _prim) ->
-            pid
-      in
-      begin
-        match Solidity_tenv.prim_type.(pid) id_node.pos opt base_t_opt with
-        | Some (t) ->
-            set_annot id_node (APrimitive);
-            (t, false)
-        | None ->
-            begin
-              match opt.call_args with
-              | None ->
-                  err_notunique ()
-              | Some (_) ->
-                  err_nomatch ()
-            end
-      end
-  | [Contract (cd)] ->
-      let t = TContract (cd.contract_abs_name, cd, false (* super *)) in
-      set_annot id_node (AType t);
-      TType (t), false
-  | [Type (td)] ->
+let get_variable_getter pos vd =
+  if vd.variable_local then
+    error pos "External lookup returning a local variable !";
+  match vd.variable_getter with
+  | Some (fd) -> fd
+  | None -> error pos "Variable is missing a getter !"
+
+let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
+  match idd with
+  | Type (td) ->
       (* Note: user types have their storage location
          set to storage pointer by default *)
       let t =
         Solidity_type_builder.type_desc_to_base_type ~loc:(LStorage true) td in
-      set_annot id_node (AType t);
-      TType (t), false
-  (* TODO: in contract, fail *)
-  (* error "cannot extract field %S from contract def" field *)
-  | [Modifier (md)] ->
-      set_annot id_node (AModifier md);
-      TModifier (md), false
-  | [Event (ed)] ->
-      set_annot id_node (AEvent ed);
-      TEvent (ed), false
-  | [Variable (vd)] when external_lookup ->
-      if vd.variable_local then
-        error id_node.pos "External lookup returning a local variable !";
-      let fd =
-        match vd.variable_getter with
-        | Some (fd) -> fd
-        | None -> error id_node.pos "Variable is missing a getter !"
+      TType (t), false, AType (t)
+  | Contract (cd) ->
+      let t = TContract (cd.contract_abs_name, cd, false (* super *)) in
+      TType (t), false, AContract (cd) (* was AType *)
+  | Modifier (md) ->
+      TModifier (md), false, AModifier (md)
+  | Event (ed) ->
+      TEvent (ed), false, AEvent (ed)
+  | Variable (vd) when is_contract_instance base_t_opt ->
+      let fd = get_variable_getter pos vd in (* add bool in annot : getter *)
+      TFunction (fd, fun_opt base_t_opt fd), false, AVariable (vd) (*was AFunc*)
+  | Variable (vd) when vd.variable_is_primitive ->
+      vd.variable_type, is_mutable vd.variable_mutability, APrimitive
+  | Variable (vd) ->
+      vd.variable_type, not (is_constant vd.variable_mutability), AVariable (vd)
+
+  | Function (fd) when is_uf ->
+      assert (using_for_allowed base_t_opt);
+      assert (not fd.function_is_primitive); (* irrelevant ? *)
+      assert (not fd.function_is_method); (* = function from library*)
+      let fd' =
+        match fd.function_params with
+        | (_ft, _id_opt) :: fp ->
+            { fd with function_params = fp }
+        | _ ->
+            error pos "type_and_annot_of_id_desc: invariant broken"
       in
-      set_annot id_node (AFunction fd);
-      TFunction (fd, fun_opt lookup fd), false
-  | [Variable (vd)] ->
-      set_annot id_node (AVariable vd);
-      vd.variable_type, true
-  | [Function (fd)] ->
-      set_annot id_node (AFunction fd);
-      TFunction (fd, fun_opt lookup fd), false
-  | iddl ->
-      begin
+(* TODO: check options *)                (* add bool in annot: using for *)
+      TFunction (fd', fun_opt base_t_opt fd'), false, AFunction (fd)
+
+  | Function (fd) when fd.function_is_primitive ->
+      TFunction (fd, fun_opt base_t_opt fd), false, APrimitive
+  | Function (fd) ->                              (* add bool: from using for*)
+      TFunction (fd, fun_opt base_t_opt fd), false, AFunction (fd)
+  | Field (fd) ->
+      fd.field_type, true (* depending on type *), AField (fd)
+  | Constr (cd) ->
+      cd.constr_type, false, AConstr (cd)
+
+let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
+  (* To mimic the official compiler messages, we use different
+     messages depending on the context: plain ident vs member ident *)
+  let err_notfound, err_notunique, err_nomatch, err_manymatch =
+    match base_t_opt with
+    | None ->
+        (* No result *)
+        (fun () ->
+          error pos "Undeclared identifier: %s" (Ident.to_string id)),
+(*        error "Undeclared identifier. \"%s\" is not (or not yet) \
+                 visible at this point" (Ident.to_string id)) *)
+        (* Multiple results and no args given (resolution impossible) *)
+        (fun () ->
+          error pos
+            "No matching declaration found after variable lookup"),
+        (* Multiple results and no match (resolution failed) *)
+        (fun () ->
+          error pos
+            "No matching declaration found after argument-dependent lookup"),
+        (* Multiple results and multiple match *)
+        (fun () ->
+          error pos
+            "No unique declaration found after argument-dependent lookup")
+    | Some (t) ->
+        (* No result or multiple results and no match *)
+        let err_notfound () =
+          error pos "Member %s not found or not visible after \
+                     argument-dependent lookup in %s" (Ident.to_string id)
+            (Solidity_type_printer.string_of_type t)
+        in
+        (* Multiple results and no args or multiple match *)
+        let err_notunique () =
+          error pos "Member %s not unique after argument-dependent \
+                     lookup in %s" (Ident.to_string id)
+            (Solidity_type_printer.string_of_type t)
+        in
+        err_notfound, err_notunique, err_notfound, err_notunique
+  in
+
+  match iddl, uf_iddl with
+  | [], [] -> err_notfound ()
+  | [idd], [] -> idd, false
+  | [], [idd] -> idd, true
+  | _ ->
+      let args =
         match opt.call_args with
-        | None ->
-            err_notunique ()
-        | Some (args) ->
-            let iddl =
-              List.fold_left (fun iddl idd ->
-                  let fd_opt =
-                    match idd with
-                    | Function (fd) ->
-                        Some (fd, idd)
-                    | Variable (vd) when external_lookup ->
-                        if vd.variable_local then
-                          error id_node.pos
-                            "External lookup returning a local variable !";
-                        begin
-                          match vd.variable_getter with
-                          | Some (fd) ->
-                              Some (fd, idd)
-                          | None ->
-                              error id_node.pos "Variable is missing a getter !"
-                        end
-                    | Event (ed) ->
-                        Some (
-                          Solidity_type_builder.event_desc_to_function_desc ed,
-                          idd)
-                    | _ ->
-                        None
-                  in
-                  match fd_opt with
-                  | Some (fd, idd) ->
-                      if compatible_function_type fd args then
-                        idd :: iddl
-                      else
-                        iddl
-                  | None ->
-                      iddl
-                ) [] iddl
-            in
-            begin
-              match iddl with
-              | [Function (fd)] ->
-                  set_annot id_node (AFunction fd);
-                  TFunction (fd, fun_opt lookup fd), false
-              | [Event (ed)] ->
-                  set_annot id_node (AEvent ed);
-                  TEvent (ed), false
-              | [] ->
-                  err_nomatch ()
-              | _ ->
-                  err_manymatch ()
-            end
+        | None -> err_notunique ()
+        | Some (args) -> args
+      in
+      let add_if_compatible idd iddl fd args =
+        if compatible_function_type fd args then
+          idd :: iddl
+        else
+          iddl
+      in
+
+      let iddl =
+        List.fold_left (fun iddl idd ->
+            match idd with
+            (* Function *)
+            | Function (fd) ->
+                add_if_compatible idd iddl fd args
+            (* Variable getter *)
+            | Variable (vd) when is_contract_instance base_t_opt ->
+                let fd = get_variable_getter pos vd in
+                add_if_compatible idd iddl fd args
+(* TODO: should accept normal variables (eg. array.length...)*)
+(* i.e variables that are not functions, or primitive variables ? *)
+            (* Variable *)
+            | Variable (vd) ->
+                begin
+                  (* Variables of type function *)
+                  match vd.variable_type with
+                  | TFunction (fd, _fo) ->
+                      add_if_compatible idd iddl fd args
+                  (* Non-function variables and primitives *)
+                  | _ ->
+                      idd :: iddl
+                end
+            (* Structure field *)
+            | Field (fd) ->
+                begin
+                  match fd.field_type with
+                  (* Field of type function *)
+                  | TFunction (fd, _fo) ->
+                      add_if_compatible idd iddl fd args
+                  (* Non-function field *)
+                  | _ ->
+                      idd :: iddl
+                end
+            (* Event *)
+            | Event (ed) ->
+                let fd = Solidity_type_builder.event_desc_to_function_desc ed in
+                add_if_compatible idd iddl fd args
+            | _ ->
+                iddl
+          ) [] iddl
+      in
+
+      let uf_iddl =
+        List.fold_left (fun uf_iddl idd ->
+            match idd with
+            | Function (fd) ->
+                assert (using_for_allowed base_t_opt);
+                assert (not fd.function_is_primitive); (* irrelevant ? *)
+                assert (not fd.function_is_method); (* = function from library*)
+                begin
+                  match base_t_opt, fd.function_params with
+                  | Some (at), (ft, _id_opt) :: fp
+                    when Solidity_type_conv.implicitly_convertible
+                           ~from:at ~to_:ft () ->
+                      let fd = { fd with function_params = fp } in
+                      add_if_compatible idd uf_iddl fd args
+                  | _ ->
+                      uf_iddl
+                end
+            | _ ->
+                uf_iddl
+          ) [] uf_iddl
+      in
+
+      match iddl, uf_iddl with
+      | [idd], [] -> idd, false
+      | [], [idd] -> idd, true
+      | [], [] -> err_nomatch ()
+      | _ -> err_manymatch ()
+
+let get_primitive opt base_t_opt id_node =
+  match prim_of_ident (strip id_node) with
+  | Some (pid, _prim) ->
+      begin
+        match Solidity_tenv.prim_desc.(pid) id_node.pos opt base_t_opt with
+        | Some (t) -> [t]
+        | None -> []
       end
+  | None ->
+      []
 
-let type_plain_ident opt env lookup id_node =
-  let loc = id_node.pos in
-  type_ident opt None env lookup id_node
-    ~err_notfound:(fun () ->
-        error loc "Undeclared identifier: %a" Ident.printf id_node.contents)
-(* TODO: Did you mean "xxx"? *)
-(*      error "Undeclared identifier. \"%s\" is not (or not yet) \
-               visible at this point" (Ident.to_string id)) *)
-    ~err_notunique:(fun () ->
-        error loc
-          "No matching declaration found after variable lookup")
-    ~err_nomatch:(fun () ->
-        error loc
-          "No matching declaration found after argument-dependent lookup")
-    ~err_manymatch:(fun () ->
-        error loc
-          "No unique declaration found after argument-dependent lookup")
+(* x_const and literal_string match any implicitly convertible to type *)
+(*
+struct/address/array/bytesN/bytes/function members
+CAN be overloaded by using_for
+BUT when an overloaded field is a variable, then
+overload resolution fails, so it complains 'not unique'
+(possibly, overload resolution accepts all variables)
 
-let type_member_ident opt env lookup t id_node =
+if defining a "length" function on bytes, then calling "xxx".length
+becomes valid because using_for selection is made using implicit cast
+(length normally not available on string)
+
+* plain ident
+- regular (var/fun/type...)
+- variable primitive (block, msg, tx, abi, this, super)
+- function primitive (assert, require, blockhash, addmod....)
+$ regular can mask primitive, eg. can define a custom assert that
+  completely masks the original one (even if types do not match)
+
+* member ident
+- regular (var/fun/type...)
+- variable member primitive (coinbase, difficulty, length...)
+- function member primitive (decode, encode, balance, transfer...)
+- using for
+$ it seems member primitive never get a chance to be masked by regular,
+  because the only type which can have custom fields have no primitives
+  => assume a regular could mask a primitive ?
+contract/structs/enums/mappings have no primitives
+address/array/bytes/functions primitives can be overloaded by using for
+
+               cust env  prim uf
+(intern)       -    x    x    -
+enum val       -    -    -    x
+enum type      x    -    -    ?
+struct val     x    -    -    x
+struct type    -    -    -    ?
+contract val   -    x    -    x
+contract type  x    x    -    ?
+address        -    -    x    x
+array          -    -    x    x
+bytesN         -    -    x    x
+string         -    -    ?    x
+function       -    -    x    x
+
+*)
+
+let type_ident opt env base_t_opt id_node =
+
   let id = strip id_node in
-  let loc = id_node.pos in
-  let err_notfound () =
-    error loc "Member %s not found or not visible after \
-               argument-dependent lookup in %s" (Ident.to_string id)
-      (Solidity_type_printer.string_of_type t)
+  let pos = id_node.pos in
+
+  (* Look for a user ident based on the current environment and base type *)
+  let iddl =
+    match base_t_opt with
+    | None ->
+        Solidity_tenv.find_ident env ~lookup:LInternal id
+
+    | Some (base_t) ->
+
+        match base_t with
+
+        (* Contract field (through a variable of type contract) *)
+        | TContract (_lid, cd, false (* super *)) ->
+            Solidity_tenv.find_ident cd.contract_env ~lookup:LExternal id
+
+        (* Parent contract field (through "super") *)
+        | TContract (_lid, cd, true (* super *)) ->
+            let env =
+              match cd.contract_hierarchy with
+              | _ :: (_lid, cd) :: _ -> cd.contract_env
+              | _ -> Solidity_tenv.new_env ()
+            in
+            Solidity_tenv.find_ident env ~lookup:LSuper id
+
+        (* Static contract field (through a contract type name) *)
+        | TType (TContract (lid, cd, _super)) -> (* super should be false *)
+            let is_parent = List.mem lid opt.current_hierarchy in
+            let lookup = Solidity_tenv.LStatic (
+                             cd.contract_def.contract_kind, is_parent) in
+            Solidity_tenv.find_ident cd.contract_env ~lookup id
+
+        (* Enum value *)
+        | TType (TEnum (_lid, ed) as t) ->
+            begin
+              match IdentAList.find_opt id ed.enum_values with
+              | Some (i) ->
+                  let cd = {
+                    constr_enum_desc = ed;
+                    constr_name = id; constr_value = i; constr_type = t; }
+                  in
+                  [Constr (cd)]
+              | None ->
+                  []
+            end
+
+        (* Struct member access *)
+        | TStruct (_lid, sd, _loc) ->
+            begin
+              match IdentAList.find_opt id sd.struct_fields with
+              | Some (t) ->
+                  let fd = {
+                      field_struct_desc = sd;
+                      field_name = id; field_type = t; }
+                  in
+                  [Field (fd)]
+              | None ->
+                  []
+            end
+
+        | _ ->
+            []
   in
-  let err_notunique () =
-    error loc "Member %s not unique after argument-dependent \
-               lookup in %s" (Ident.to_string id)
-      (Solidity_type_printer.string_of_type t)
+
+  (* Look for a primitive ONLY IF no ident found
+     (primitives can be shadowed by user idents, except if
+     the ident comes from a "using for", in which case
+     the primitive is overloaded instead of shadowed *)
+  let iddl =
+    match iddl with
+    | [] -> get_primitive opt base_t_opt id_node
+    | _ -> iddl
   in
-  type_ident opt (Some t) env lookup id_node ~err_notfound ~err_notunique
-    ~err_nomatch:err_notfound ~err_manymatch:err_notunique
+
+  (* If we are performing a member lookup, then also look into "using for".
+     We do this only if "using for" is allowed on the base type *)
+  let uf_iddl =
+    match base_t_opt with
+    | Some (t) when using_for_allowed base_t_opt ->
+        let uf =
+          match opt.current_contract with
+          | None -> env.using_for
+          | Some (cd) -> cd.contract_env.using_for
+        in
+        let envs =
+          AbsLongIdentMap.fold (fun _lid (env, tl) envs ->
+              if tl = [] ||
+                   List.exists (fun t' ->
+                       Solidity_type_conv.implicitly_convertible
+                         ~from:t ~to_:t' ()) tl then
+                env :: envs
+              else
+                envs
+            ) uf []
+        in
+        List.fold_left (fun iddl env ->
+            Solidity_tenv.find_ident env ~lookup:LUsingFor id @ iddl
+          ) [] envs
+    | Some (_) | None ->
+        []
+  in
+
+  (* Then, perform overload resolution (if needed) *)
+  let idd, is_uf = resolve_overloads pos opt base_t_opt id iddl uf_iddl in
+
+  (* Finally, retrive the type and annotation for this ident *)
+  let t, lv, a = type_and_annot_of_id_desc id_node.pos base_t_opt idd is_uf in
+  set_annot id_node a;
+  t, lv
+
+
+
 
 let rec type_expression opt (env : env) exp : type_ =
   let t, _lv = type_expression_lv opt env exp in
@@ -610,84 +835,11 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
       false
 
   | IdentifierExpression (id_node) ->
-      type_plain_ident opt env LInternal id_node
+      type_ident opt env None id_node
 
   | FieldExpression (e, field_node) ->
-      let field = strip field_node in
       let t = type_expression opt env e in
-      begin
-        match t with
-
-        (* Struct member access *)
-        | TStruct (_lid, sd, _loc) ->
-            begin
-              match IdentAList.find_opt field sd.struct_fields with
-              | Some (field_type) ->
-                  field_type, true
-              | None ->
-                  error pos "no field %S in struct" (Ident.to_string field)
-            end
-
-        (* Enum value *)
-        | TType (TEnum (lid, ed) as t) ->
-            begin
-              match IdentAList.find_opt field ed.enum_values with
-              | Some (_i) ->
-                  t, false
-              | None ->
-                  error pos "enum type %s does not define a value %s"
-                    (LongIdent.to_string lid) (Ident.to_string field)
-            end
-
-        (* Static contract field (through a contract type name) *)
-        | TType (TContract (lid, cd, _super)) ->
-            let is_parent = List.mem lid opt.current_hierarchy in
-            type_member_ident opt cd.contract_env
-              (LStatic (cd.contract_def.contract_kind, is_parent)) t field_node
-(* TODO: Cannot call function via contract type name
-         when calling an external function like C.f()
-         or through interface *)
-
-        (* Parent contract field (through "super") *)
-        | TContract (_lid, cd, true (* super *)) ->
-            let env =
-              match cd.contract_hierarchy with
-              | _ :: (_lid, cd) :: _ -> cd.contract_env
-              | _ -> Solidity_tenv.new_env ()
-            in
-            type_member_ident opt env LSuper t field_node
-
-        (* Contract field (through a varible of type contract) *)
-        | TContract (_lid, cd, false (* super *)) ->
-            type_member_ident opt cd.contract_env LExternal t field_node
-
-        (* "Member" primitives *)
-        | TMagic (_) | TArray (_) | TBytes (_) | TFixBytes (_)
-        | TAddress (_) | TFunction (_) ->
-            let pid =
-              match prim_of_ident field with
-              | None ->
-                  error field_node.pos "Unknown primitive: %s"
-                    (Ident.to_string field)
-              | Some (pid, _prim) ->
-                  pid
-            in
-            begin
-              match Solidity_tenv.prim_type.(pid) pos opt (Some t) with
-              | Some (t) ->
-                  set_annot field_node (APrimitive);
-                  (t, false)
-              | None ->
-                  error pos "cannot extract field %S from type %s"
-                    (Ident.to_string field)
-                    (Solidity_type_printer.string_of_type t)
-            end
-
-        | _ ->
-            error pos "cannot extract field %S from type %s"
-              (Ident.to_string field)
-              (Solidity_type_printer.string_of_type t)
-      end
+      type_ident opt env (Some t) field_node
 
   | FunctionCallExpression (e, args) ->
       let args = type_function_args opt env args in
@@ -1164,6 +1316,8 @@ TODO: check not both defined
             | Event (_)
             | Contract (_) ->
                 ()
+            | Field _ | Constr _ ->
+                failwith "Invariant broken"
         ) iddl
     ) c.contract_env.ident_map
 
@@ -1348,8 +1502,24 @@ let type_contract_definitions pos c =
             ~inherited:false (strip event_def.event_name) ed;
           set_annot part_node (AEvent ed)
 
-      | UsingForDeclaration (_) ->
-          failwith "Using for is not supported yet"
+      | UsingForDeclaration (lid_node, type_opt) ->
+          let lid = strip lid_node in
+          let pos = lid_node.pos in
+          begin
+            match Solidity_tenv.find_contract pos c.contract_env lid with
+            | None ->
+                error pos "Identifier not found or not unique"
+            | Some (c) when not (is_library c.contract_def.contract_kind) ->
+                error pos "Library name expected"
+            | Some (lib) ->
+                set_annot lid_node (AContract lib);
+                let type_opt =
+                  Option.map (fun t ->
+                      Solidity_type_builder.ast_type_to_type pos
+                        ~loc:(LStorage (true)) c.contract_env t) type_opt
+                in
+                Solidity_tenv.add_using_for c.contract_env lib type_opt;
+          end
 
       | TypeDefinition (_td) ->
           () (* already handled during preprocessing *)
@@ -1516,15 +1686,14 @@ let preprocess_contract_definition
 
   List.iter (fun part_node ->
       match strip part_node with
-      | UsingForDeclaration (_) ->
-          failwith "TODO : Using For"
       | TypeDefinition (td) ->
           preprocess_type_definition part_node.pos c.contract_env
             (c.contract_abs_name) td c.contract_hierarchy
       | StateVariableDeclaration (_)
       | FunctionDefinition (_)
       | ModifierDefinition (_)
-      | EventDefinition (_) ->
+      | EventDefinition (_)
+      | UsingForDeclaration (_) ->
           (* Nothing to do here, we just care about contract and types *)
           ()
     ) contract_def.contract_parts;
@@ -1554,6 +1723,8 @@ let rec update_struct_fields ~env =
           | Variable (_)
           | Function (_)
           | Modifier (_) -> ()
+          | Field _ | Constr _ ->
+              failwith "Invariant broken"
         ) iddl
     ) env.ident_map
 
@@ -1598,6 +1769,8 @@ let check_types_acyclicity ~env =
             | Variable (_)
             | Function (_)
             | Modifier (_) -> deps
+            | Field _ | Constr _ ->
+                failwith "Invariant broken"
           ) deps idl
       ) env.ident_map deps
   in

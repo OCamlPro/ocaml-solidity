@@ -284,6 +284,10 @@ let rec is_storage_type = function
 
 
 
+let is_function = function
+  | TFunction _ -> true
+  | _ -> false
+
 let is_tuple = function
   | TTuple _ -> true
   | _ -> false
