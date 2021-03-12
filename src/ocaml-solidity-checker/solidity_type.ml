@@ -19,7 +19,7 @@ let error pos fmt =
 
 
 
-(* ---------- Equality between types (internal use) ---------- *)
+(* ---------- Equality between types ---------- *)
 
 let same_location l1 l2 =
   match l1, l2 with
@@ -68,14 +68,11 @@ let rec same_type ?(ignore_loc=false) t1 t2 =
       same_type ~ignore_loc src1 src2 &&
       same_type ~ignore_loc dst1 dst2 &&
       (ignore_loc || same_location loc1 loc2)
-(* TODO: be more accurate *)
-(* TODO: options ? *)
   | TFunction (fd1, fo1),
     TFunction (fd2, fo2) ->
       same_type_pl ~ignore_loc fd1.function_params fd2.function_params &&
       same_type_pl ~ignore_loc fd1.function_returns fd2.function_returns &&
       same_mutability fd1.function_mutability fd2.function_mutability &&
-(* TODO: only external counts (use kind instead) *)
       same_visibility fd1.function_visibility fd2.function_visibility &&
       same_options fo1 fo2
   | TModifier (md1), TModifier (md2) ->
@@ -98,16 +95,6 @@ let rec same_type ?(ignore_loc=false) t1 t2 =
       String.equal s1 s2
   | TTuple (tl1), TTuple (tl2) ->
       same_type_ol ~ignore_loc tl1 tl2
-
-  (* TON-specific *)
-  | TTvmCell, TTvmCell
-  | TTvmSlice, TTvmSlice
-  | TTvmBuilder, TTvmBuilder
-  | TExtraCurrencyCollection, TExtraCurrencyCollection ->
-      true
-  | TOptional (t1), TOptional (t2) ->
-      same_type ~ignore_loc t1 t2
-
   | _ ->
       false
 
@@ -135,19 +122,12 @@ and same_magic_type ?(ignore_loc=false) t1 t2 =
   | TTx, TTx
   | TAbi, TAbi ->
       true
-
-  (* TON-specific *)
-  | TTvm, TTvm
-  | TMath, TMath
-  | TRnd, TRnd ->
-      true
-
   | _ ->
       false
 
 
 
-(* ---------- Equality between signatures (internal use) ---------- *)
+(* ---------- Equality between signatures ---------- *)
 
 let same_signature fp1 fp2 =
   ExtList.same_lengths fp1 fp2 &&
@@ -155,7 +135,7 @@ let same_signature fp1 fp2 =
 
 
 
-(* ---------- Check if type has a mapping (internal/external use) ---------- *)
+(* ---------- Check if type has a mapping ---------- *)
 
 let rec has_mapping = function
   | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
@@ -176,22 +156,17 @@ let rec has_mapping = function
           | Some (t) -> has_mapping t
         ) tl
 
-  (* TON-specific *)
-  | TTvmCell | TTvmSlice | TTvmBuilder | TExtraCurrencyCollection ->
-      false
-  | TOptional (t) ->
-      has_mapping t
 
 
+(* ----- Determine if a type is valid for comparison ----- *)
 
-(* ----- Determine if a type is valid for comparison (external) ----- *)
-
-(* In fact, only value types, with bool and fun restricted to ==/!= *)
 let is_comparable op t =
   let open Solidity_ast in
   match t with
+  | TFunction (_, { kind = (KNewContract | KExtContractFun); _ })
+  | TFunction ({ function_is_primitive = true; _ }, _) ->
+      false
   | TBool | TFunction _ ->
-  (* TODO: only internal functions can be compared *)
       begin
         match op with
         | CEq | CNeq -> true
@@ -206,15 +181,11 @@ let is_comparable op t =
   | TArray _ | TArraySlice _ | TMapping _ | TStruct _
   | TType _ | TMagic _ | TModifier _ | TEvent _ ->
       false
-  (* TON-specific *)
-  | TTvmCell | TTvmSlice | TTvmBuilder | TExtraCurrencyCollection ->
-      true
-  | TOptional (_t) ->
-      false
 
 
 
-(* ---------- Check if type is a reference type (external) ---------- *)
+(* ---------- Check if type is a reference type ---------- *)
+
 let rec is_reference_type = function
   (* Reference types *)
   | TBytes _ | TString _ | TStruct _
@@ -235,13 +206,9 @@ let rec is_reference_type = function
           | Some (t) -> is_reference_type t
         ) tl
 
-  (* TON-specific *)
-  | TTvmCell | TTvmSlice | TTvmBuilder
-  | TExtraCurrencyCollection | TOptional (_) ->
-      false
 
 
-(* ---------- Check if type has storage location (external) ---------- *)
+(* ---------- Check if type has storage location ---------- *)
 
 let rec is_storage_type = function
   (* Value types and literals are never in storage *)
@@ -275,29 +242,9 @@ let rec is_storage_type = function
           | Some (t) -> is_storage_type t
         ) tl
 
-  (* TON-specific *)
-  | TTvmCell | TTvmSlice | TTvmBuilder | TExtraCurrencyCollection ->
-      false
-  | TOptional (t) ->
-      is_storage_type t
-
-
-
-
-let is_function = function
-  | TFunction _ -> true
-  | _ -> false
-
-let is_tuple = function
-  | TTuple _ -> true
-  | _ -> false
-
-
-
 
 (* Turn storage pointer to storage ref *)
-let promote_loc : location -> location =
-  function
+let promote_loc : location -> location = function
   | LMemory ->
       LMemory
   | LCalldata ->
@@ -306,8 +253,7 @@ let promote_loc : location -> location =
       LStorage (false)
 
 (* Turn storage ref to storage pointer *)
-let unpromote_loc : location -> location =
-  function
+let unpromote_loc : location -> location = function
   | LMemory ->
       LMemory
   | LCalldata ->
@@ -315,9 +261,7 @@ let unpromote_loc : location -> location =
   | LStorage (_) ->
       LStorage (true)
 
-(* only needed to determine inferred types for variable *)
-(* this basically turns storage ref to storage pointer on the root type *)
-(* child types with storage location are assumed to be storage ref *)
+(* Turn a type's location from storage ref to storage pointer *)
 let rec unpromote_type : type_ -> type_ = function
   | TString (loc) ->
       TString (unpromote_loc loc)
@@ -336,9 +280,9 @@ let rec unpromote_type : type_ -> type_ = function
   | t ->
       t
 
-(* only needed to determine the type of immediate array elements *)
-(* and to change location of structure fields *)
-(* whenever the root becomes storage *, child become storage ref *)
+(* Change a type's location ; promote components
+   from storage pointer to storage ref if needed.
+   This is needed for immediate array elements and structure fields *)
 let rec change_type_location loc : type_ -> type_ = function
   | TString (_loc) ->
       TString (loc)
@@ -361,6 +305,7 @@ let rec change_type_location loc : type_ -> type_ = function
   | t ->
       t
 
+(* Return a type's location ; fails for a tuple *)
 let get_type_location pos : type_ -> location = function
   | TString (loc) -> loc
   | TBytes (loc) -> loc
@@ -372,3 +317,10 @@ let get_type_location pos : type_ -> location = function
   | _t -> LMemory
 
 
+let is_function = function
+  | TFunction _ -> true
+  | _ -> false
+
+let is_tuple = function
+  | TTuple _ -> true
+  | _ -> false

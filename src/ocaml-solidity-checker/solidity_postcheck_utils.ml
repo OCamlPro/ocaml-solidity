@@ -1009,7 +1009,7 @@ let getDetails
     | Some [] when IdentMap.cardinal overrides = 1 ->
         (* A single override detected, but none specified *)
         ()
-      (* todo: comapre with absolute idents from AFunction annotation instead
+      (* todo: compare with absolute idents from AFunction annotation instead
          of relative idents  *)
     | Some declared_overrides ->
         if IdentMap.is_empty overrides then
@@ -1149,7 +1149,7 @@ let getDetails
          match i.annot with
          | AModifier md ->
              longidentmap_add_list md.modifier_abs_name (params, Modifier ast_annot) fd_mods
-         | AFunction fd ->
+         | AFunction (fd, _from_using_for) ->
              longidentmap_add_list fd.function_abs_name (params, Constructor ast_annot) fd_mods
           | a -> failOnAnnot a
       )

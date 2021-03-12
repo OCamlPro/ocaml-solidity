@@ -18,7 +18,7 @@ let error pos fmt =
 
 
 
-(* ---------- Utility functions for type conversion (internal) ---------- *)
+(* ---------- Utility functions for type conversion ---------- *)
 
 let is_storage = function
   | LMemory -> false
@@ -30,15 +30,14 @@ let is_storage_ptr = function
   | LStorage (b) -> b
   | LCalldata -> false
 
-(* TODO: improve rules according to solc (Types.cpp:1600) *)
 let convertible_location ~from ~to_ =
   match from, to_ with
   | LCalldata, LCalldata -> true
   | _, (LMemory | LStorage (false)) -> true
   | LStorage _, _ -> true
-  | _ -> false (* TODO : calldata ? *)
+  | _ -> false
 
-(* Returns the number of bits took by the decimals of a fixed *)
+(* Returns the number of bits taken by the decimals of a fixed *)
 let decimals_space (decimals : int) =
   let max : Z.t = Z.pow (Z.of_int 10) decimals in
   let rec loop (cpt : int) (two_to_cpt : Z.t) =
@@ -53,51 +52,36 @@ let decimals_space (decimals : int) =
 let integer_part_size (size : int) (dec : int) =
   size - (decimals_space dec)
 
-(* String literals are valid strings if they only contain
-   printable or whitespace 7-bit ASCII characters *)
-(* Note: in Solidity, strings are UTF-8, not ASCII *)
-let valid_string s =
-  let valid = ref true in
-  String.iter (fun c ->
-      let c = Char.code c in
-      valid := !valid &&
-               (0x20 <= c && c <= 0x7E || (* printable characters *)
-                0x09 <= c && c <= 0x0D) (* whitespace characters *)
-    ) s;
-  !valid
+(* Check if a string literal is a valid UTF-8 string *)
+let valid_utf8_string s =
+  let rec aux d =
+    match Uutf.decode d with
+    | `Uchar _u -> aux d
+    | `End -> true
+    | `Malformed _ -> false
+    | `Await -> assert false
+  in
+  aux (Uutf.decoder (`String s))
 
 
 
-(* ---------- Implicit conversion check (internal/external) ---------- *)
+(* ---------- Implicit conversion check ---------- *)
 
 (* Check whether implicit conversion can occur between two types *)
-
-(* TODO: contract casts with base/derived contract *)
-(* TODO: location is a bit more subtle *)
-(* TODO: missing contract cast ? *)
 let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   match from, to_ with
-
-  (* Unsigned integer <= Strictly bigger signed integer *)
-  | TUint (size), TInt (size') ->
-      size < size'
-
-  (* Any integer <= Bigger or equal integer *)
-  | TUint (size), TUint (size')
-  | TInt (size), TInt (size') ->
-      (size <= size')
-
-  (* Any integer <= Bigger fixed *)
-  | (TInt (size) | TUint (size)), TFixed (size', dec)
-  | TUint (size), TUfixed (size', dec) ->
-      (size <= integer_part_size size' dec)
-
-  (* Any fixed <= Bigger fixed *)
-  | TUfixed (size, udec), (TUfixed (size', udec') | TFixed (size', udec'))
-  | TFixed (size, udec), TFixed (size', udec') ->
-      (udec <= udec') &&
-      (integer_part_size size udec <= integer_part_size size' udec')
-
+  | TUint (size1), TInt (size2) ->
+      size1 < size2
+  | TUint (size1), TUint (size2)
+  | TInt (size1), TInt (size2) ->
+      (size1 <= size2)
+  | (TInt (size1) | TUint (size1)), TFixed (size2, dec2)
+  | TUint (size1), TUfixed (size2, dec2) ->
+      (size1 <= integer_part_size size2 dec2)
+  | TUfixed (size1, udec1), (TUfixed (size2, udec2) | TFixed (size2, udec2))
+  | TFixed (size1, udec1), TFixed (size2, udec2) ->
+      (udec1 <= udec2) &&
+      (integer_part_size size1 udec1 <= integer_part_size size2 udec2)
   | TRationalConst (q, sz_opt), TFixBytes (bsz) ->
       ExtQ.is_int q &&
       not (ExtQ.is_neg q) &&
@@ -105,20 +89,20 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   | TRationalConst (q, _), TUint (sz) ->
       ExtQ.is_int q &&
       not (ExtQ.is_neg q) &&
-      (Z.numbits (Q.num q) < sz) (* TODO: <= ? *)
+      (Z.numbits (Q.num q) <= sz)
   | TRationalConst (q, _), TInt (sz) ->
       (* Note: when negative, add one to correctly count bits *)
       let n = if ExtQ.is_neg q then Z.succ (Q.num q) else Q.num q in
       ExtQ.is_int q &&
-      (Z.numbits n < sz) (* TODO: <= ? *)
-  | TLiteralString (_s), TString (loc) ->
-      (* valid_string s && *)
+      (Z.numbits n < sz)
+  | TLiteralString (s), TString (loc) ->
+      valid_utf8_string s &&
       (ignore_loc || convertible_location ~from:LMemory ~to_:loc)
   | TLiteralString (_s), TBytes (loc) ->
       (ignore_loc || convertible_location ~from:LMemory ~to_:loc)
   | TLiteralString (s), TFixBytes (sz) ->
       (String.length s <= sz)
-  | TAddress (true), TAddress _ ->
+  | TAddress (true), TAddress (_payable) ->
       true
   | TContract (_, derived, _), TContract (base, _, _) ->
       List.exists (fun (derived, _) ->
@@ -138,42 +122,38 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
        implicitly_convertible ~ignore_loc ~from:tv1 ~to_:tv2 ()
   | TTuple (tl1), TTuple (tl2) ->
       implicitly_convertible_ol ~ignore_loc ~from:tl1 ~to_:tl2 ()
-
-  (* TON-specific *)
-  | TOptional (t1), TOptional (t2) ->
-      implicitly_convertible ~ignore_loc ~from:t1 ~to_:t2 ()
-
   | _ ->
       Solidity_type.same_type from to_
 
 and implicitly_convertible_ol ?(ignore_loc=false) ~from ~to_ () =
-  (List.length from = List.length to_) &&
+  List.length from = List.length to_ &&
   List.for_all2 (fun from_opt to_opt ->
       match from_opt, to_opt with
-      | Some from, Some to_ -> implicitly_convertible ~ignore_loc ~from ~to_ ()
       | None, None -> true
-      | Some _, None -> true
-      | None, Some _ -> false) from to_
+      | Some (_), None -> true
+      | None, Some (_) -> false
+      | Some (from), Some (to_) ->
+          implicitly_convertible ~ignore_loc ~from ~to_ ()
+    ) from to_
 
 
 
-(* ---------- Explicit conversion check (external) ---------- *)
+(* ---------- Explicit conversion check ---------- *)
 
-(* Check whether explicit conversion can occur between two type and returns
-   the casted type. *)
-
+(* Check whether explicit conversion can occur
+   between two types and returns the casted type *)
 let rec explicitly_convertible ~from ~to_ : type_ option =
-  let if_true cond = if cond then Some to_ else None in
+  let if_true cond = if cond then Some (to_) else None in
 
   match from, to_ with
   | (TInt (isz) | TUint (isz)), TFixBytes (bsz) ->
-      if_true (bsz = (isz/8))
+      if_true (bsz = (isz / 8))
 
   | TAddress _, TFixBytes (bsz) ->
       if_true (bsz = 20 || bsz = 21)
 
   | TFixBytes (bsz), TAddress (_) ->
-      if (bsz = 20 || bsz = 21) then
+      if bsz = 20 || bsz = 21 then
         Some (TAddress (true))
       else
         None
@@ -181,9 +161,9 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
   | TAddress (_), TContract (_) -> Some (to_)
   | TContract (_, cd, _), TAddress (payable) ->
       if not payable then Some (to_)
-      else begin
+      else
         let idl = Solidity_tenv.lookup_ident cd.contract_env
-            ~upper:false ~lookup:LAny Ident.receive in
+                    ~upper:false ~lookup:LAny Ident.receive in
         let payable =
           List.exists (function
               | Function { function_mutability = MPayable; _ } -> true
@@ -191,116 +171,103 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
             ) idl
         in
         Some (TAddress (payable))
-      end
 
   | TContract (_, derived, _), TContract (base, _, _) ->
-      if_true (
-        List.exists (fun (derived, _) ->
-            LongIdent.equal derived base
-          ) derived.contract_hierarchy)
+      if_true (List.exists (fun (derived, _) ->
+                   LongIdent.equal derived base) derived.contract_hierarchy)
 
   | (TInt _ | TUint _), TAddress (false) ->
       Some (TAddress (true))
 
   | TRationalConst (q, _), TAddress (_) ->
-      if ExtQ.is_int q then Some (TAddress true)
-      else None
+      if ExtQ.is_int q then
+        Some (TAddress true)
+      else
+        None
 
   | TRationalConst (q, sz_opt), TFixBytes (bsz) ->
       if_true (
         ExtQ.is_int q &&
         not (ExtQ.is_neg q) &&
-        (match sz_opt with
-           | Some sz -> (sz = bsz)
-           | _ -> false))
+        (Option.fold ~none:false ~some:(fun sz -> sz = bsz) sz_opt))
 
-  | TRationalConst (q, _),
-    (TInt _ | TUint _ | TContract _ | TEnum _) ->
+  | TRationalConst (q, _), (TInt _ | TUint _ | TContract _ | TEnum _) ->
       if_true (ExtQ.is_int q)
 
   | TLiteralString (s), TString (LMemory | LStorage (false)) ->
-      if_true (valid_string s)
+      if_true (valid_utf8_string s)
 
   | TLiteralString (s), TFixBytes (bsz) ->
-      if_true ((String.length s <= bsz))
+      if_true (String.length s <= bsz)
 
   | (TString (loc1) | TBytes (loc1)),
     (TString (loc2) | TBytes (loc2)) ->
       if_true (convertible_location ~from:loc1 ~to_:loc2)
 
-  | TArray (from, sz_from, loc1), TArray (to_, sz_to, loc2) -> begin
+  | TArray (from, sz_from, loc1), TArray (to_, sz_to, loc2) ->
       let test_size () =
         match sz_from, sz_to with
-          | None, None -> true
-          | Some s1, Some s2 -> Z.equal s1 s2
-          | _ -> false in
+        | None, None -> true
+        | Some (s1), Some (s2) -> Z.equal s1 s2
+        | _ -> false in
       let test_loc () = convertible_location ~from:loc1 ~to_:loc2 in
       if test_size () && test_loc () then
-        match explicitly_convertible ~from ~to_ with
-          | Some t -> Some (TArray (t, sz_to, loc2))
-          | None -> None
-      else None
+        Option.map (fun t -> TArray (t, sz_to, loc2))
+          (explicitly_convertible ~from ~to_)
+      else
+        None
 
-    end
-
-  | TTuple (tl1), TTuple (tl2) -> begin
-      match explicitly_convertible_ol ~from:tl1 ~to_:tl2 with
-      | None -> None
-      | Some (l) -> Some (TTuple l)
-    end
+  | TTuple (tl1), TTuple (tl2) ->
+      Option.map (fun l -> TTuple (l))
+        (explicitly_convertible_ol ~from:tl1 ~to_:tl2)
 
   | TStruct (lid1, _, loc1), TStruct (lid2, _, loc2) ->
       if_true (convertible_location ~from:loc1 ~to_:loc2 &&
                  LongIdent.equal lid1 lid2)
 
-  (* Automatic conversions *)
   | (TInt _ | TUint _), (TInt _ | TUint _ | TAddress _ | TContract _ | TEnum _)
   | TFixBytes _, TFixBytes _
   | TAddress _, (TInt _ | TUint _ | TAddress _)
   | TEnum _, (TInt _ | TUint _) ->
       Some (to_)
 
-  (* TON-specific *)
-  | TOptional (from), TOptional (to_) ->
-      explicitly_convertible ~from ~to_
-
   | _ ->
       if_true (Solidity_type.same_type from to_)
 
 and explicitly_convertible_ol ~from ~to_ : type_ option list option =
-  if (List.length from = List.length to_) then
+  if List.length from = List.length to_ then
     let exception Stop in
     let rec loop acc froml tol =
       match froml, tol with
-        | [], [] -> List.rev acc
-        | from :: tl_from, to_ :: tl_to -> begin
-            let acc =
-              match from, to_ with
-                | None, None -> None :: acc (* Ok, but there is no type *)
-                | Some t, None
-                | None, Some t -> Some t :: acc
-                | Some from, Some to_ ->
-                    let res = explicitly_convertible ~from ~to_ in
-                    match res with
-                      | None -> raise Stop
-                      | (Some _) -> res :: acc in
-            loop acc tl_from tl_to
-          end
-        | _ :: _, [] | [], _ :: _ -> assert false (* List have the same size *)
-     in
-     try
-       Some (loop [] from to_)
-     with Stop -> None
-  else None
+      | [], [] ->
+          List.rev acc
+      | from :: tl_from, to_ :: tl_to ->
+          let acc =
+            match from, to_ with
+            | None, None -> None :: acc (* Ok, but there is no type *)
+            | Some (t), None
+            | None, Some (t) -> Some (t) :: acc
+            | Some (from), Some (to_) ->
+                match explicitly_convertible ~from ~to_ with
+                | None -> raise Stop
+                | res -> res :: acc
+          in
+          loop acc tl_from tl_to
+      | _ :: _, []
+      | [], _ :: _ ->
+          assert false (* List have the same size *)
+    in
+    try Some (loop [] from to_)
+    with Stop -> None
+  else
+    None
 
 let explicitly_convertible_bool ~from ~to_ =
-  match explicitly_convertible ~from ~to_ with
-    | None -> false
-    | Some _ -> true
+  Option.is_some (explicitly_convertible ~from ~to_)
 
 
 
-(* ---------- Determine a type's mobile type (external) ---------- *)
+(* ---------- Determine a type's mobile type ---------- *)
 
 let rec mobile_type pos t =
   match t with
@@ -320,24 +287,22 @@ let rec mobile_type pos t =
         else TUfixed (sz, nb_dec)
   | TLiteralString (_s) ->
       (* Note: even if not a valid string *)
-      TString LMemory
+      TString (LMemory)
   | TArraySlice (bt, LCalldata) ->
       (* Array slices of dynamic calldata arrays are of type array *)
       TArray (bt, None, LCalldata)
   | TTuple (tl) ->
-      TTuple (List.map (function
-          | Some t -> Some (mobile_type pos t)
-          | None -> None) tl)
+      TTuple (List.map (Option.map (mobile_type pos)) tl)
   | _ -> t
 
 
 
-(* ----- Determine the common type between two types (external) ----- *)
+(* ----- Determine the common type between two types ----- *)
 
 let common_type t1 t2 =
   if implicitly_convertible ~from:t1 ~to_:t2 () then
-    Some t2
+    Some (t2)
   else if implicitly_convertible ~from:t2 ~to_:t1 () then
-    Some t1
+    Some (t1)
   else
     None

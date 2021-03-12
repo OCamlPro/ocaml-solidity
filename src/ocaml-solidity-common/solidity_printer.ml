@@ -61,14 +61,6 @@ let string_of_number_unit = function
   | Days ->     "days"
   | Weeks ->    "weeks"
   | Years ->    "years"
-  (* TON-specific *)
-  | Nanoton ->  "nanoton"
-  | Microton -> "microton"
-  | Milliton -> "milliton"
-  | Ton ->      "ton"
-  | Kiloton ->  "kiloton"
-  | Megaton ->  "megaton"
-  | Gigaton ->  "gigaton"
 
 let string_of_unop = function
   | UPlus ->   "+"
@@ -123,15 +115,6 @@ let string_of_elementary_type = function
       "bytes"
   | TypeBytes (Some size)->
       Format.sprintf "bytes%d" size
-  (* TON-specific *)
-  | TvmCell ->
-      "TvmCell"
-  | TvmSlice ->
-      "TvmSlice"
-  | TvmBuilder ->
-      "TvmBuilder"
-  | ExtraCurrencyCollection ->
-      "ExtraCurrencyCollection"
 
 
 
@@ -368,10 +351,6 @@ and string_of_type = function
          | Some e -> string_of_expression e)
   | FunctionType ft ->
       string_of_function_type ft
-  (* TON-specific *)
-  | Optional (t) ->
-      Format.sprintf "optional(%s)"
-        (string_of_type t)
 
 and string_of_function_type {
     fun_type_params; fun_type_returns;

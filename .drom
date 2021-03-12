@@ -2,7 +2,7 @@
 
 # hash of toml configuration files
 # used for generation of all files
-074992f824212349bd432233d52e417a:.
+52a22804f015c3f76a81e07357cbdf30:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
@@ -37,7 +37,7 @@ a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
 
 # begin context for CHANGES.md
 # file CHANGES.md
-afd136a54a5293cca6305af4232eb004:CHANGES.md
+f182280aead491795bc8643d8d935f99:CHANGES.md
 # end context for CHANGES.md
 
 # begin context for LICENSE.md
@@ -97,7 +97,7 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-94b56a2950b63d03da8e73f1aee861bc:dune-project
+73af41a6b46c6bface3e050d3e918f32:dune-project
 # end context for dune-project
 
 # begin context for ez-hash.opam
@@ -107,7 +107,7 @@ b94999435b90cda4056b8495a80cd81c:ez-hash.opam
 
 # begin context for ocaml-solidity-checker.opam
 # file ocaml-solidity-checker.opam
-5c9c6c599f6c6a50232e1ac9dff3811c:ocaml-solidity-checker.opam
+c9b94fdfc4f8e32f6bfdceabd361fabd:ocaml-solidity-checker.opam
 # end context for ocaml-solidity-checker.opam
 
 # begin context for ocaml-solidity-common.opam
@@ -182,7 +182,7 @@ be5b2f331733cbbbfed0aba411d34691:sphinx/license.rst
 
 # begin context for src/ocaml-solidity-checker/dune
 # file src/ocaml-solidity-checker/dune
-5ac5b1fc3130f10a0442525569b099c4:src/ocaml-solidity-checker/dune
+d45504b6e16bc7825d1698332424505d:src/ocaml-solidity-checker/dune
 # end context for src/ocaml-solidity-checker/dune
 
 # begin context for src/ocaml-solidity-checker/index.mld

@@ -42,35 +42,55 @@ let eval_array_length_exp env e =
     | PrefixExpression (op, e) ->
         begin
           match apply_unop op (aux e) with
-          | Some v -> v
+          | Some (v) -> v
           | None -> error_invalid ()
         end
     | BinaryExpression (e1, op, e2) ->
         begin
           match apply_binop (aux e1) op (aux e2) with
-          | Some v -> v
+          | Some (v) -> v
           | None -> error_invalid ()
         end
-(* TODO: consts in libs ? *)
     | IdentifierExpression (id) ->
-        begin
-          match Solidity_tenv.find_ident env ~lookup:LInternal (strip id) with
-          | [Variable { variable_mutability = MConstant;
-                        variable_init = Some e; _ }] ->
-              aux e
+        process_ident id
+          (Solidity_tenv.find_ident env ~lookup:LInternal (strip id))
+    | FieldExpression (e, id) ->
+        let cd =
+          match strip e with
+          | IdentifierExpression (id) ->
+              begin
+                match Solidity_tenv.find_ident env
+                        ~lookup:LInternal (strip id) with
+                | [Contract (cd)] ->
+                    cd
+                | _ ->
+                    error id.pos "Undeclared identifier: %a"
+                      Ident.printf (strip id)
+              end
           | _ ->
-              error id.pos "Undeclared identifier: %a" Ident.printf id.contents
-        end
-(* TODO: set annot ? *)
+              error_invalid ()
+        in
+        process_ident id
+          (Solidity_tenv.find_ident cd.contract_env
+             ~lookup:(LStatic (cd.contract_def.contract_kind, false)) (strip id))
     | _ ->
         error_invalid ()
+
+  and process_ident id iddl =
+    match iddl with
+    | [Variable { variable_mutability = MConstant;
+                  variable_init = Some (e); _ }] ->
+        aux e
+    | _ ->
+        error id.pos "Undeclared identifier: %a" Ident.printf (strip id)
   in
+
   let v = aux e in
   if not (ExtQ.is_int v) then
     error e.pos "Array with fractional length specified"
   else if ExtQ.is_neg v then
     error e.pos "Array with negative length specified"
-  else if (Z.numbits (Q.num v) > 31) then
+  else if Z.numbits (Q.num v) > 31 then
     error e.pos "Array too big"
   else
     Q.num v
@@ -85,7 +105,7 @@ let type_desc_to_base_type ~loc : type_desc -> type_ =
         (TStruct (sd.struct_abs_name, sd, loc))
 
 let type_lid_to_base_type pos ~loc env lid =
-  match Solidity_tenv.find_type pos env lid with
+  match Solidity_tenv.find_type env lid with
   | Some (t) ->
       Solidity_type.change_type_location loc t
   | None ->
@@ -121,16 +141,6 @@ let elementary_type_to_type ~loc : Solidity_ast.elementary_type -> type_ =
   | TypeString ->
       TString (loc)
 
-  (* TON-specific *)
-  | TvmCell ->
-      TTvmCell
-  | TvmSlice ->
-      TTvmSlice
-  | TvmBuilder ->
-      TTvmBuilder
-  | ExtraCurrencyCollection ->
-      TExtraCurrencyCollection
-
 let rec ast_type_to_type pos ~loc env = function
   | ElementaryType (et) ->
       elementary_type_to_type ~loc et
@@ -163,10 +173,6 @@ let rec ast_type_to_type pos ~loc env = function
   | FunctionType (ft) ->
       TFunction (function_type_to_desc pos env ft,
                  Solidity_tenv.new_fun_options)
-
-  (* TON-specific *)
-  | Optional (t) ->
-      TOptional (ast_type_to_type pos ~loc env t)
 
 and var_type_to_type pos env ~arg ~ext loc_opt t =
   let loc =
@@ -236,7 +242,6 @@ and make_function_desc pos env ~funtype ~library ~is_method
         Option.map strip name_opt
       ) returns
   in
-(* TODO: don't compute for receive/fallback/constr *)
   let function_selector =
     if funtype then
       None
@@ -250,7 +255,7 @@ and make_function_desc pos env ~funtype ~library ~is_method
     | Some (fd) ->
         Option.map (List.map (fun lid_node ->
             let lid = strip lid_node in
-            match Solidity_tenv.find_contract pos env lid with
+            match Solidity_tenv.find_contract env lid with
             | None ->
                 error lid_node.pos
                   "Invalid contract specified in override list: %a"
@@ -360,7 +365,7 @@ let state_variable_def_to_desc pos (c : contract_desc) vd : variable_desc =
   let variable_override =
     Option.map (List.map (fun lid_node ->
         let lid = strip lid_node in
-        match Solidity_tenv.find_contract pos c.contract_env lid with
+        match Solidity_tenv.find_contract c.contract_env lid with
         | None ->
             error lid_node.pos
               "Invalid contract specified in override list: %a"
@@ -412,3 +417,52 @@ let event_desc_to_function_desc (ed : event_desc) : function_desc =
     function_selector = None;
     function_is_method = false;
     function_is_primitive = false; }
+
+
+let primitive_type ?(kind=KOther) ?(returns_lvalue=false)
+    arg_types ret_types function_mutability =
+  let fd = {
+    function_abs_name = LongIdent.empty;
+    function_params = List.map (fun t -> (t, None)) arg_types;
+    function_returns = List.map (fun t -> (t, None)) ret_types;
+    function_returns_lvalue = returns_lvalue;
+    function_visibility = VPublic; (* or private for builtins *)
+    function_mutability;
+    function_def = None;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false; (* can be true *)
+    function_is_primitive = true; }
+  in
+  TFunction (fd, { Solidity_tenv.new_fun_options with kind })
+
+let primitive_fun_desc ?(returns_lvalue=false)
+    arg_types ret_types function_mutability =
+  let fd = {
+    function_abs_name = LongIdent.empty;
+    function_params = List.map (fun t -> (t, None)) arg_types;
+    function_returns = List.map (fun t -> (t, None)) ret_types;
+    function_returns_lvalue = returns_lvalue;
+    function_visibility = VPublic; (* or private for builtins *)
+    function_mutability;
+    function_def = None;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false; (* can be true *)
+    function_is_primitive = true; }
+  in
+  Function (fd)
+
+let primitive_var_desc (*?(is_lvalue=false)*) variable_type =
+  let vd = {
+    variable_abs_name = LongIdent.empty;
+    variable_type;
+    variable_visibility = VPublic; (* or private for builtins *)
+    variable_mutability = MImmutable; (* depends ? *)
+    variable_local = false;
+    variable_init = None;
+    variable_override = None;
+    variable_getter = None;
+    variable_is_primitive = true; }
+  in
+  Variable (vd)

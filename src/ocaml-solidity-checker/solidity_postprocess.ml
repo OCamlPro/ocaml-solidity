@@ -102,7 +102,7 @@ let analyseContract
         | Contract | Library -> fd
         | Interface -> {fd with fun_virtual = true} in
       let params, selector = match current_annot with
-        | Some (AFunction {function_params; function_selector; _}) ->
+        | Some (AFunction ({function_params; function_selector; _}, _)) ->
             let function_selector =
               Option.value ~default:"" function_selector in
             function_params, function_selector
@@ -189,7 +189,7 @@ let analyseContract
       let type_ =
         match self#getAnnot () with
         | Some (AType t) -> t
-        | Some (AVariable v) -> v.variable_type
+        | Some (AVariable (v, _is_getter)) -> v.variable_type
         | Some a -> failOnAnnot a
         | None -> assert false in
       let new_env =
@@ -576,7 +576,7 @@ let checkPurity =
                      match annot with
                        | AType
                            (TFunction ({function_mutability; _},_))
-                       | AFunction {function_mutability; _} ->
+                       | AFunction ({function_mutability; _}, _) ->
                            if callablePurity max_purity function_mutability then
                              funs_tested
                            else

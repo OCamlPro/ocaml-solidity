@@ -28,41 +28,6 @@ let default_options = {
   current_contract = None;
 }
 
-(* TODO: rules and messages different in 0.7+ *)
-let immediate_array_element_type pos tl : type_ =
-  let rec aux t = function
-    | [] -> t
-    | t' :: tl ->
-        let t =
-          if Solidity_type_conv.implicitly_convertible
-              ~ignore_loc:true ~from:t' ~to_:t () then
-            t
-          else
-            let t' = Solidity_type_conv.mobile_type pos t' in
-            if Solidity_type_conv.implicitly_convertible
-                ~ignore_loc:true ~from:t ~to_:t' () then
-              t'
-            else
-              error pos "Unable to deduce common type for array elements"
-        in
-        aux t tl
-  in
-  match tl with
-  | [] -> error pos "Unable to deduce common type for array elements"
-  | t :: tl ->
-      begin
-        match aux (Solidity_type_conv.mobile_type pos t) tl with
-        | TRationalConst _ | TLiteralString _ ->
-            error pos "immediate_array_element_type: invariant broken"
-        | (TTuple _ | TArraySlice _ | TFunction _ |
-           TModifier _ | TEvent _ | TType _ | TMagic _) as t ->
-            error pos "Type %s is only valid in storage"
-              (Solidity_type_printer.string_of_type t)
-        | t ->
-            (* Note: always LMemory, even when initializing state variables *)
-            Solidity_type.change_type_location LMemory t
-      end
-
 let binop_type pos op t1 t2 : type_ =
   let error_incompat () =
     error pos "Operator %s not compatible with types %s and %s"
@@ -137,6 +102,47 @@ let unop_type pos op t : type_ =
   | _, ULNot ->
       error_incompat ()
 
+let immediate_array_element_type pos tl : type_ =
+  let error_no_common_type () =
+    error pos "Unable to deduce common type for array elements"
+  in
+  let rec aux t = function
+    | [] -> t
+    | t' :: tl ->
+        let t =
+          if Solidity_type_conv.implicitly_convertible
+              ~ignore_loc:true ~from:t' ~to_:t () then
+            t
+          else
+            let t' = Solidity_type_conv.mobile_type pos t' in
+            if Solidity_type_conv.implicitly_convertible
+                ~ignore_loc:true ~from:t ~to_:t' () then
+              t'
+            else
+              error_no_common_type ()
+        in
+        aux t tl
+  in
+  match tl with
+  | [] -> error_no_common_type ()
+  | t :: tl ->
+      begin
+        match aux (Solidity_type_conv.mobile_type pos t) tl with
+        | TRationalConst _ | TLiteralString _ ->
+            error pos "immediate_array_element_type: invariant broken"
+        | (TTuple _ | TArraySlice _ | TFunction _ |
+           TModifier _ | TEvent _ | TType _ | TMagic _) as t ->
+            error pos "Type %s is only valid in storage"
+              (Solidity_type_printer.string_of_type t)
+        | t ->
+            (* Note: always LMemory, even when initializing state variables *)
+            Solidity_type.change_type_location LMemory t
+      end
+
+let nb_args = function
+  | AList (tl) -> List.length tl
+  | ANamed (ntl) -> List.length ntl
+
 let check_argument_type pos kind ~expected ~provided =
   if not (Solidity_type_conv.implicitly_convertible
             ~from:provided ~to_:expected ()) then
@@ -147,20 +153,13 @@ let check_argument_type pos kind ~expected ~provided =
 
 let check_function_application pos kind fp args =
   let nb_args_expected = List.length fp in
-  let nb_args_provided =
-    match args with
-    | AList (tl) -> List.length tl
-    | ANamed (ntl) -> List.length ntl
-  in
+  let nb_args_provided = nb_args args in
   (* Note: named arguments in ANamed ntl are unique (checked previously) *)
   if nb_args_provided <> nb_args_expected then
     error pos "Wrong argument count for %s: \
                %d arguments given but expected %d"
       kind nb_args_provided nb_args_expected
   else
-  (* TODO: warning, for structs, the location is the one that was determined
-     when the struct was invoked, but it may depend on the usage context
-     (storage init ?) *)
     begin
       match args with
       | AList (tl) ->
@@ -184,11 +183,7 @@ let check_function_application pos kind fp args =
 
 let compatible_function_type (fd : function_desc) args  =
   let nb_args_expected = List.length fd.function_params in
-  let nb_args_provided =
-    match args with
-    | AList (tl) -> List.length tl
-    | ANamed (ntl) -> List.length ntl
-  in
+  let nb_args_provided = nb_args args in
   (* Note: named arguments in ANamed ntl are unique (checked previously) *)
   if nb_args_provided <> nb_args_expected then
     false
@@ -213,15 +208,6 @@ let compatible_function_type (fd : function_desc) args  =
             ) ntl
     end
 
-
-
-let is_contract_instance base_t_opt =
-  match base_t_opt with
-  | Some (TContract (_lid, _cd, false (* super *))) ->
-      true
-  | Some (_) | None ->
-      false
-
 (* Base types on which "using for" is allowed.
    These are the types the user can express, as well as the types coercible
    to these types. In particular, this excludes internal types. *)
@@ -235,11 +221,19 @@ let using_for_allowed base_t_opt =
   | Some (_) ->
       true
 
+let is_contract_instance base_t_opt =
+  match base_t_opt with
+  | Some (TContract (_lid, _cd, false (* super *))) ->
+      true
+  | Some (_) | None ->
+      false
 
-let fun_opt base_t_opt (fd : function_desc) =
+let fun_opt base_t_opt is_uf (fd : function_desc) =
+  (* Note: external functions attached to contracts with using for
+     do not allow options and are considered as regular functions *)
   let kind =
     match fd.function_visibility with
-    | (VExternal | VPublic) when is_contract_instance base_t_opt ->
+    | (VExternal | VPublic) when is_contract_instance base_t_opt && not is_uf ->
         KExtContractFun
     | _ ->
         KOther
@@ -248,7 +242,7 @@ let fun_opt base_t_opt (fd : function_desc) =
 
 let get_variable_getter pos vd =
   if vd.variable_local then
-    error pos "External lookup returning a local variable !";
+    error pos "Requesting getter on a local variable !";
   match vd.variable_getter with
   | Some (fd) -> fd
   | None -> error pos "Variable is missing a getter !"
@@ -263,23 +257,23 @@ let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
       TType (t), false, AType (t)
   | Contract (cd) ->
       let t = TContract (cd.contract_abs_name, cd, false (* super *)) in
-      TType (t), false, AContract (cd) (* was AType *)
+      TType (t), false, AContract (cd)
   | Modifier (md) ->
       TModifier (md), false, AModifier (md)
   | Event (ed) ->
       TEvent (ed), false, AEvent (ed)
   | Variable (vd) when is_contract_instance base_t_opt ->
-      let fd = get_variable_getter pos vd in (* add bool in annot : getter *)
-      TFunction (fd, fun_opt base_t_opt fd), false, AVariable (vd) (*was AFunc*)
+      let fd = get_variable_getter pos vd in
+      TFunction (fd, fun_opt base_t_opt false fd), false, AVariable (vd, true)
   | Variable (vd) when vd.variable_is_primitive ->
       vd.variable_type, is_mutable vd.variable_mutability, APrimitive
   | Variable (vd) ->
-      vd.variable_type, not (is_constant vd.variable_mutability), AVariable (vd)
-
+      let lv = not (is_constant vd.variable_mutability) in
+      vd.variable_type, lv, AVariable (vd, false)
   | Function (fd) when is_uf ->
       assert (using_for_allowed base_t_opt);
-      assert (not fd.function_is_primitive); (* irrelevant ? *)
-      assert (not fd.function_is_method); (* = function from library*)
+      assert (not fd.function_is_primitive); (* just a check *)
+      assert (not fd.function_is_method); (* = function from library *)
       let fd' =
         match fd.function_params with
         | (_ft, _id_opt) :: fp ->
@@ -287,15 +281,13 @@ let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
         | _ ->
             error pos "type_and_annot_of_id_desc: invariant broken"
       in
-(* TODO: check options *)                (* add bool in annot: using for *)
-      TFunction (fd', fun_opt base_t_opt fd'), false, AFunction (fd)
-
+      TFunction (fd', fun_opt base_t_opt true fd'), false, AFunction (fd, true)
   | Function (fd) when fd.function_is_primitive ->
-      TFunction (fd, fun_opt base_t_opt fd), false, APrimitive
-  | Function (fd) ->                              (* add bool: from using for*)
-      TFunction (fd, fun_opt base_t_opt fd), false, AFunction (fd)
+      TFunction (fd, fun_opt base_t_opt false fd), false, APrimitive
+  | Function (fd) ->
+      TFunction (fd, fun_opt base_t_opt false fd), false, AFunction (fd, false)
   | Field (fd) ->
-      fd.field_type, true (* depending on type *), AField (fd)
+      fd.field_type, true, AField (fd)
   | Constr (cd) ->
       cd.constr_type, false, AConstr (cd)
 
@@ -337,7 +329,6 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
         in
         err_notfound, err_notunique, err_notfound, err_notunique
   in
-
   match iddl, uf_iddl with
   | [], [] -> err_notfound ()
   | [idd], [] -> idd, false
@@ -354,7 +345,6 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
         else
           iddl
       in
-
       let iddl =
         List.fold_left (fun iddl idd ->
             match idd with
@@ -365,8 +355,6 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
             | Variable (vd) when is_contract_instance base_t_opt ->
                 let fd = get_variable_getter pos vd in
                 add_if_compatible idd iddl fd args
-(* TODO: should accept normal variables (eg. array.length...)*)
-(* i.e variables that are not functions, or primitive variables ? *)
             (* Variable *)
             | Variable (vd) ->
                 begin
@@ -397,13 +385,12 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
                 iddl
           ) [] iddl
       in
-
       let uf_iddl =
         List.fold_left (fun uf_iddl idd ->
             match idd with
             | Function (fd) ->
                 assert (using_for_allowed base_t_opt);
-                assert (not fd.function_is_primitive); (* irrelevant ? *)
+                assert (not fd.function_is_primitive); (* just a check *)
                 assert (not fd.function_is_method); (* = function from library*)
                 begin
                   match base_t_opt, fd.function_params with
@@ -419,7 +406,6 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
                 uf_iddl
           ) [] uf_iddl
       in
-
       match iddl, uf_iddl with
       | [idd], [] -> idd, false
       | [], [idd] -> idd, true
@@ -437,51 +423,6 @@ let get_primitive opt base_t_opt id_node =
   | None ->
       []
 
-(* x_const and literal_string match any implicitly convertible to type *)
-(*
-struct/address/array/bytesN/bytes/function members
-CAN be overloaded by using_for
-BUT when an overloaded field is a variable, then
-overload resolution fails, so it complains 'not unique'
-(possibly, overload resolution accepts all variables)
-
-if defining a "length" function on bytes, then calling "xxx".length
-becomes valid because using_for selection is made using implicit cast
-(length normally not available on string)
-
-* plain ident
-- regular (var/fun/type...)
-- variable primitive (block, msg, tx, abi, this, super)
-- function primitive (assert, require, blockhash, addmod....)
-$ regular can mask primitive, eg. can define a custom assert that
-  completely masks the original one (even if types do not match)
-
-* member ident
-- regular (var/fun/type...)
-- variable member primitive (coinbase, difficulty, length...)
-- function member primitive (decode, encode, balance, transfer...)
-- using for
-$ it seems member primitive never get a chance to be masked by regular,
-  because the only type which can have custom fields have no primitives
-  => assume a regular could mask a primitive ?
-contract/structs/enums/mappings have no primitives
-address/array/bytes/functions primitives can be overloaded by using for
-
-               cust env  prim uf
-(intern)       -    x    x    -
-enum val       -    -    -    x
-enum type      x    -    -    ?
-struct val     x    -    -    x
-struct type    -    -    -    ?
-contract val   -    x    -    x
-contract type  x    x    -    ?
-address        -    -    x    x
-array          -    -    x    x
-bytesN         -    -    x    x
-string         -    -    ?    x
-function       -    -    x    x
-
-*)
 
 let type_ident opt env base_t_opt id_node =
 
@@ -596,14 +537,11 @@ let type_ident opt env base_t_opt id_node =
   set_annot id_node a;
   t, lv
 
-
-
-
-let rec type_expression opt (env : env) exp : type_ =
+let rec type_expression opt env exp : type_ =
   let t, _lv = type_expression_lv opt env exp in
   t
 
-and type_expression_lv opt (env : env) exp : type_ * bool =
+and type_expression_lv opt env exp : type_ * bool =
   let pos = exp.pos in
   let t, lv = match strip exp with
 
@@ -680,7 +618,6 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
         | TFixBytes (sz) ->
             ignore (expect_array_index_type opt env (Some (Z.of_int sz)) e2);
             TFixBytes (1), false
-   (* TODO: "Single bytes in fixed bytes arrays cannot be modified"*)
         | TBytes (_loc) ->
             ignore (expect_array_index_type opt env None e2);
             TFixBytes (1), true
@@ -807,7 +744,7 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
       begin
         match t with
         | TArray (_, None, _) | TBytes (_) | TString (_) ->
-            let t = Solidity_tenv.primitive_type [TUint 256] [t] MPure in
+            let t = Solidity_type_builder.primitive_type [TUint 256] [t] MPure in
             (t, false)
         | TContract (_lid, cd, false (* super *)) ->
             if cd.contract_def.contract_abstract then
@@ -818,7 +755,7 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
               error pos "Instantiating libraries is not supported yet";
             let ctor = Solidity_tenv.find_constructor pos cd in
             let atl = List.map fst ctor.function_params in
-            let t = Solidity_tenv.primitive_type
+            let t = Solidity_type_builder.primitive_type
                       ~kind:KNewContract atl [t] MPayable in
             (t, false)
         | TArray (_, Some (_), _) ->
@@ -837,9 +774,9 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
   | IdentifierExpression (id_node) ->
       type_ident opt env None id_node
 
-  | FieldExpression (e, field_node) ->
+  | FieldExpression (e, id_node) ->
       let t = type_expression opt env e in
-      type_ident opt env (Some t) field_node
+      type_ident opt env (Some t) id_node
 
   | FunctionCallExpression (e, args) ->
       let args = type_function_args opt env args in
@@ -849,7 +786,6 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
 
         (* Function call *)
         | TFunction (fd, _fo), args ->
-(* TODO: check function options can be applied (value, gas, salt) *)
             check_function_application pos "function call"
               fd.function_params args;
             begin
@@ -904,11 +840,7 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
            TBool | TInt _ | TUint _ | TFixed _ | TUfixed _ |
            TAddress _ | TFixBytes _ | TBytes _ | TString _ |
            TEnum _ | TStruct _ | TContract _ | TArray _ | TMapping _ |
-           TTuple _ | TModifier _ | TArraySlice _ | TMagic _ |
-
-           (* TON-specific *)
-           TTvmCell | TTvmSlice | TTvmBuilder |
-           TExtraCurrencyCollection | TOptional _
+           TTuple _ | TModifier _ | TArraySlice _ | TMagic _
           ), _ ->
             error pos "Type is not callable"
       end
@@ -917,7 +849,6 @@ and type_expression_lv opt (env : env) exp : type_ * bool =
       begin
         match type_expression opt env e with
         | TFunction (fd, fo) ->
-(* TODO: also available on call/delegatecall/staticcall*)
             let is_payable = is_payable fd.function_mutability in
             let fo = List.fold_left (fun fo (id, e) ->
                 let id = strip id in
@@ -1010,10 +941,6 @@ and expect_type pos ~expected ~provided =
       (Solidity_type_printer.string_of_type provided)
       (Solidity_type_printer.string_of_type expected)
 
-
-
-
-
 (* Check statements *)
 
 let rec type_statement opt env s =
@@ -1057,12 +984,70 @@ let rec type_statement opt env s =
       Option.iter (fun e -> ignore (type_expression opt env e)) e2_opt;
       type_statement { opt with in_loop = true } env s2;
 
-  | TryStatement (e, _returns, body, catch_clauses) ->
-(* TODO: more checks ? *)
-      ignore (type_expression opt env e);
-      List.iter (type_statement opt env) body;
-      List.iter (fun (_id_opt, _params, body) ->
-          List.iter (type_statement opt env) body
+  | TryStatement (e, returns, body, catch_clauses) ->
+
+      (* Typecheck the expression and ensure it is an external call *)
+      let t = type_expression opt env e in
+      let fd =
+        match t with
+        | TFunction (fd, { kind = (KNewContract | KExtContractFun); _ }) ->
+            fd
+        | _ ->
+            error pos "Try can only be used with external function \
+                       calls and contract creation calls"
+      in
+
+      (* Check the expression matches the type(s) in the return clause *)
+      let returns =
+        match returns with
+        | [] ->
+            []
+        | _ ->
+            let nb_ret_fun = List.length fd.function_returns in
+            let nb_ret_clause = List.length returns in
+            if nb_ret_fun <> nb_ret_clause then
+              error pos "Function returns %d values, but returns clause \
+                         has %d variables" nb_ret_fun nb_ret_clause;
+            let returns =
+              List.map (fun (t, loc_opt, name_opt) ->
+                  Solidity_type_builder.var_type_to_type
+                    pos env ~arg:true ~ext:false loc_opt t,
+                  Option.map strip name_opt
+                ) returns
+            in
+            List.iter2 (fun (rt, _id_opt1) (t, _id_opt2) ->
+                if not (Solidity_type.same_type rt t) then
+                  error pos "Invalid type, expected %s but got %s"
+                (Solidity_type_printer.string_of_type rt)
+                (Solidity_type_printer.string_of_type t)
+              ) returns fd.function_returns;
+            returns
+      in
+
+      (* Typecheck the body in a new environment
+         containing the return value names *)
+      let env' = Solidity_tenv.new_env ~upper_env:env () in
+      List.iter (fun (t, var_opt) ->
+          Option.iter (fun var_name ->
+              Solidity_tenv.add_variable pos env' ~inherited:false
+                var_name (Solidity_type_builder.local_variable_desc t)
+            ) var_opt
+        ) returns;
+      List.iter (type_statement opt env') body;
+
+      (* Typecheck each catch clauses in a new environment
+         containing the clause parameters *)
+      List.iter (fun (_id_opt, params, body) ->
+          let env' = Solidity_tenv.new_env ~upper_env:env () in
+          List.iter (fun (t, loc_opt, name_opt) ->
+              Option.iter (fun name ->
+                  let t = Solidity_type_builder.var_type_to_type
+                            pos env ~arg:true ~ext:false loc_opt t in
+                  Solidity_tenv.add_variable pos env' ~inherited:false
+                    (strip name) (Solidity_type_builder.local_variable_desc t)
+                ) name_opt
+            ) params;
+          List.iter (type_statement opt env') body
         ) catch_clauses
 
   | Return (e) ->
@@ -1183,10 +1168,8 @@ let rec type_statement opt env s =
 
 
 
-
-
 let constructor_params env lid =
-  match Solidity_tenv.find_lident lid.pos env ~lookup:LInternal (strip lid) with
+  match Solidity_tenv.find_lident env ~lookup:LInternal (strip lid) with
   | [Contract (cd)] ->
       let fd = Solidity_tenv.find_constructor lid.pos cd in
       (* set_annot lid (AFunction fd); *)
@@ -1200,10 +1183,10 @@ let constructor_params env lid =
       error lid.pos "Identifier not found"
 
 let modifier_or_constructor_params ~constructor env lid =
-  match Solidity_tenv.find_lident lid.pos env ~lookup:LInternal (strip lid) with
+  match Solidity_tenv.find_lident env ~lookup:LInternal (strip lid) with
   | [Contract (cd)] when constructor ->
       let fd = Solidity_tenv.find_constructor lid.pos cd in
-      set_annot lid (AFunction fd);
+      set_annot lid (AFunction (fd, false));
       fd.function_params, true
   | [Modifier (md)] ->
       set_annot lid (AModifier md);
@@ -1268,10 +1251,6 @@ let type_contract_code (c : contract_desc) =
               current_hierarchy = List.map fst c.contract_hierarchy;
               current_contract = Some (c) } in
 
-(*
-TODO: check not both defined
-*)
-
   (* Check base constructor arguments *)
   List.iter (fun (lid, el) ->
       match el with
@@ -1283,7 +1262,6 @@ TODO: check not both defined
             params (AList args)
     ) c.contract_def.contract_inheritance;
 
-(* TODO: could iterate over the contract definition instead of env *)
   IdentMap.iter (fun id iddl ->
       List.iter (fun (id_desc, inh) ->
           if not inh then
@@ -1321,7 +1299,21 @@ TODO: check not both defined
         ) iddl
     ) c.contract_env.ident_map
 
-
+let type_free_function_code module_env (fd : function_desc) =
+  match fd.function_def with
+  | Some { fun_body = Some (body); fun_modifiers; _ } ->
+      let pos = Solidity_tenv.node_list_pos body in
+      let opt = { default_options with
+                  current_hierarchy = [];
+                  current_contract = None;
+                  in_function = true;
+                  fun_returns = List.map fst fd.function_returns } in
+      type_function_body pos opt module_env
+        (LongIdent.last fd.function_abs_name)
+        fd.function_params fd.function_returns
+        fun_modifiers body
+  | _ ->
+      ()
 
 
 
@@ -1352,7 +1344,7 @@ let type_contract_definitions pos c =
             error pos "Override can only be used with public state variables";
           Solidity_tenv.add_variable pos c.contract_env
             ~inherited:false (strip variable_def.var_name) vd;
-          set_annot part_node (AVariable vd)
+          set_annot part_node (AVariable (vd, false))
 
       | FunctionDefinition (function_def) ->
           let function_name =
@@ -1461,7 +1453,7 @@ let type_contract_definitions pos c =
             Solidity_type_builder.function_def_to_desc pos c function_def in
           Solidity_tenv.add_function pos c.contract_env
             ~inherited:false function_name fd;
-          set_annot part_node (AFunction fd)
+          set_annot part_node (AFunction (fd, false))
 
       | ModifierDefinition (modifier_def) ->
           let modifier_name = strip modifier_def.mod_name in
@@ -1506,7 +1498,7 @@ let type_contract_definitions pos c =
           let lid = strip lid_node in
           let pos = lid_node.pos in
           begin
-            match Solidity_tenv.find_contract pos c.contract_env lid with
+            match Solidity_tenv.find_contract c.contract_env lid with
             | None ->
                 error pos "Identifier not found or not unique"
             | Some (c) when not (is_library c.contract_def.contract_kind) ->
@@ -1522,8 +1514,10 @@ let type_contract_definitions pos c =
           end
 
       | TypeDefinition (_td) ->
-          () (* already handled during preprocessing *)
+          () (* Note: already handled during preprocessing *)
+
     ) c.contract_def.contract_parts;
+
   if not c.contract_def.contract_abstract &&
        not (is_interface c.contract_def.contract_kind) then
       match Solidity_tenv.has_abstract_function c with
@@ -1534,75 +1528,33 @@ let type_contract_definitions pos c =
             (LongIdent.to_string c.contract_abs_name)
             (Ident.to_string function_name)
 
-
-
-
-
-
-(* Perform linearization of inheritance diagram *)
-let c3_linearization pos ~module_env:_
-      ({ contract_abs_name; contract_def; _ } as c) =
-  let get_next lident_contract_ll =
-    let res = List.find_opt (function
-        | [] -> false (* should not happen *)
-        | (lident, _) :: _ ->
-            List.for_all (function
-                | [] -> true (* should not happen *)
-                | _ :: lident_contract_l ->
-                    not (List.mem_assoc lident lident_contract_l)
-              ) lident_contract_ll
-      ) lident_contract_ll
-    in
-    match res with
-    | None
-    | Some ([]) -> None (* should not happen *)
-    | Some (lident_contract :: _) -> Some lident_contract
+let type_free_function_definition pos mlid module_env function_def =
+  let function_name = strip function_def.fun_name in
+  let function_def =
+    { function_def with
+      fun_name = { function_def.fun_name with
+                   contents = function_name } }
   in
-  let filter_out_empty lident_contract_ll =
-    List.filter (function
-        | [] -> false
-        | _ -> true
-      ) lident_contract_ll
+  let has_body = is_some function_def.fun_body in
+  let has_override = is_some function_def.fun_override in
+  if function_def.fun_virtual then
+    error pos "Free functions can not be virtual";
+  if has_override then
+    error pos "Free functions can not override";
+  if not has_body then
+    error pos "Free functions must be implemented";
+  if is_payable function_def.fun_mutability then
+    error pos "Free functions can not be payable";
+  let fd =
+    Solidity_type_builder.make_function_desc pos module_env
+      ~funtype:false ~library:false ~is_method:false
+      function_name (LongIdent.append mlid function_name)
+      function_def.fun_params function_def.fun_returns false
+      function_def.fun_visibility function_def.fun_mutability
+      (Some function_def)
   in
-  let filter_out (lident, _) lident_contract_ll =
-    List.map (fun lident_contract_l ->
-        match lident_contract_l with
-        | [] -> lident_contract_l (* should not happen *)
-        | (lident', _) :: lident_contract_l' ->
-            if LongIdent.equal lident lident' then
-              lident_contract_l'
-            else
-              lident_contract_l
-      ) lident_contract_ll
-    |> filter_out_empty
-  in
-  let rec merge res lident_contract_ll =
-    match lident_contract_ll with
-    | [] -> List.rev res
-    | _ ->
-        match get_next lident_contract_ll with
-        | None ->
-            error pos "Linearization failed for %s"
-               (LongIdent.to_string contract_abs_name)
-        | Some (lident_contract) ->
-            merge (lident_contract :: res)
-              (filter_out lident_contract lident_contract_ll)
-  in
-  let parents_linearization, contract_parents =
-    List.split (List.rev (List.map (fun (p, _) ->
-        match get_annot p with
-        | AContract (c) ->
-            c.contract_hierarchy, (c.contract_abs_name, c)
-        | _ ->
-            error pos "Contract %s parent contract %s is undefined"
-              (LongIdent.to_string contract_abs_name)
-              (LongIdent.to_string (strip p))
-      ) contract_def.contract_inheritance))
-  in
-  c.contract_hierarchy <-
-    merge [contract_abs_name, c]
-      (filter_out_empty (parents_linearization @ [contract_parents]))
-
+  Solidity_tenv.add_function pos module_env ~inherited:false function_name fd;
+  fd
 
 
 
@@ -1637,10 +1589,9 @@ let preprocess_contract_definition
     | Interface ->
         if contract_def.contract_abstract then
           error pos "Interfaces do not need the \"abstract\" keyword, \
-                 they are abstract implicitly";
+                     they are abstract implicitly";
         List.iter (fun (lid, _el) ->
-            match Solidity_tenv.find_contract
-                    lid.pos module_env (strip lid) with
+            match Solidity_tenv.find_contract module_env (strip lid) with
             | None ->
                 error lid.pos "Interface %s parent interface %s is undefined"
                   (Ident.to_string contract_name)
@@ -1653,8 +1604,7 @@ let preprocess_contract_definition
           ) contract_def.contract_inheritance
     | Contract ->
         List.iter (fun (lid, _el) ->
-            match Solidity_tenv.find_contract
-                    lid.pos module_env (strip lid) with
+            match Solidity_tenv.find_contract module_env (strip lid) with
             | None ->
                 error lid.pos "Contract %s parent contract %s is undefined"
                   (Ident.to_string contract_name)
@@ -1674,16 +1624,14 @@ let preprocess_contract_definition
   in
 
   (* Perform the linearization of the contract hierarchy *)
-  c3_linearization pos ~module_env c;
+  Solidity_c3.linearize pos c;
 
   (* Add parent contracts contents to derived contract env *)
   Solidity_tenv.add_parent_definitions pos ~preprocess:true c;
-(* TODO: check derivability virtual/override on fun/mod/var *)
 
   Solidity_tenv.add_contract pos module_env contract_name c;
 
-(* TODO : how does it behave in a diamond-shaped inheritance diagram ? *)
-
+  (* Iterate over contents to preprocess type definitions only *)
   List.iter (fun part_node ->
       match strip part_node with
       | TypeDefinition (td) ->
@@ -1709,7 +1657,6 @@ let rec update_struct_fields ~env =
           | Contract (c) ->
               update_struct_fields ~env:c.contract_env
           | Type (TDStruct (s)) ->
-(* TODO: this probably fails when inner struct is not yet available... *)
               let fields =
                 List.map (fun (t, id_node) ->
                     strip id_node,
@@ -1738,8 +1685,14 @@ let check_types_acyclicity ~env =
   let rec add_field_type_deps struct_ field_name field_type ty_deps =
     match field_type with
     | UserDefinedType (lid_node) ->
-        let _rel_lid = strip lid_node in
-        let abs_lid = assert false in (* TODO *)
+        let rel_lid = strip lid_node in
+        let abs_lid =
+          match Solidity_tenv.find_type env rel_lid with
+          | Some (TEnum (abs_lid, _))
+          | Some (TStruct (abs_lid, _, _))
+          | Some (TContract (abs_lid, _, _)) -> abs_lid
+          | Some (_) | None -> failwith "Invariant broken"
+        in
         AbsLongIdentSet.add abs_lid ty_deps
     | Array (type_, Some (_)) ->
         add_field_type_deps struct_ field_name type_ ty_deps
@@ -1747,9 +1700,6 @@ let check_types_acyclicity ~env =
     | Mapping (_) -> ty_deps
     | FunctionType (_) -> ty_deps
     | ElementaryType (_) -> ty_deps
-
-    (* TON-specific *)
-    | Optional (_) -> ty_deps
   in
   let rec compute_types_deps deps ~env =
     IdentMap.fold (fun _name idl deps ->
@@ -1815,7 +1765,7 @@ let preprocess_module pos mlid module_ =
           preprocess_type_definition pos module_env mlid td [];
           contents
       | GlobalFunctionDefinition (fd) ->
-          (`Function (fd) :: contents)
+          (`Function (fd, unit_node) :: contents)
       | ContractDefinition (cd) ->
           let cd = preprocess_contract_definition pos ~module_env mlid cd in
           set_annot unit_node (AContract (cd));
@@ -1824,22 +1774,27 @@ let preprocess_module pos mlid module_ =
   in
   update_struct_fields ~env:module_env; (* This also ensures user types exist *)
   check_types_acyclicity ~env:module_env;
-(* TODO: make an extra pass to check for module/contract type shadowing *)
-(* TODO: this could be done when adding things in env *)
   contents, module_env
 
 let type_module_units pos mlid module_ =
   (* Types and contract linearization *)
   let contents, module_env = preprocess_module pos mlid module_ in
   (* State variables, functions, modifiers, events *)
-  List.iter (function
-      | `Contract (cd) -> type_contract_definitions pos cd
-      | `Function (_fd) -> failwith "Free functions TODO"
-    ) contents;
+  let contents =
+    List.map (function
+        | `Contract (cd) ->
+            type_contract_definitions pos cd;
+            `Contract (cd)
+        | `Function (fd, unit_node) ->
+            let fd = type_free_function_definition pos mlid module_env fd in
+            set_annot unit_node (AFunction (fd, false));
+            `Function (fd)
+      ) contents
+  in
   (* Code *)
   List.iter (function
       | `Contract (cd) -> type_contract_code cd
-      | `Function (_fd) -> failwith "Free functions TODO"
+      | `Function (fd) -> type_free_function_code module_env fd
     ) contents;
   module_env
 

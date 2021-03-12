@@ -115,8 +115,6 @@ and type_ =
   | Mapping of type_ * type_
   | FunctionType of function_type
   | UserDefinedType of longident
-  (* TON-specific *)
-  | Optional of type_
 
 and elementary_type =
   | TypeBool
@@ -127,11 +125,6 @@ and elementary_type =
   | TypeAddress of bool (* false = address, true = address payable *)
   | TypeBytes of int option (* None = bytes, Some (N) = bytesN *)
   | TypeString
-  (* TON-specific *)
-  | TvmCell
-  | TvmSlice
-  | TvmBuilder
-  | ExtraCurrencyCollection
 
 and function_type = {
   fun_type_params : param list;
@@ -240,14 +233,6 @@ and number_unit =
   | Days
   | Weeks
   | Years
-  (* TON-specific *)
-  | Nanoton  (*  nanoton / nano  / nTon *)
-  | Microton (* microton / micro /      *)
-  | Milliton (* milliton / milli /      *)
-  | Ton      (*      ton /       /  Ton *)
-  | Kiloton  (*  kiloton /       / kTon *)
-  | Megaton  (*  megaton /       / MTon *)
-  | Gigaton  (*  gigaton /       / GTon *)
 
 and unary_operator =
   | UPlus
@@ -401,21 +386,12 @@ let unit_factor unit =
     | Days     -> ExtZ._24x3600
     | Weeks    -> ExtZ._7x24x3600
     | Years    -> ExtZ._365x24x3600
-    (* TON-specific *)
-    | Nanoton  -> Z.one
-    | Microton -> ExtZ._10_3
-    | Milliton -> ExtZ._10_6
-    | Ton      -> ExtZ._10_9
-    | Kiloton  -> ExtZ._10_12
-    | Megaton  -> ExtZ._10_15
-    | Gigaton  -> ExtZ._10_18
   in
   Q.of_bigint z
 
 let apply_unit q unit =
   match unit with
   | Unit | Wei | Seconds -> q
-  | Nanoton (* TON-specific *) -> q
   | _ -> Q.mul q (unit_factor unit)
 
 let apply_unop op q =

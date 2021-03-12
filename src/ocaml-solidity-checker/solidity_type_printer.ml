@@ -27,11 +27,6 @@ let rec string_of_magic_type = function
   | TTx ->    "tx"
   | TAbi ->   "msg"
 
-  (* TON-specific *)
-  | TTvm ->   "tvm"
-  | TMath ->  "math"
-  | TRnd ->   "rnd"
-
 and string_of_type = function
   | TBool ->
       "bool"
@@ -84,11 +79,9 @@ and string_of_type = function
          | VExternal -> "external"
          | _ -> "")
   | TModifier (md) ->
-      Format.sprintf "modifier(%s)"
-        (string_of_param_list md.modifier_params)
+      Format.sprintf "modifier(%s)" (string_of_param_list md.modifier_params)
   | TEvent (ed) ->
-      Format.sprintf "event(%s)"
-        (string_of_param_list ed.event_params)
+      Format.sprintf "event(%s)" (string_of_param_list ed.event_params)
   | TArraySlice (t, loc) ->
       Format.sprintf "%s[] %s" (string_of_type t) (string_of_location loc)
   | TType (t) ->
@@ -104,31 +97,11 @@ and string_of_type = function
   | TTuple (tl) ->
       Format.sprintf "(%s)"
         (String.concat ", " (List.map (function
-             | Some t -> string_of_type t
+             | Some (t) -> string_of_type t
              | None -> "") tl))
-
-  (* TON-specific *)
-  | TTvmCell ->
-      "TvmCell"
-  | TTvmSlice ->
-      "TvmSlice"
-  | TTvmBuilder ->
-      "TvmBuilder"
-  | TExtraCurrencyCollection ->
-      "ExtraCurrencyCollection"
-  | TOptional (t) ->
-      Format.sprintf "option(%s)" (string_of_type t)
 
 and string_of_param_list pl =
   String.concat "," (List.map (fun (t, _) -> string_of_type t) pl)
-
-
-
-
-(*
-Library functions may define overloads with same types but different location
-(only memory vs storage or calldata vs storage, calldata vs memory is not valid)
-*)
 
 let storage_suffix library = function
   | LStorage (_) when library -> " storage"
@@ -149,7 +122,6 @@ let rec string_of_type_canonical pos ~library = function
       "address"
   | TFixBytes (sz)->
       Format.sprintf "bytes%d" sz
-
   | TBytes (l) ->
       Format.sprintf "bytes%s" (storage_suffix library l)
   | TString (l) ->
@@ -162,21 +134,18 @@ let rec string_of_type_canonical pos ~library = function
       Format.sprintf "%s[%s]%s"
         (string_of_type_canonical pos ~library t) (Z.to_string sz)
         (storage_suffix library l)
-
   | TContract (lid, _cd, false) ->
       if library then
-        (LongIdent.to_string lid)
+        LongIdent.to_string lid
       else
         "address"
-
   | TEnum (lid, ed) ->
       if library then
-        (LongIdent.to_string lid)
+        LongIdent.to_string lid
       else
         let n = List.length ed.enum_values in
         let sz = ExtZ.numbits_mod8 (Z.of_int n) in
         Format.sprintf "uint%d" sz
-
   | TStruct (lid, sd, l) ->
       if library then
         Format.sprintf "%s%s"
@@ -185,17 +154,14 @@ let rec string_of_type_canonical pos ~library = function
         let tl = List.map (fun (_id, t) ->
             string_of_type_canonical pos ~library t) sd.struct_fields in
         Format.sprintf "(%s)" (String.concat "," tl)
-
   | TFunction (fd, _fd_opt) ->
       let tl = List.map (fun (t, _id) ->
           string_of_type_canonical pos ~library t) fd.function_params in
       Format.sprintf "function(%s)" (String.concat "," tl)
-
   | TMapping (t1, t2, _loc) -> (* Note: loc is only LStorage*)
       Format.sprintf "mapping(%s => %s) storage"
         (string_of_type_canonical pos ~library t1)
         (string_of_type_canonical pos ~library t2)
-
   | TContract (_, _, true)
   | TModifier (_)
   | TEvent (_)
@@ -206,16 +172,3 @@ let rec string_of_type_canonical pos ~library = function
   | TRationalConst (_)
   | TLiteralString (_) ->
       error pos "Internal type can not be canonized"
-
-  (* TON-specific *)
-  | TTvmCell ->
-      "TvmCell"
-  | TTvmSlice ->
-      "TvmSlice"
-  | TTvmBuilder ->
-      "TvmBuilder"
-  | TExtraCurrencyCollection ->
-      "ExtraCurrencyCollection"
-  | TOptional (t) ->
-      Format.sprintf "optional(%s)"
-        (string_of_type_canonical pos ~library t)

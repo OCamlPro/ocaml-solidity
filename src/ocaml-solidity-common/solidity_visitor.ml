@@ -240,9 +240,6 @@ module Ast = struct
           visitFunctionType v f
       | UserDefinedType li ->
           visitNode visitLongIdent v li
-      (* TON-specific *)
-      | Optional (t) ->
-          visitType v t;
     in
     handleAction v#visitType continueVisit t
 

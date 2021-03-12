@@ -20,7 +20,7 @@ let error pos fmt =
 
 
 
-(* ---------- Environment lookup functions (internal/external) ---------- *)
+(* ---------- Environment lookup functions ---------- *)
 
 type lookup_kind =
   | LAny
@@ -29,11 +29,7 @@ type lookup_kind =
   | LStatic of contract_kind * bool (* true = contract is a parent *)
   | LSuper
   | LUsingFor
-(*
-let is_external_lookup = function
-  | LExternal -> true
-  | LAny | LInternal | LStatic (_) | LSuper -> false
-*)
+
 let is_internally_visible = function
   | VPublic | VInternal | VPrivate -> true
   | VExternal -> false
@@ -124,7 +120,7 @@ let rec lookup_ident
   | _ -> List.map fst idl
 
 let rec lookup_lident
-    (pos : pos) (env : env) ~(upper : bool) ~(lookup : lookup_kind)
+    (env : env) ~(upper : bool) ~(lookup : lookup_kind)
     (lident : relative LongIdent.t) : ident_desc list =
   match LongIdent.to_ident_list lident with
   | [] -> assert false
@@ -133,23 +129,19 @@ let rec lookup_lident
       match lookup_ident env ~upper ~lookup:LAny ident with
       | [] -> []
       | [Contract c] ->
-          lookup_lident pos c.contract_env ~upper:false ~lookup
+          lookup_lident c.contract_env ~upper:false ~lookup
             (LongIdent.of_ident_list_rel lident)
       | _ ->
-(* TODO: just None ? *)
-          error pos "Member %s not found or not visible after \
-                     argument-dependent lookup in %s"
-            (Ident.to_string (List.hd lident)) (Ident.to_string ident)
-(* TODO: find_lident no longer needed in typecheck // error irrelevant *)
+          []
 
 let find_ident env ~lookup ident =
   lookup_ident env ~upper:true ~lookup ident
 
-let find_lident pos env ~lookup lident =
-  lookup_lident pos env ~upper:true ~lookup lident
+let find_lident env ~lookup lident =
+  lookup_lident env ~upper:true ~lookup lident
 
-let find_type pos env lident =
-  match lookup_lident pos env ~upper:true ~lookup:LAny lident with
+let find_type env lident =
+  match lookup_lident env ~upper:true ~lookup:LAny lident with
   | [Type (TDEnum (ed))] ->
       Some (TEnum (ed.enum_abs_name, ed))
   | [Type (TDStruct (sd))] ->
@@ -158,8 +150,8 @@ let find_type pos env lident =
       Some (TContract (cd.contract_abs_name, cd, false (* super *)))
   | _ -> None
 
-let find_contract pos env lident =
-  match lookup_lident pos env ~upper:true ~lookup:LAny lident with
+let find_contract env lident =
+  match lookup_lident env ~upper:true ~lookup:LAny lident with
   | [Contract (cd)] -> Some (cd)
   | _ -> None
 (*
@@ -196,7 +188,7 @@ let find_constructor pos { contract_abs_name; contract_env; _ } =
 
 
 
-(* ---------- Environment construction (internal/external) ---------- *)
+(* ---------- Environment construction functions ---------- *)
 
 let error_already_declared pos ident =
   error pos "Identifier %s already declared" (Ident.to_string ident)
@@ -254,8 +246,6 @@ let add_struct_fields struct_desc fields =
 
 (* Non-public variables are inheritable, but not overloadable nor overridable *)
 let add_nonpublic_variable pos env ~inherited variable_name variable_desc =
-(*  add_unique_ident pos env variable_name (Variable (variable_desc), inherited)
-*)
   let iddl =
     Option.value ~default:[] (IdentMap.find_opt variable_name env.ident_map) in
   let iddl_rev =
@@ -521,57 +511,6 @@ let new_fun_options = {
 }
 
 
-(* SHOULD move to type builder ? *)
-(* have primitive + anonymous ?*)
-let primitive_type ?(kind=KOther) ?(returns_lvalue=false)
-    arg_types ret_types function_mutability =
-  let fd = {
-    function_abs_name = LongIdent.empty;
-    function_params = List.map (fun t -> (t, None)) arg_types;
-    function_returns = List.map (fun t -> (t, None)) ret_types;
-    function_returns_lvalue = returns_lvalue;
-    function_visibility = VPublic; (* or private for builtins *)
-    function_mutability;
-    function_def = None;
-    function_override = None;
-    function_selector = None;
-    function_is_method = false; (* can be true *)
-    function_is_primitive = true; }
-  in
-  TFunction (fd, { new_fun_options with kind })
-
-
-let primitive_fun_desc ?(returns_lvalue=false)
-    arg_types ret_types function_mutability =
-  let fd = {
-    function_abs_name = LongIdent.empty;
-    function_params = List.map (fun t -> (t, None)) arg_types;
-    function_returns = List.map (fun t -> (t, None)) ret_types;
-    function_returns_lvalue = returns_lvalue;
-    function_visibility = VPublic; (* or private for builtins *)
-    function_mutability;
-    function_def = None;
-    function_override = None;
-    function_selector = None;
-    function_is_method = false; (* can be true *)
-    function_is_primitive = true; }
-  in
-  Function (fd)
-
-let primitive_var_desc (*?(is_lvalue=false)*) variable_type =
-  let vd = {
-    variable_abs_name = LongIdent.empty;
-    variable_type;
-    variable_visibility = VPublic; (* or private for builtins *)
-    variable_mutability = MImmutable; (* depends ? *)
-    variable_local = false;
-    variable_init = None;
-    variable_override = None;
-    variable_getter = None;
-    variable_is_primitive = true; }
-  in
-  Variable (vd)
-
 
 let prim_desc =
   Array.make (Solidity_common.max_primitives + 1) (fun _ -> assert false)
@@ -594,7 +533,7 @@ let add_primitive_desc id
 
 
 
-(* ----- Check if contract has abstract functions (external use) ----- *)
+(* ----- Check if contract has abstract functions ----- *)
 
 let has_abstract_function c =
   let exception Found of Ident.t in

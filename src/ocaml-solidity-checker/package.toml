@@ -36,6 +36,7 @@ pack-modules = false
 #   ez_file = ">=0.1 <1.3"
 #   base-unix = { libname = "unix", version = ">=base" } 
 [dependencies]
+uutf = ""
 ez-hash = ""
 ocaml-solidity-common = ""
 ocaml-solidity-parser = ""

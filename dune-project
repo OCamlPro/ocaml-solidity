@@ -67,6 +67,7 @@
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
+   uutf
    ocaml-solidity-parser
    ocaml-solidity-common
    ez-hash

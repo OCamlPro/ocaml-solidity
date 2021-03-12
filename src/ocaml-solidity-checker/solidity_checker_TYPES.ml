@@ -94,7 +94,7 @@ and function_desc = {
   function_returns_lvalue : bool; (* some primitives (push/pop) return lvalues*)
   function_visibility : Solidity_ast.visibility;
   function_mutability : Solidity_ast.fun_mutability;
-  function_def : Solidity_ast.function_definition option; (* REMOVE ? change to body ? *) (* Primitives have no definition *)
+  function_def : Solidity_ast.function_definition option; (* Primitives have no definition *)
   function_override : absolute LongIdent.t list option;
   function_selector : string option;
   function_is_method : bool;
@@ -104,8 +104,7 @@ and function_desc = {
 and modifier_desc = {
   modifier_abs_name : absolute LongIdent.t;
   modifier_params : (type_ * Ident.t option) list;
-  modifier_def : Solidity_ast.modifier_definition; (* REMOVE ? change to body ?  *)
-(* TODO: override, virtual ? *)
+  modifier_def : Solidity_ast.modifier_definition;
   (* Note: Modifiers have no visibility nor mutability *)
 }
 
@@ -115,7 +114,6 @@ and event_desc = {
   event_def : Solidity_ast.event_definition;
 }
 
-(* More kinds: regular, new, ext, event, getter, primitive *)
 and fun_kind =
   | KOther
   | KNewContract
@@ -150,13 +148,6 @@ and type_ =
   | TMapping of type_ * type_ * location (* storage ref or storage pointer *)
   | TFunction of function_desc * function_options
 
-  (* TON-specific *)
-  | TTvmCell
-  | TTvmSlice
-  | TTvmBuilder
-  | TExtraCurrencyCollection
-  | TOptional of type_
-
   (* Internal use only *)
   | TModifier of modifier_desc
   | TEvent of event_desc
@@ -174,11 +165,6 @@ and magic_type =
   | TTx (* type of the 'tx' object *)
   | TAbi (* type of the 'abi' object *)
 
-  (* TON-specific *)
-  | TTvm
-  | TMath
-  | TRnd
-
 
 
 (* source_unit (Import) *)
@@ -191,10 +177,10 @@ type annot += AType of type_
 type annot += AContract of contract_desc
 
 (* contract_part (StateVariableDeclaration), ident/field *)
-type annot += AVariable of variable_desc
+type annot += AVariable of variable_desc * bool (* true = getter *)
 
 (* contract_part (FunctionDefinition), constructor invocation, ident/field (functions AND getters) *)
-type annot += AFunction of function_desc
+type annot += AFunction of function_desc * bool (* true = from a using for *)
 
 (* contract_part (ModifierDefinition), ident/field *)
 type annot += AModifier of modifier_desc
@@ -207,7 +193,7 @@ type annot += AField of field_desc
 type annot += AConstr of constr_desc
 
 (* ident/field *)
-type annot += APrimitive (* id ? *)
+type annot += APrimitive
 
 
 

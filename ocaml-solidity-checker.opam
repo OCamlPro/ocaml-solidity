@@ -43,6 +43,7 @@ install: [
 depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "2.6.0"}
+  "uutf" {}
   "ocaml-solidity-parser" {}
   "ocaml-solidity-common" {}
   "ez-hash" {}
