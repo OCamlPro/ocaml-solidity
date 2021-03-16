@@ -10,18 +10,33 @@
 (*                                                                        *)
 (**************************************************************************)
 
+let typecheck = ref true
+let postcheck = ref true
+
+let disactiv_typecheck () = typecheck := false
+let disactiv_postcheck () =
+  disactiv_typecheck ();
+  postcheck := false
+
+
 let main () =
   let arg_list = Arg.align [
       "--version", Arg.Unit (fun () ->
           Format.eprintf "Solidity Parser & Typechecker"; exit 0),
       " Show version and exit";
+
+      "--no-typecheck", Arg.Unit disactiv_typecheck,
+      " Disactivates the typechecker";
+
+      "--no-postcheck", Arg.Unit disactiv_postcheck,
+      " Disactivates the postchecker"
     ]
   in
 
   let arg_usage = String.concat "\n" [
       "solp [OPTIONS] FILE [OPTIONS]";
       "";
-      "This tool will parse a Solidity file (.solc) and print the result";
+      "This tool will parse a Solidity file (.sol) and print the result";
       "";
       "Available options:";
     ]
@@ -45,11 +60,10 @@ let main () =
       Format.printf "Parsed code:\n%s@."
         (Solidity_printer.string_of_program program);
 
-      let () = Solidity_typechecker.type_program program in
+      let () = if !typecheck then Solidity_typechecker.type_program program in
 
       List.iter (fun m ->
-          let _ = Solidity_postprocess.checkModule m in
-          ()
+          if !postcheck then ignore @@ Solidity_postprocess.checkModule m
         ) program.program_modules;
 
       ()
