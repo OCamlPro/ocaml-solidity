@@ -53,6 +53,7 @@
  (depends
    (ocaml (>= 4.08.0))
    ocaml-solidity-common
+   menhir
    hex
    fileutils
    ppx_inline_test
@@ -86,6 +87,22 @@
    ocaml-solidity-parser
    ocaml-solidity-common
    ocaml-solidity-checker
+   ppx_inline_test
+   ppx_expect
+   odoc
+   ocamlformat
+ ))
+
+(package
+ (name ocaml-solidity-alcotest)
+ (synopsis "The ocaml-solidity project")
+ (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
+ (depends
+   (ocaml (>= 4.08.0))
+   ocaml-solidity-parser
+   ocaml-solidity-common
+   ocaml-solidity-checker
+   alcotest
    ppx_inline_test
    ppx_expect
    odoc

@@ -29,7 +29,7 @@ description = """\nOcaml-solidity provides a Solidity parser and typechecker
 """
 
 [project]
-skip = "src/ez-hash/index.mld src/ez-hash/ez-hash_stubs.c src/ez-hash/main.ml src/ocaml-solidity-common/main.ml src/ocaml-solidity-parser/main.ml src/ocaml-solidity-checker/main.ml src/ocaml-solidity-test/main.ml"
+skip = "src/ez-hash/index.mld src/ez-hash/ez-hash_stubs.c src/ez-hash/main.ml src/ocaml-solidity-common/main.ml src/ocaml-solidity-parser/main.ml src/ocaml-solidity-checker/main.ml src/ocaml-solidity-test/main.ml src/ocaml-solidity-alcotest/main.ml"
 
 # project-wide library dependencies (not for package-specific deps)
 [dependencies]
@@ -90,3 +90,6 @@ dir = "src/ocaml-solidity-checker"
 dir = "src/ocaml-solidity-test"
 # edit 'src/ocaml-solidity-test/package.toml' for package-specific options
 
+[[package]]
+dir = "src/ocaml-solidity-alcotest"
+# edit 'src/ocaml-solidity-test/package.toml' for package-specific options
