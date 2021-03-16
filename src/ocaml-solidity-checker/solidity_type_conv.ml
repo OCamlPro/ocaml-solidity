@@ -197,6 +197,9 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
   | TLiteralString (s), TString (LMemory | LStorage (false)) ->
       if_true (valid_utf8_string s)
 
+  | TLiteralString (_s), TBytes (LMemory | LStorage (false)) ->
+      Some (to_)
+
   | TLiteralString (s), TFixBytes (bsz) ->
       if_true (String.length s <= bsz)
 
