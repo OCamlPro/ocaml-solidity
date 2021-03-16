@@ -53,7 +53,6 @@
  (depends
    (ocaml (>= 4.08.0))
    ocaml-solidity-common
-   menhir
    hex
    fileutils
    ppx_inline_test

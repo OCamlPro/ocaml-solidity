@@ -4,13 +4,13 @@
   (name ocaml_solidity_parser)
   (public_name ocaml-solidity-parser)
   (wrapped false)
-  (libraries ocaml-solidity-common menhir hex fileutils )
+  (libraries ocaml-solidity-common hex fileutils )
   
   
   )
 
-(ocamllex solidity_lexer)
 (menhir (modules solidity_raw_parser))
+(ocamllex solidity_lexer)
 
 (rule
     (targets version.ml)

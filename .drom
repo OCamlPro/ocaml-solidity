@@ -2,7 +2,7 @@
 
 # hash of toml configuration files
 # used for generation of all files
-f6fb963fca13806090f58a951b3b390a:.
+5225091155bf8550d6ffd544aca699da:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
@@ -97,7 +97,7 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-eb7051524ac05aa9779e166905389667:dune-project
+1e7fa72f47d145078cd0ff26caccefc8:dune-project
 # end context for dune-project
 
 # begin context for ez-hash.opam
@@ -122,7 +122,7 @@ a6ed873b104b99d7fc0501cfe12e9175:ocaml-solidity-common.opam
 
 # begin context for ocaml-solidity-parser.opam
 # file ocaml-solidity-parser.opam
-0727f28e4d609578414f5be22d245751:ocaml-solidity-parser.opam
+7ac1116cc447ef4eac980b64bdfc74b1:ocaml-solidity-parser.opam
 # end context for ocaml-solidity-parser.opam
 
 # begin context for ocaml-solidity-test.opam
@@ -237,7 +237,7 @@ e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-common/version.mlt
 
 # begin context for src/ocaml-solidity-parser/dune
 # file src/ocaml-solidity-parser/dune
-131a0882dac1632e86a968c47d071e0e:src/ocaml-solidity-parser/dune
+5a334fa69692bc673629a716e30f52b3:src/ocaml-solidity-parser/dune
 # end context for src/ocaml-solidity-parser/dune
 
 # begin context for src/ocaml-solidity-parser/index.mld
