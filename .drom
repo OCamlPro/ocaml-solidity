@@ -2,7 +2,7 @@
 
 # hash of toml configuration files
 # used for generation of all files
-5225091155bf8550d6ffd544aca699da:.
+d16fb65e1655dd3a85102bfdfb5e5350:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
@@ -37,7 +37,7 @@ a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
 
 # begin context for CHANGES.md
 # file CHANGES.md
-4674921577b850c8a4f972d40f290a42:CHANGES.md
+383130f53cd15289e7c7a7af79b32644:CHANGES.md
 # end context for CHANGES.md
 
 # begin context for LICENSE.md
@@ -97,7 +97,7 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-1e7fa72f47d145078cd0ff26caccefc8:dune-project
+d5200c6ce415681ca2a5a6baf6f6bd4f:dune-project
 # end context for dune-project
 
 # begin context for ez-hash.opam
@@ -117,12 +117,12 @@ c9b94fdfc4f8e32f6bfdceabd361fabd:ocaml-solidity-checker.opam
 
 # begin context for ocaml-solidity-common.opam
 # file ocaml-solidity-common.opam
-a6ed873b104b99d7fc0501cfe12e9175:ocaml-solidity-common.opam
+15b12f9ab20dcd567cc6e2e889611830:ocaml-solidity-common.opam
 # end context for ocaml-solidity-common.opam
 
 # begin context for ocaml-solidity-parser.opam
 # file ocaml-solidity-parser.opam
-7ac1116cc447ef4eac980b64bdfc74b1:ocaml-solidity-parser.opam
+abbcdf5a6eed4fbeb653c3b8e37bc22a:ocaml-solidity-parser.opam
 # end context for ocaml-solidity-parser.opam
 
 # begin context for ocaml-solidity-test.opam
@@ -217,7 +217,7 @@ e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-checker/version.mlt
 
 # begin context for src/ocaml-solidity-common/dune
 # file src/ocaml-solidity-common/dune
-fa88add1b7a37745b5d4f411a19ab400:src/ocaml-solidity-common/dune
+20ec421513ac0fea55dbd1b2703a7a5a:src/ocaml-solidity-common/dune
 # end context for src/ocaml-solidity-common/dune
 
 # begin context for src/ocaml-solidity-common/index.mld
@@ -237,7 +237,7 @@ e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-common/version.mlt
 
 # begin context for src/ocaml-solidity-parser/dune
 # file src/ocaml-solidity-parser/dune
-5a334fa69692bc673629a716e30f52b3:src/ocaml-solidity-parser/dune
+de751855ef61bbff84d13e72225ea970:src/ocaml-solidity-parser/dune
 # end context for src/ocaml-solidity-parser/dune
 
 # begin context for src/ocaml-solidity-parser/index.mld

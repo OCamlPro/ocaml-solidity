@@ -13,10 +13,12 @@
 let typecheck = ref true
 let postcheck = ref true
 
-let disactiv_typecheck () = typecheck := false
 let disactiv_postcheck () =
-  disactiv_typecheck ();
   postcheck := false
+
+let disactiv_typecheck () =
+  disactiv_postcheck ();
+  typecheck := false
 
 
 let main () =

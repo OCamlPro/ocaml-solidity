@@ -88,6 +88,8 @@ and string_of_type = function
       Format.sprintf "type(%s)" (string_of_type t)
   | TMagic mt ->
       string_of_magic_type mt
+  | TModule (_lid, md) ->
+      Format.sprintf "module \"%s\"" md.module_file
   | TRationalConst (q, _) when ExtQ.is_int q ->
       Format.sprintf "int_const %s" (Q.to_string q)
   | TRationalConst (q, _) ->
@@ -169,6 +171,7 @@ let rec string_of_type_canonical pos ~library = function
   | TArraySlice (_)
   | TType (_)
   | TMagic (_)
+  | TModule (_)
   | TRationalConst (_)
   | TLiteralString (_) ->
       error pos "Internal type can not be canonized"

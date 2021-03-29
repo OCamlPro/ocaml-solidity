@@ -21,9 +21,9 @@ let register id p f_desc =
   Solidity_common.add_primitive id p;
   Solidity_tenv.add_primitive_desc id f_desc
 
-let make_fun = Solidity_type_builder.primitive_fun_desc
+let make_fun = Solidity_type_builder.primitive_fun
 
-let make_var = Solidity_type_builder.primitive_var_desc
+let make_var = Solidity_type_builder.primitive_var
 
 let make_prim_args pos opt =
   match opt.call_args with
@@ -468,6 +468,19 @@ let register_primitives () =
   (* Type information (members of type) *)
 
   register 41
+    { prim_name = "type";
+      prim_kind = PrimFunction }
+    (fun pos opt t_opt ->
+       match t_opt, make_prim_args pos opt with
+       | None, None ->
+           Some (make_fun [] [] MPure)
+       | None, Some ([TType ((TInt _ | TUint _ | TContract _) as t)]) ->
+           Some (make_fun [TType (t)] [TMagic (TMetaType (t))] MPure)
+       | None, Some (_) ->
+           Some (make_fun [TType (TTuple [])] [] MPure)
+       | _ -> None);
+
+  register 42
     { prim_name = "name";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -476,7 +489,7 @@ let register_primitives () =
            Some (make_var (TString (LMemory)))
        | _ -> None);
 
-  register 42
+  register 43
     { prim_name = "creationCode";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -485,7 +498,7 @@ let register_primitives () =
            Some (make_var (TBytes (LMemory)))
        | _ -> None);
 
-  register 43
+  register 44
     { prim_name = "runtimeCode";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -494,7 +507,7 @@ let register_primitives () =
            Some (make_var (TBytes (LMemory)))
        | _ -> None);
 
-  register 44
+  register 45
     { prim_name = "interfaceId";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -503,7 +516,7 @@ let register_primitives () =
            Some (make_var (TFixBytes (4)))
        | _ -> None);
 
-  register 45
+  register 46
     { prim_name = "min";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -512,7 +525,7 @@ let register_primitives () =
            Some (make_var (t))
        | _ -> None);
 
-  register 46
+  register 47
     { prim_name = "max";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -523,7 +536,7 @@ let register_primitives () =
 
   (* Members of array type *)
 
-  register 47
+  register 48
     { prim_name = "length";
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
@@ -534,7 +547,7 @@ let register_primitives () =
            Some (make_var (TUint 8))
        | _ -> None);
 
-  register 48
+  register 49
     { prim_name = "push";
       prim_kind = PrimMemberFunction }
     (fun _pos opt t_opt ->
@@ -561,7 +574,7 @@ let register_primitives () =
            Some (make_fun [TFixBytes (1)] [] MNonPayable)
        | _ -> None);
 
-  register 49
+  register 50
     { prim_name = "pop";
       prim_kind = PrimMemberFunction }
     (fun _pos _opt t_opt ->
@@ -572,7 +585,7 @@ let register_primitives () =
 
   (* Members of function type *)
 
-  register 50
+  register 51
     { prim_name = "address";
       prim_kind = PrimMemberFunction }
     (fun _pos _opt t_opt ->
@@ -581,7 +594,7 @@ let register_primitives () =
            Some (make_var (TAddress (false)))
        | _ -> None);
 
-  register 51
+  register 52
     { prim_name = "selector";
       prim_kind = PrimMemberFunction }
     (fun _pos _opt t_opt ->
@@ -590,7 +603,7 @@ let register_primitives () =
            Some (make_var (TFixBytes (4)))
        | _ -> None);
 
-  register 52
+  register 53
     { prim_name = "gas";
       prim_kind = PrimMemberFunction }
     (fun pos _opt t_opt ->

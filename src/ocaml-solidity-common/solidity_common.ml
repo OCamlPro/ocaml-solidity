@@ -13,12 +13,17 @@
 type pos = (int * int) * (int * int)
 
 exception GenericError of string
+exception InvariantBroken of string
 exception SyntaxError of string * pos
 exception TypecheckError of string * pos
 
 let dummy_pos = (-1, -1), (-1, -1)
 
-let error fmt = Format.kasprintf (fun s -> raise (GenericError s)) fmt
+let error fmt =
+  Format.kasprintf (fun s -> raise (GenericError s)) fmt
+
+let invariant_broken s =
+  raise (InvariantBroken s)
 
 type relative = [`Relative]
 type absolute = [`Absolute]
@@ -446,6 +451,17 @@ let replace_annot n annot =
         (fst (fst n.pos)) (snd (fst n.pos))
         (fst (snd n.pos)) (snd (snd n.pos))
   | _ -> n.annot <- annot
+
+
+
+
+let make_absolute_path base path =
+  FilePath.reduce ~no_symlink:true @@
+    if FilePath.is_relative path then
+      FilePath.make_absolute base path
+    else
+      path
+
 
 
 

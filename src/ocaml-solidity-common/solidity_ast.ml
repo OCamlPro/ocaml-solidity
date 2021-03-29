@@ -68,6 +68,10 @@ and type_definition =
   | EnumDefinition of ident * ident list
   | StructDefinition of ident * field_definition list
 
+and enum_definition = ident * ident list
+
+and struct_definition = ident * field_definition list
+
 and field_definition = type_ * ident
 
 and state_variable_definition = {

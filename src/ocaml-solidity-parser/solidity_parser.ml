@@ -13,13 +13,6 @@
 open Solidity_common
 open Solidity_ast
 
-let make_absolute_path base path =
-  FilePath.reduce ~no_symlink:true @@
-    if FilePath.is_relative path then
-      FilePath.make_absolute base path
-    else
-      path
-
 let get_imported_files m =
   let base = FilePath.dirname m.module_file in
   List.fold_left (fun fileset unit_node ->
@@ -40,24 +33,31 @@ let parse_module id file =
   close_in c;
   { module_file = file; module_id = Ident.root id; module_units }
 
+(* Parse a Solidity file and all its imported files.
+   This uses a BFS strategy with cycle prevention, i.e. newly
+   imported files are added at the end of the input file queue.
+   The imports of a file are ordered lexicographically
+   before being added to the queue. *)
 let parse file =
 
   let file = make_absolute_path (Sys.getcwd ()) file in
 
-  let to_parse = ref (StringSet.singleton file) in
-  let parsed = ref (StringSet.empty) in
+  let files = ref (StringSet.singleton file) in
+
+  let to_parse = Queue.create () in
+  StringSet.iter (fun file -> Queue.push file to_parse) !files;
+
   let modules = ref [] in
   let id = ref (-1) in
 
-  while not (StringSet.is_empty !to_parse) do
-    let file = StringSet.choose !to_parse in
-    to_parse := StringSet.remove file !to_parse;
+  while not (Queue.is_empty to_parse) do
+    let file = Queue.pop to_parse in
     let m = parse_module (id := !id + 1; !id) file in
     modules := m :: !modules;
-    parsed := StringSet.add file !parsed;
     let imported_files = get_imported_files m in
-    let new_files = StringSet.diff imported_files !parsed in
-    to_parse := StringSet.union new_files !to_parse
+    let new_files = StringSet.diff imported_files !files in
+    files := StringSet.union new_files !files;
+    StringSet.iter (fun file -> Queue.push file to_parse) new_files
   done;
 
   let program_modules, program_modules_by_id, program_modules_by_file =

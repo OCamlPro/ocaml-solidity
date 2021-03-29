@@ -45,7 +45,6 @@ depends: [
   "dune" {>= "2.6.0"}
   "ocaml-solidity-common" {}
   "hex" {}
-  "fileutils" {}
   "ppx_inline_test" {with-test}
   "ppx_expect" {with-test}
   "odoc" {with-doc}

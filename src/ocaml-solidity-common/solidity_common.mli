@@ -13,12 +13,15 @@
 type pos = (int * int) * (int * int)
 
 exception GenericError of string
+exception InvariantBroken of string
 exception SyntaxError of string * pos
 exception TypecheckError of string * pos
 
 val dummy_pos : pos
 
 val error : ('a, Format.formatter, unit, 'b) format4 -> 'a
+
+val invariant_broken : string -> 'a
 
 type relative = [`Relative]
 type absolute = [`Absolute]
@@ -182,6 +185,8 @@ val get_annot : 'a node -> annot
 val set_annot : 'a node -> annot -> unit
 val replace_annot : 'a node -> annot -> unit
 
+
+val make_absolute_path : string -> string -> string
 
 
 val is_some : 'a option -> bool

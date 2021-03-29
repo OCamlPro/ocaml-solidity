@@ -37,7 +37,6 @@ pack-modules = false
 #   base-unix = { libname = "unix", version = ">=base" } 
 [dependencies]
 hex = ""
-fileutils = ""
 ocaml-solidity-common = ""
 
 # package tools dependencies

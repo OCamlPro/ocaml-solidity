@@ -86,6 +86,14 @@ let rec same_type ?(ignore_loc=false) t1 t2 =
       same_type ~ignore_loc t1 t2
   | TMagic (mt1), TMagic (mt2) ->
       same_magic_type ~ignore_loc mt1 mt2
+  | TModule (lid1, md1), TModule (lid2, md2) ->
+      if LongIdent.equal lid1 lid2 then
+        begin
+          assert (String.equal md1.module_file md2.module_file);
+          true;
+        end
+      else
+        false
   | TRationalConst (q1, sz_opt1), TRationalConst (q2, sz_opt2) ->
       Q.equal q1 q2 &&
       (match sz_opt1, sz_opt2 with
@@ -141,7 +149,8 @@ let rec has_mapping = function
   | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
   | TAddress _ | TFixBytes _ | TBytes _ | TString _ | TEnum _
   | TContract _ | TFunction _ | TModifier _ | TEvent _
-  | TMagic _ | TType _ | TRationalConst _ | TLiteralString _ ->
+  | TMagic _ | TType _ | TModule _
+  | TRationalConst _ | TLiteralString _ ->
       false
   | TMapping _ ->
       true
@@ -179,7 +188,7 @@ let is_comparable op t =
   | TTuple _ (* may become comparable in the future *)
   | TBytes _ | TString _ | TLiteralString _
   | TArray _ | TArraySlice _ | TMapping _ | TStruct _
-  | TType _ | TMagic _ | TModifier _ | TEvent _ ->
+  | TType _ | TModule _ | TMagic _ | TModifier _ | TEvent _ ->
       false
 
 
@@ -195,7 +204,8 @@ let rec is_reference_type = function
   (* Value types and literals *)
   | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
   | TAddress _ | TFixBytes _ | TEnum _ | TContract _
-  | TFunction _ | TModifier _ | TEvent _ | TMagic _ | TType _
+  | TFunction _ | TModifier _ | TEvent _
+  | TMagic _ | TType _ | TModule _
   | TRationalConst _ | TLiteralString _ ->
       false
 
@@ -214,7 +224,8 @@ let rec is_storage_type = function
   (* Value types and literals are never in storage *)
   | TBool | TInt _ | TUint _ | TFixed _ | TUfixed _
   | TAddress _ | TFixBytes _ | TEnum _ | TContract _
-  | TFunction _ | TModifier _ | TEvent _ | TMagic _ | TType _
+  | TFunction _ | TModifier _ | TEvent _
+  | TMagic _ | TType _ | TModule _
   | TRationalConst _ | TLiteralString _ ->
       false
 
@@ -268,6 +279,8 @@ let rec unpromote_type : type_ -> type_ = function
   | TBytes (loc) ->
       TBytes (unpromote_loc loc)
   | TStruct (lid, sd, loc) ->
+      (* Note: fields always remain storage ref,
+         even if struct becomes storage pointer *)
       TStruct (lid, sd, unpromote_loc loc)
   | TArray (t, sz_opt, loc) ->
       TArray (t, sz_opt, unpromote_loc loc)
@@ -280,14 +293,27 @@ let rec unpromote_type : type_ -> type_ = function
   | t ->
       t
 
+let is_storage = function
+  | LStorage (_) -> true
+  | LMemory | LCalldata -> false
+
 (* Change a type's location ; promote components
    from storage pointer to storage ref if needed.
    This is needed for immediate array elements and structure fields *)
+(* TODO: need proper cycle detection *)
 let rec change_type_location loc : type_ -> type_ = function
   | TString (_loc) ->
       TString (loc)
   | TBytes (_loc) ->
       TBytes (loc)
+  (* Note: storage struct members always have a storage ref location ;
+     when requesting to change a struct's location from storage ref/ptr
+     to storage ref/ptr, we don't need to change the fields location.
+     This happens to be useful when processing cyclic structs definitions:
+     since struct definitions default to a storage location, we avoid an
+     endless recursion trying to change the location of struct fields. *)
+  | TStruct (lid, sd, LStorage (_)) when is_storage loc ->
+      TStruct (lid, sd, loc)
   | TStruct (lid, sd, _loc) ->
       TStruct (lid, {
           sd with struct_fields =

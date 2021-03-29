@@ -4,7 +4,7 @@
   (name ocaml_solidity_common)
   (public_name ocaml-solidity-common)
   (wrapped false)
-  (libraries zarith hex )
+  (libraries zarith hex fileutils )
   
   
   )

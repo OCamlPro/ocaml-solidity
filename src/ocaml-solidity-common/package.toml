@@ -38,6 +38,7 @@ pack-modules = false
 [dependencies]
 hex = ""
 zarith = ""
+fileutils = ""
 
 # package tools dependencies
 [tools]

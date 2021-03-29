@@ -30,6 +30,10 @@ let compute_selector pos ~library id args =
     Format.asprintf "%a(%s)" Ident.printf id (String.concat "," arg_types) in
   Bytes.to_string (Bytes.sub (sha3kec (Bytes.of_string fun_sig)) 0 4)
 
+let new_fun_options = {
+  kind = KOther; value = false; gas = false; salt = false
+}
+
 let eval_array_length_exp env e =
   let error_invalid () =
     error e.pos "Invalid array length, expected integer \
@@ -72,14 +76,15 @@ let eval_array_length_exp env e =
         in
         process_ident id
           (Solidity_tenv.find_ident cd.contract_env
-             ~lookup:(LStatic (cd.contract_def.contract_kind, false)) (strip id))
+             ~lookup:(LStatic (cd.contract_def.contract_kind, false))
+             (strip id))
     | _ ->
         error_invalid ()
 
   and process_ident id iddl =
     match iddl with
     | [Variable { variable_mutability = MConstant;
-                  variable_init = Some (e); _ }] ->
+                  variable_def = Some ({ var_init = Some (e); _ }); _ }] ->
         aux e
     | _ ->
         error id.pos "Undeclared identifier: %a" Ident.printf (strip id)
@@ -95,7 +100,7 @@ let eval_array_length_exp env e =
   else
     Q.num v
 
-(* only used to get the type of an ident *)
+(* Only used ONCE to give a proper type to type idents in expressions *)
 let type_desc_to_base_type ~loc : type_desc -> type_ =
   function
   | TDEnum (ed) ->
@@ -103,13 +108,6 @@ let type_desc_to_base_type ~loc : type_desc -> type_ =
   | TDStruct (sd) ->
       Solidity_type.change_type_location loc
         (TStruct (sd.struct_abs_name, sd, loc))
-
-let type_lid_to_base_type pos ~loc env lid =
-  match Solidity_tenv.find_type env lid with
-  | Some (t) ->
-      Solidity_type.change_type_location loc t
-  | None ->
-      error pos "type %s is undefined" (LongIdent.to_string lid)
 
 let storage_location_to_location : Solidity_ast.storage_location -> location =
   function
@@ -141,11 +139,23 @@ let elementary_type_to_type ~loc : Solidity_ast.elementary_type -> type_ =
   | TypeString ->
       TString (loc)
 
+(* Recursive use
+   Used here for vars (state, args) (loc given)
+   Used in tc for NewExpression(t) and TypeExpression(t) (LMemory)
+   (not Used in tc for) type idents (LStorage Ptr)
+   Used in tc for UsingFor (LStorage Ptr)
+   Used in tc for struct field types (LStorage Ptr) *)
 let rec ast_type_to_type pos ~loc env = function
   | ElementaryType (et) ->
       elementary_type_to_type ~loc et
   | UserDefinedType (lid) ->
-      let t = type_lid_to_base_type ~loc pos env (strip lid) in
+      let t =
+        match Solidity_tenv.find_type env (strip lid) with
+        | Some (t) ->
+            Solidity_type.change_type_location loc t
+        | None ->
+            error pos "type %s is undefined" (LongIdent.to_string (strip lid))
+      in
       set_annot lid (AType t);
       t
   | Mapping (tk, tv) ->
@@ -171,8 +181,7 @@ let rec ast_type_to_type pos ~loc env = function
       let iloc = Solidity_type.promote_loc loc in
       TArray (ast_type_to_type ~loc:iloc pos env t, Some (sz), loc)
   | FunctionType (ft) ->
-      TFunction (function_type_to_desc pos env ft,
-                 Solidity_tenv.new_fun_options)
+      TFunction (function_type_to_desc pos env ft, new_fun_options)
 
 and var_type_to_type pos env ~arg ~ext loc_opt t =
   let loc =
@@ -222,63 +231,301 @@ and var_type_to_type pos env ~arg ~ext loc_opt t =
   end;
   t
 
-and make_function_desc pos env ~funtype ~library ~is_method
-    fid function_abs_name params returns function_returns_lvalue
-    function_visibility function_mutability function_def : function_desc =
+and function_type_to_desc pos env ft =
   let ext =
-    match function_visibility with
+    match ft.fun_type_visibility with
     | VExternal | VPublic -> true
     | _ -> false
   in
-  let function_params =
-    List.map (fun (t, loc_opt, name_opt) ->
-        var_type_to_type pos env ~arg:true ~ext loc_opt t,
-        Option.map strip name_opt
-      ) params
-  in
+  let function_params = process_fun_params pos env ~ext ft.fun_type_params in
   let function_returns =
-    List.map (fun (t, loc_opt, name_opt) ->
-        var_type_to_type pos env ~arg:true ~ext loc_opt t,
-        Option.map strip name_opt
-      ) returns
-  in
-  let function_selector =
-    if funtype then
+    process_fun_type_returns pos env ~ext ft.fun_type_returns in
+  { function_abs_name = LongIdent.empty;
+    function_params; function_returns;
+    function_visibility = ft.fun_type_visibility;
+    function_mutability = ft.fun_type_mutability;
+    function_returns_lvalue = false;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false;
+    function_is_primitive = false;
+    function_def = None; }
+
+and process_fun_params pos env ~ext params =
+  List.map (fun (t, loc_opt, name_opt) ->
+      var_type_to_type pos env ~arg:true ~ext loc_opt t,
+      Option.map strip name_opt
+    ) params
+
+and process_fun_type_returns pos env ~ext returns =
+  List.map (fun (t, loc_opt) ->
+      var_type_to_type pos env ~arg:true ~ext loc_opt t,
       None
-    else
-      if ext then Some (compute_selector pos ~library fid function_params)
-      else None
-  in
-  let function_override =
-    match function_def with
-    | None -> None
-    | Some (fd) ->
-        Option.map (List.map (fun lid_node ->
-            let lid = strip lid_node in
-            match Solidity_tenv.find_contract env lid with
-            | None ->
-                error lid_node.pos
-                  "Invalid contract specified in override list: %a"
-                  LongIdent.printf lid
-            | Some (cd) ->
-                cd.contract_abs_name
-          )) fd.fun_override
-  in
-  { function_abs_name; function_params; function_returns;
-    function_visibility; function_mutability;
-    function_returns_lvalue; function_def;
-    function_override; function_selector;
-    function_is_method = is_method;
-    function_is_primitive = false; }
+    ) returns
 
-and function_type_to_desc pos env ft =
-  (* Note: library and fid parameters not used when funtype=true *)
-  let function_abs_name = LongIdent.empty in
-  make_function_desc pos env ~funtype:true ~library:true ~is_method:false
-    (Ident.of_string "") function_abs_name ft.fun_type_params
-    (List.map (fun (t, loc_opt) -> (t, loc_opt, None)) ft.fun_type_returns)
-    false ft.fun_type_visibility ft.fun_type_mutability None
+let process_event_params pos env params =
+  List.map (fun (t, _indexed, name_opt) ->
+      ast_type_to_type pos ~loc:LMemory env t,
+      Option.map strip name_opt
+    ) params
 
+
+
+
+
+(* Get a function type equivalent to a variable *)
+let variable_type_to_function_type loc t =
+  let allowed_in_struct = function
+    | TArray (_) | TMapping (_) | TStruct (_) -> false
+    | _ -> true
+  in
+  let rec aux atl = function
+    | TArray (t, _sz_opt, _loc) ->
+        aux ((TUint 256, None) :: atl) t
+    | TMapping (kt, vt, _loc) ->
+        aux ((kt, None) :: atl) vt
+    | TStruct (_lid, sd, _loc) ->
+        let rtl =
+          List.map (fun (_id, t) ->
+              if allowed_in_struct t then (t, None)
+              else error loc "Can not make getter for such type"
+            ) sd.struct_fields
+        in
+        List.rev atl, rtl
+    | t ->
+        List.rev atl, [(t, None)]
+  in
+  aux [] t
+
+(* Make a getter function from a variable *)
+let variable_desc_to_function_desc pos vid variable_abs_name vt :
+      function_desc =
+  let function_params, function_returns =
+    variable_type_to_function_type pos vt in
+  let function_selector =
+    Some (compute_selector pos ~library:false vid function_params) in
+  { function_abs_name = variable_abs_name;
+    function_params; function_returns;
+    function_visibility = VExternal;
+    function_mutability = MView;
+    function_returns_lvalue = false;
+    function_override = None;
+    function_selector;
+    function_is_method = true;
+    function_is_primitive = false;
+    function_def = None; }
+
+(* Build the function corresponding to an event *)
+let event_desc_to_function_desc (ed : event_desc) : function_desc =
+  { function_abs_name = ed.event_abs_name;
+    function_params = ed.event_params;
+    function_returns = [];
+    function_visibility = VInternal;
+    function_mutability = MNonPayable;
+    function_returns_lvalue = false;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false;
+    function_is_primitive = false;
+    function_def = None; }
+
+(* Make a ident description for a local variable *)
+let local_variable_desc variable_type : variable_desc =
+  { variable_abs_name = LongIdent.empty;
+    variable_type;
+    variable_visibility = VPrivate;
+    variable_mutability = MMutable;
+    variable_local = true;
+    variable_override = None;
+    variable_getter = None;
+    variable_is_primitive = false;
+    variable_def = None; }
+
+
+
+(* Functions to build ident descriptions for environment construction *)
+
+let process_overrides env overrides_opt =
+  Option.map (
+      List.map (fun lid_node ->
+          let lid = strip lid_node in
+          match Solidity_tenv.find_contract env lid with
+          | None ->
+              error lid_node.pos
+                "Invalid contract specified in override list: %a"
+                LongIdent.printf lid
+          | Some (cd) ->
+              cd.contract_abs_name
+    )) overrides_opt
+
+let make_modifier_desc mlid md =
+  { modifier_abs_name = mlid;
+    modifier_params = [];
+    modifier_def = md; }
+
+let update_modifier_desc pos env md =
+  let md' = md.modifier_def in
+  let modifier_params = process_fun_params pos env ~ext:false md'.mod_params in
+  md.modifier_params <- modifier_params
+
+let make_event_desc elid ed =
+  { event_abs_name = elid;
+    event_params = [];
+    event_def = ed; }
+
+let update_event_desc pos env ed =
+  let ed' = ed.event_def in
+  let event_params = process_event_params pos env ed'.event_params in
+  ed.event_params <- event_params
+
+let make_variable_desc vlid vd =
+  { variable_abs_name = vlid;
+    variable_type = TTuple [];
+    variable_visibility = vd.var_visibility;
+    variable_mutability = vd.var_mutability;
+    variable_local = false;
+    variable_override = None;
+    variable_getter = None;
+    variable_is_primitive = false;
+    variable_def = Some (vd); }
+
+let update_variable_desc pos env vd kind_opt =
+  let vd' =
+    match vd.variable_def with
+    | Some (vd') -> vd'
+    | None -> invariant_broken __LOC__
+  in
+  let variable_type =
+    ast_type_to_type pos ~loc:(LStorage (false)) env vd'.var_type in
+  let variable_getter =
+    match vd'.var_visibility, kind_opt with
+    | VPublic, Some (Solidity_ast.Contract | Interface) ->
+        Some (variable_desc_to_function_desc pos (strip vd'.var_name)
+                vd.variable_abs_name variable_type)
+    | _ -> None
+  in
+  let variable_override = process_overrides env vd'.var_override in
+  vd.variable_type <- variable_type;
+  vd.variable_override <- variable_override;
+  vd.variable_getter <- variable_getter
+
+let make_function_desc flid fd method_ =
+  { function_abs_name = flid;
+    function_params = [];
+    function_returns = [];
+    function_visibility = fd.fun_visibility;
+    function_mutability = fd.fun_mutability;
+    function_returns_lvalue = false;
+    function_override = None;
+    function_selector = None;
+    function_is_method = method_;
+    function_is_primitive = false;
+    function_def = Some (fd); }
+
+let update_function_desc pos env fd kind_opt =
+  let fd' =
+    match fd.function_def with
+    | Some (fd') -> fd'
+    | None -> invariant_broken __LOC__
+  in
+  let ext =
+    match fd'.fun_visibility with
+    | VExternal | VPublic -> true
+    | _ -> false
+  in
+  let fid = strip fd'.fun_name in
+  let function_params = process_fun_params pos ~ext env fd'.fun_params in
+  let function_returns = process_fun_params pos ~ext env fd'.fun_returns in
+  let library = Option.fold ~none:false ~some:is_library kind_opt in
+  let function_selector =
+    if not ext then None
+    else Some (compute_selector pos ~library fid function_params)
+  in
+  let function_override = process_overrides env fd'.fun_override in
+  fd.function_params <- function_params;
+  fd.function_returns <- function_returns;
+  fd.function_override <- function_override;
+  fd.function_selector <- function_selector
+
+let update_struct_fields sd fields =
+  let fields =
+    List.fold_left (fun fields (field_name, field_type) ->
+        sd.has_mapping <-
+          sd.has_mapping || Solidity_type.has_mapping field_type;
+        IdentAList.add_uniq field_name field_type fields
+      ) [] fields
+  in
+  sd.struct_fields <- IdentAList.rev fields
+
+
+
+(* Functions to build primitive types/desc *)
+
+let primitive_fun_desc ?(returns_lvalue=false)
+    arg_types ret_types function_mutability =
+  { function_abs_name = LongIdent.empty;
+    function_params = List.map (fun t -> (t, None)) arg_types;
+    function_returns = List.map (fun t -> (t, None)) ret_types;
+    function_returns_lvalue = returns_lvalue;
+    function_visibility = VPublic; (* or private for builtins *)
+    function_mutability;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false; (* can be true *)
+    function_is_primitive = true;
+    function_def = None; }
+
+let primitive_fun_type ?(kind=KOther) ?(returns_lvalue=false)
+    arg_types ret_types function_mutability =
+  let fd = primitive_fun_desc ~returns_lvalue
+             arg_types ret_types function_mutability in
+  TFunction (fd, { new_fun_options with kind })
+
+let primitive_fun ?(returns_lvalue=false)
+    arg_types ret_types function_mutability =
+  let fd = primitive_fun_desc ~returns_lvalue
+             arg_types ret_types function_mutability in
+  Function (fd)
+
+let primitive_var_desc (*?(is_lvalue=false)*) variable_type =
+  { variable_abs_name = LongIdent.empty;
+    variable_type;
+    variable_visibility = VPublic; (* or private for builtins *)
+    variable_mutability = MImmutable; (* depends ? *)
+    variable_local = false;
+    variable_override = None;
+    variable_getter = None;
+    variable_is_primitive = true;
+    variable_def = None; }
+
+let primitive_var (*?(is_lvalue=false)*) variable_type =
+  let vd = primitive_var_desc variable_type in
+  Variable (vd)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(*
 let function_def_to_desc pos (c : contract_desc) fd : function_desc =
   let function_abs_name =
     LongIdent.append c.contract_abs_name (strip fd.fun_name) in
@@ -304,48 +551,10 @@ let modifier_def_to_desc pos (c : contract_desc) md : modifier_desc =
         Option.map strip name_opt
       ) md.mod_params
   in
-  { modifier_abs_name; modifier_params; modifier_def = md }
+  { modifier_abs_name; modifier_params; modifier_def = md; }
+*)
 
-let variable_type_to_function_type loc t =
-  let allowed_in_struct = function
-    | TArray (_) | TMapping (_) | TStruct (_) -> false
-    | _ -> true
-  in
-  let rec aux atl = function
-    | TArray (t, _sz_opt, _loc) ->
-        aux ((TUint 256, None) :: atl) t
-    | TMapping (kt, vt, _loc) ->
-        aux ((kt, None) :: atl) vt
-    | TStruct (_lid, sd, _loc) ->
-        let rtl =
-          List.map (fun (_id, t) ->
-              if allowed_in_struct t then (t, None)
-              else error loc "Can not make getter for such type"
-            ) sd.struct_fields
-        in
-        List.rev atl, rtl
-    | t ->
-        List.rev atl, [(t, None)]
-  in
-  aux [] t
-
-let variable_desc_to_function_desc pos vid variable_abs_name vt :
-    function_desc =
-  let function_params, function_returns =
-    variable_type_to_function_type pos vt in
-  let function_selector =
-    Some (compute_selector pos ~library:false vid function_params) in
-  { function_abs_name = variable_abs_name;
-    function_params; function_returns;
-    function_visibility = VExternal;
-    function_mutability = MView;
-    function_returns_lvalue = false;
-    function_def = None;
-    function_override = None;
-    function_selector;
-    function_is_method = true;
-    function_is_primitive = false; }
-
+(*
 let state_variable_def_to_desc pos (c : contract_desc) vd : variable_desc =
   let vid = strip (vd.var_name) in
   let variable_abs_name = LongIdent.append c.contract_abs_name vid in
@@ -378,22 +587,13 @@ let state_variable_def_to_desc pos (c : contract_desc) vd : variable_desc =
     variable_visibility = vd.var_visibility;
     variable_mutability = vd.var_mutability;
     variable_local = false;
-    variable_init = vd.var_init;
     variable_override;
     variable_getter;
-    variable_is_primitive = false; }
+    variable_is_primitive = false;
+    variable_def = Some (vd); }
+*)
 
-let local_variable_desc variable_type : variable_desc =
-  { variable_abs_name = LongIdent.empty;
-    variable_type;
-    variable_visibility = VPrivate;
-    variable_mutability = MMutable;
-    variable_local = true;
-    variable_init = None;
-    variable_override = None;
-    variable_getter = None;
-    variable_is_primitive = false; }
-
+(*
 let event_def_to_desc pos (c : contract_desc) event_def : event_desc =
   let eid = strip (event_def.event_name) in
   let event_abs_name = LongIdent.append c.contract_abs_name eid in
@@ -403,66 +603,5 @@ let event_def_to_desc pos (c : contract_desc) event_def : event_desc =
         Option.map strip name_opt
       ) event_def.event_params
   in
-  { event_abs_name; event_params; event_def }
-
-let event_desc_to_function_desc (ed : event_desc) : function_desc =
-  { function_abs_name = ed.event_abs_name;
-    function_params = ed.event_params;
-    function_returns = [];
-    function_visibility = VInternal;
-    function_mutability = MNonPayable;
-    function_returns_lvalue = false;
-    function_def = None;
-    function_override = None;
-    function_selector = None;
-    function_is_method = false;
-    function_is_primitive = false; }
-
-
-let primitive_type ?(kind=KOther) ?(returns_lvalue=false)
-    arg_types ret_types function_mutability =
-  let fd = {
-    function_abs_name = LongIdent.empty;
-    function_params = List.map (fun t -> (t, None)) arg_types;
-    function_returns = List.map (fun t -> (t, None)) ret_types;
-    function_returns_lvalue = returns_lvalue;
-    function_visibility = VPublic; (* or private for builtins *)
-    function_mutability;
-    function_def = None;
-    function_override = None;
-    function_selector = None;
-    function_is_method = false; (* can be true *)
-    function_is_primitive = true; }
-  in
-  TFunction (fd, { Solidity_tenv.new_fun_options with kind })
-
-let primitive_fun_desc ?(returns_lvalue=false)
-    arg_types ret_types function_mutability =
-  let fd = {
-    function_abs_name = LongIdent.empty;
-    function_params = List.map (fun t -> (t, None)) arg_types;
-    function_returns = List.map (fun t -> (t, None)) ret_types;
-    function_returns_lvalue = returns_lvalue;
-    function_visibility = VPublic; (* or private for builtins *)
-    function_mutability;
-    function_def = None;
-    function_override = None;
-    function_selector = None;
-    function_is_method = false; (* can be true *)
-    function_is_primitive = true; }
-  in
-  Function (fd)
-
-let primitive_var_desc (*?(is_lvalue=false)*) variable_type =
-  let vd = {
-    variable_abs_name = LongIdent.empty;
-    variable_type;
-    variable_visibility = VPublic; (* or private for builtins *)
-    variable_mutability = MImmutable; (* depends ? *)
-    variable_local = false;
-    variable_init = None;
-    variable_override = None;
-    variable_getter = None;
-    variable_is_primitive = true; }
-  in
-  Variable (vd)
+  { event_abs_name; event_params; event_def; }
+*)

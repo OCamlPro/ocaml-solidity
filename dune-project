@@ -40,6 +40,7 @@
    (ocaml (>= 4.08.0))
    zarith
    hex
+   fileutils
    ppx_inline_test
    ppx_expect
    odoc
@@ -54,7 +55,6 @@
    (ocaml (>= 4.08.0))
    ocaml-solidity-common
    hex
-   fileutils
    ppx_inline_test
    ppx_expect
    odoc

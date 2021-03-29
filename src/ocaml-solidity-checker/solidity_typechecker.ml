@@ -129,7 +129,7 @@ let immediate_array_element_type pos tl : type_ =
       begin
         match aux (Solidity_type_conv.mobile_type pos t) tl with
         | TRationalConst _ | TLiteralString _ ->
-            error pos "immediate_array_element_type: invariant broken"
+            invariant_broken __LOC__
         | (TTuple _ | TArraySlice _ | TFunction _ |
            TModifier _ | TEvent _ | TType _ | TMagic _) as t ->
             error pos "Type %s is only valid in storage"
@@ -238,7 +238,7 @@ let fun_opt base_t_opt is_uf (fd : function_desc) =
     | _ ->
         KOther
   in
-  { Solidity_tenv.new_fun_options with kind }
+  { Solidity_type_builder.new_fun_options with kind }
 
 let get_variable_getter pos vd =
   if vd.variable_local then
@@ -279,7 +279,7 @@ let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
         | (_ft, _id_opt) :: fp ->
             { fd with function_params = fp }
         | _ ->
-            error pos "type_and_annot_of_id_desc: invariant broken"
+            invariant_broken __LOC__
       in
       TFunction (fd', fun_opt base_t_opt true fd'), false, AFunction (fd, true)
   | Function (fd) when fd.function_is_primitive ->
@@ -290,6 +290,10 @@ let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
       fd.field_type, true, AField (fd)
   | Constr (cd) ->
       cd.constr_type, false, AConstr (cd)
+  | Module (md) ->
+      TModule (md.module_abs_name, md), false, AModule (md)
+  | Alias (_ad) ->
+      error pos "Alias should no longer be present at this point"
 
 let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
   (* To mimic the official compiler messages, we use different
@@ -448,7 +452,7 @@ let type_ident opt env base_t_opt id_node =
             let env =
               match cd.contract_hierarchy with
               | _ :: (_lid, cd) :: _ -> cd.contract_env
-              | _ -> Solidity_tenv.new_env ()
+              | _ -> Solidity_tenv_builder.new_env ()
             in
             Solidity_tenv.find_ident env ~lookup:LSuper id
 
@@ -744,7 +748,8 @@ and type_expression_lv opt env exp : type_ * bool =
       begin
         match t with
         | TArray (_, None, _) | TBytes (_) | TString (_) ->
-            let t = Solidity_type_builder.primitive_type [TUint 256] [t] MPure in
+            let t = Solidity_type_builder.primitive_fun_type
+                      [TUint 256] [t] MPure in
             (t, false)
         | TContract (_lid, cd, false (* super *)) ->
             if cd.contract_def.contract_abstract then
@@ -755,7 +760,7 @@ and type_expression_lv opt env exp : type_ * bool =
               error pos "Instantiating libraries is not supported yet";
             let ctor = Solidity_tenv.find_constructor pos cd in
             let atl = List.map fst ctor.function_params in
-            let t = Solidity_type_builder.primitive_type
+            let t = Solidity_type_builder.primitive_fun_type
                       ~kind:KNewContract atl [t] MPayable in
             (t, false)
         | TArray (_, Some (_), _) ->
@@ -840,7 +845,7 @@ and type_expression_lv opt env exp : type_ * bool =
            TBool | TInt _ | TUint _ | TFixed _ | TUfixed _ |
            TAddress _ | TFixBytes _ | TBytes _ | TString _ |
            TEnum _ | TStruct _ | TContract _ | TArray _ | TMapping _ |
-           TTuple _ | TModifier _ | TArraySlice _ | TMagic _
+           TTuple _ | TModifier _ | TArraySlice _ | TMagic _ | TModule _
           ), _ ->
             error pos "Type is not callable"
       end
@@ -947,7 +952,7 @@ let rec type_statement opt env s =
   let pos = s.pos in
   match strip s with
   | Block (sl) ->
-      let env = Solidity_tenv.new_env ~upper_env:env () in
+      let env = Solidity_tenv_builder.new_env ~upper_env:env () in
       List.iter (type_statement opt env) sl
 
   | Continue ->
@@ -1026,10 +1031,10 @@ let rec type_statement opt env s =
 
       (* Typecheck the body in a new environment
          containing the return value names *)
-      let env' = Solidity_tenv.new_env ~upper_env:env () in
+      let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
       List.iter (fun (t, var_opt) ->
           Option.iter (fun var_name ->
-              Solidity_tenv.add_variable pos env' ~inherited:false
+              Solidity_tenv_builder.add_local_variable pos env'
                 var_name (Solidity_type_builder.local_variable_desc t)
             ) var_opt
         ) returns;
@@ -1038,12 +1043,12 @@ let rec type_statement opt env s =
       (* Typecheck each catch clauses in a new environment
          containing the clause parameters *)
       List.iter (fun (_id_opt, params, body) ->
-          let env' = Solidity_tenv.new_env ~upper_env:env () in
+          let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
           List.iter (fun (t, loc_opt, name_opt) ->
               Option.iter (fun name ->
                   let t = Solidity_type_builder.var_type_to_type
                             pos env ~arg:true ~ext:false loc_opt t in
-                  Solidity_tenv.add_variable pos env' ~inherited:false
+                  Solidity_tenv_builder.add_local_variable pos env'
                     (strip name) (Solidity_type_builder.local_variable_desc t)
                 ) name_opt
             ) params;
@@ -1090,7 +1095,7 @@ let rec type_statement opt env s =
                      tuple components will never be None *)
                   List.map (function
                       | Some (t) -> t
-                      | None -> error pos "type_statement: invariant broken"
+                      | None -> invariant_broken __LOC__
                     ) tl
               | t -> [t]
             in
@@ -1122,7 +1127,7 @@ let rec type_statement opt env s =
                          tuple components will never be None *)
                       List.map (function
                           | Some (t) -> t
-                          | None -> error pos "type_statement: invariant broken"
+                          | None -> invariant_broken __LOC__
                         ) tl
                   | t -> [t]
                 in
@@ -1149,7 +1154,7 @@ let rec type_statement opt env s =
       List.iter (function
           | None -> ()
           | Some (t, var_name) ->
-              Solidity_tenv.add_variable pos env ~inherited:false
+              Solidity_tenv_builder.add_local_variable pos env
                 (strip var_name) (Solidity_type_builder.local_variable_desc t)
         ) var_decl_list
 
@@ -1204,12 +1209,12 @@ let modifier_or_constructor_params ~constructor env lid =
 let typecheck_function_body pos opt cenv
       id params returns modifiers block =
 
-  let env = Solidity_tenv.new_env ~upper_env:cenv () in
+  let env = Solidity_tenv_builder.new_env ~upper_env:cenv () in
 
   (* Add parameters to env *)
   List.iter (fun (t, var_opt) ->
       Option.iter (fun var_name ->
-          Solidity_tenv.add_variable pos env ~inherited:false
+          Solidity_tenv_builder.add_local_variable pos env
             var_name (Solidity_type_builder.local_variable_desc t)
         ) var_opt
     ) params;
@@ -1217,7 +1222,7 @@ let typecheck_function_body pos opt cenv
   (* Add return values to env *)
   List.iter (fun (t, var_opt) ->
       Option.iter (fun var_name ->
-          Solidity_tenv.add_variable pos env ~inherited:false
+          Solidity_tenv_builder.add_local_variable pos env
             var_name (Solidity_type_builder.local_variable_desc t)
         ) var_opt
     ) returns;
@@ -1241,594 +1246,6 @@ let typecheck_function_body pos opt cenv
 
   (* Typecheck actual body *)
   List.iter (type_statement opt env) block
-
-
-(*
-(* Check contracts *)
-
-
-(* Type state variable initializers and function bodies *)
-let type_contract_code (c : contract_desc) =
-  let opt = { default_options with
-              current_hierarchy = List.map fst c.contract_hierarchy;
-              current_contract = Some (c) } in
-
-  (* Check base constructor arguments *)
-  List.iter (fun (lid, el) ->
-      match el with
-      | [] -> () (* No args provided: don't check *)
-      | _ ->
-          let params = constructor_params c.contract_env lid in
-          let args = List.map (type_expression opt c.contract_env) el in
-          check_function_application lid.pos "constructor call"
-            params (AList args)
-    ) c.contract_def.contract_inheritance;
-
-  IdentMap.iter (fun id iddl ->
-      List.iter (fun (id_desc, inh) ->
-          if not inh then
-            match id_desc with
-            | Variable ({ variable_init = Some (e); _ } as v) ->
-                expect_expression_type opt c.contract_env e v.variable_type
-            | Variable (_) ->
-                () (* Note: variable without initializer or inherited variable*)
-            | Function ({ function_def =
-                            Some { fun_body = Some (body);
-                                   fun_modifiers; _ }; _ } as f) ->
-                let pos = Solidity_tenv.node_list_pos body in
-                let opt = { opt with
-                            in_function = true;
-                            fun_returns = List.map fst f.function_returns } in
-                type_function_body pos opt c.contract_env id
-                  f.function_params f.function_returns
-                  fun_modifiers body
-            | Function (_) ->
-                () (* Note: either no body or a builtin function *)
-            | Modifier ({ modifier_def =
-                            { mod_body = Some (body); _ }; _ } as m) ->
-                let opt = { opt with in_modifier = true } in
-                let pos = Solidity_tenv.node_list_pos body in
-                type_function_body pos opt c.contract_env id
-                  m.modifier_params [] [] body
-            | Modifier (_) ->
-                () (* Note: no body *)
-            | Type (_)
-            | Event (_)
-            | Contract (_) ->
-                ()
-            | Field _ | Constr _ ->
-                failwith "Invariant broken"
-        ) iddl
-    ) c.contract_env.ident_map
-
-let type_free_function_code module_env (fd : function_desc) =
-  match fd.function_def with
-  | Some { fun_body = Some (body); fun_modifiers; _ } ->
-      let pos = Solidity_tenv.node_list_pos body in
-      let opt = { default_options with
-                  current_hierarchy = [];
-                  current_contract = None;
-                  in_function = true;
-                  fun_returns = List.map fst fd.function_returns } in
-      type_function_body pos opt module_env
-        (LongIdent.last fd.function_abs_name)
-        fd.function_params fd.function_returns
-        fun_modifiers body
-  | _ ->
-      ()
-
-
-
-(* Type state variables and functions definition (not initializers/bodies) *)
-let type_contract_definitions pos c =
-  Solidity_tenv.add_parent_definitions pos ~preprocess:false c;
-  List.iter (fun part_node ->
-      match strip part_node with
-      | StateVariableDeclaration (variable_def) ->
-          let vd = Solidity_type_builder.state_variable_def_to_desc
-                     pos c variable_def in
-          begin
-            match c.contract_def.contract_kind with
-            | Library ->
-                if not (is_constant vd.variable_mutability) then
-                error pos "Library cannot have non-constant state variables"
-            | Interface ->
-                error pos "Variables can not be declared in interfaces"
-            | _ ->
-                ()
-          end;
-          if is_external vd.variable_visibility then
-            error pos "Variable visibility set to external";
-          if is_constant vd.variable_mutability && is_none vd.variable_init then
-            error pos "Uninitialized \"constant\" variable";
-          if not (is_public vd.variable_visibility) &&
-             is_some variable_def.var_override then
-            error pos "Override can only be used with public state variables";
-          Solidity_tenv.add_variable pos c.contract_env
-            ~inherited:false (strip variable_def.var_name) vd;
-          set_annot part_node (AVariable (vd, false))
-
-      | FunctionDefinition (function_def) ->
-          let function_name =
-            if Ident.equal (strip function_def.fun_name)
-                (strip c.contract_def.contract_name) then
-              match function_def.fun_returns with
-              | [] -> Ident.constructor
-              | _ -> error pos "Non-empty \"returns\" directive for constructor"
-            else
-              strip function_def.fun_name
-          in
-          let function_def =
-            { function_def with
-              fun_name = { function_def.fun_name with
-                           contents = function_name } }
-          in
-          let is_construct = Ident.equal Ident.constructor function_name in
-          let is_fallback = Ident.equal Ident.fallback function_name in
-          let is_receive = Ident.equal Ident.receive function_name in
-          let has_body = is_some function_def.fun_body in
-          let has_override = is_some function_def.fun_override in
-          let is_external, is_internal, is_private =
-            let v = function_def.fun_visibility in
-            is_external v, is_internal v, is_private v
-          in
-          begin
-            match c.contract_def.contract_kind with
-            | Library ->
-                if is_construct then
-                  error pos "Constructor can not be defined in libraries";
-                if is_fallback then
-                  error pos "Libraries cannot have fallback functions";
-                if is_receive then
-                  error pos "Libraries cannot have receive ether functions";
-                if function_def.fun_virtual then
-                  error pos "Library functions can not be virtual";
-                if has_override then
-                  error pos "Library functions can not override";
-                if not has_body then
-                  error pos "Library functions must be implemented if declared"
-            | Interface ->
-                if is_construct then
-                  error pos "Constructor can not be defined in interfaces";
-                if function_def.fun_virtual then
-                  error pos "Interface functions are implicitly virtual";
-                if has_body then
-                  error pos "Functions in interfaces cannot \
-                             have an implementation";
-                if not is_external then
-                  error pos "Functions in interfaces must be declared external"
-            | Contract ->
-                (* Note: may be abstract even if all functions implemented *)
-                if not has_body && not function_def.fun_virtual then
-                  error pos "Functions without implementation \
-                             must be marked virtual";
-                if not has_body && not c.contract_def.contract_abstract then
-                  error pos "Contract %s should be marked as \
-                             abstract because %s is virtual"
-                    (LongIdent.to_string c.contract_abs_name)
-                    (Ident.to_string function_name);
-          end;
-          if is_private && function_def.fun_virtual then
-            error pos "\"virtual\" and \"private\" can not be used together";
-          if is_construct then
-            begin
-              if not has_body then
-                error pos "Constructor must be implemented if declared";
-              if function_def.fun_virtual then
-                error pos "Constructors cannot be virtual";
-              if is_private || is_external then
-                error pos "Constructor cannot have visibility";
-              if is_internal && not c.contract_def.contract_abstract then
-                error pos "Non-abstract contracts cannot have internal \
-                           constructors. Remove the \"internal\" keyword \
-                           and make the contract abstract to fix this";
-              if not (is_payable function_def.fun_mutability ||
-                      is_nonpayable function_def.fun_mutability) then
-                error pos "Constructor must be payable or \
-                           non-payable, but is \"%s\""
-                  (Solidity_printer.string_of_fun_mutability
-                     function_def.fun_mutability)
-            end;
-          if is_fallback then
-            begin
-              if not is_external then
-                error pos "Fallback function must be defined as \"external\"";
-              if not (is_payable function_def.fun_mutability ||
-                      is_nonpayable function_def.fun_mutability) then
-                error pos "Fallback function must be payable or \
-                           non-payable, but is \"%s\""
-                  (Solidity_printer.string_of_fun_mutability
-                     function_def.fun_mutability)
-            end;
-          if is_receive then
-            begin
-              if not is_external then
-                error pos "Receive ether function must be \
-                           defined as \"external\"";
-              if is_receive && not (is_payable function_def.fun_mutability) then
-                error pos "Receive ether function must be \
-                           payable, but is \"%s\""
-                  (Solidity_printer.string_of_fun_mutability
-                     function_def.fun_mutability)
-            end;
-          let fd =
-            Solidity_type_builder.function_def_to_desc pos c function_def in
-          Solidity_tenv.add_function pos c.contract_env
-            ~inherited:false function_name fd;
-          set_annot part_node (AFunction (fd, false))
-
-      | ModifierDefinition (modifier_def) ->
-          let modifier_name = strip modifier_def.mod_name in
-          let has_body = is_some modifier_def.mod_body in
-          let has_override = is_some modifier_def.mod_override in
-          if not has_body && not modifier_def.mod_virtual then
-            error pos "Modifiers without implementation \
-                       must be marked virtual";
-          begin
-            match c.contract_def.contract_kind with
-            | Library ->
-                if modifier_def.mod_virtual then
-                  error pos "Modifiers in a library can not be virtual";
-                if has_override then
-                  error pos "Modifiers in a library can not override";
-                if not has_body then
-                  error pos
-                    "Modifiers in a library must be implemented if declared"
-            | Interface ->
-                ()
-            | Contract ->
-                (* Note: may be abstract even if all functions implemented *)
-                if not has_body && not c.contract_def.contract_abstract then
-                  error pos "Contract %s should be marked as \
-                             abstract because %s is virtual"
-                    (LongIdent.to_string c.contract_abs_name)
-                    (Ident.to_string modifier_name);
-          end;
-          let md =
-            Solidity_type_builder.modifier_def_to_desc pos c modifier_def in
-          Solidity_tenv.add_modifier pos c.contract_env
-            ~inherited:false modifier_name md;
-          set_annot part_node (AModifier md)
-
-      | EventDefinition (event_def) ->
-          let ed = Solidity_type_builder.event_def_to_desc pos c event_def in
-          Solidity_tenv.add_event pos c.contract_env
-            ~inherited:false (strip event_def.event_name) ed;
-          set_annot part_node (AEvent ed)
-
-      | UsingForDeclaration (lid_node, type_opt) ->
-          let lid = strip lid_node in
-          let pos = lid_node.pos in
-          begin
-            match Solidity_tenv.find_contract c.contract_env lid with
-            | None ->
-                error pos "Identifier not found or not unique"
-            | Some (c) when not (is_library c.contract_def.contract_kind) ->
-                error pos "Library name expected"
-            | Some (lib) ->
-                set_annot lid_node (AContract lib);
-                let type_opt =
-                  Option.map (fun t ->
-                      Solidity_type_builder.ast_type_to_type pos
-                        ~loc:(LStorage (true)) c.contract_env t) type_opt
-                in
-                Solidity_tenv.add_using_for c.contract_env lib type_opt;
-          end
-
-      | TypeDefinition (_td) ->
-          () (* Note: already handled during preprocessing *)
-
-    ) c.contract_def.contract_parts;
-
-  if not c.contract_def.contract_abstract &&
-       not (is_interface c.contract_def.contract_kind) then
-      match Solidity_tenv.has_abstract_function c with
-      | None -> ()
-      | Some (function_name) ->
-          error pos "Contract %s should be marked as \
-                     abstract because %s is virtual"
-            (LongIdent.to_string c.contract_abs_name)
-            (Ident.to_string function_name)
-
-let type_free_function_definition pos mlid module_env function_def =
-  let function_name = strip function_def.fun_name in
-  let function_def =
-    { function_def with
-      fun_name = { function_def.fun_name with
-                   contents = function_name } }
-  in
-  let has_body = is_some function_def.fun_body in
-  let has_override = is_some function_def.fun_override in
-  if function_def.fun_virtual then
-    error pos "Free functions can not be virtual";
-  if has_override then
-    error pos "Free functions can not override";
-  if not has_body then
-    error pos "Free functions must be implemented";
-  if is_payable function_def.fun_mutability then
-    error pos "Free functions can not be payable";
-  let fd =
-    Solidity_type_builder.make_function_desc pos module_env
-      ~funtype:false ~library:false ~is_method:false
-      function_name (LongIdent.append mlid function_name)
-      function_def.fun_params function_def.fun_returns false
-      function_def.fun_visibility function_def.fun_mutability
-      (Some function_def)
-  in
-  Solidity_tenv.add_function pos module_env ~inherited:false function_name fd;
-  fd
-
-
-
-
-let preprocess_type_definition pos env
-    (mlid : absolute LongIdent.t) type_def _parents =
-  match type_def with
-  | StructDefinition (name, fields) ->
-      let struct_abs_name = LongIdent.append mlid (strip name) in
-      Solidity_tenv.add_struct pos env ~inherited:false (strip name)
-        struct_abs_name (strip name, fields)
-  | EnumDefinition (name, values) ->
-      let enum_abs_name = LongIdent.append mlid (strip name) in
-      Solidity_tenv.add_enum pos env ~inherited:false (strip name)
-        enum_abs_name (List.map strip values)
-
-
-let preprocess_contract_definition
-    pos ~module_env (mlid : absolute LongIdent.t) contract_def =
-  let contract_name = strip contract_def.contract_name in
-
-  begin
-    match contract_def.contract_kind with
-    | Library ->
-        if contract_def.contract_abstract then
-          error pos "Libraries can not be abstract";
-        begin
-          match contract_def.contract_inheritance with
-          | _ :: _ -> error pos "Library is not allowed to inherit"
-          | _ -> ()
-        end;
-    | Interface ->
-        if contract_def.contract_abstract then
-          error pos "Interfaces do not need the \"abstract\" keyword, \
-                     they are abstract implicitly";
-        List.iter (fun (lid, _el) ->
-            match Solidity_tenv.find_contract module_env (strip lid) with
-            | None ->
-                error lid.pos "Interface %s parent interface %s is undefined"
-                  (Ident.to_string contract_name)
-                  (LongIdent.to_string (strip lid))
-            | Some (c) ->
-                set_annot lid (AContract c);
-                if not (is_interface c.contract_def.contract_kind) then
-                  error lid.pos
-                    "Interfaces can only inherit from other interfaces"
-          ) contract_def.contract_inheritance
-    | Contract ->
-        List.iter (fun (lid, _el) ->
-            match Solidity_tenv.find_contract module_env (strip lid) with
-            | None ->
-                error lid.pos "Contract %s parent contract %s is undefined"
-                  (Ident.to_string contract_name)
-                  (LongIdent.to_string (strip lid))
-            | Some (c) ->
-                set_annot lid (AContract c);
-                if is_library c.contract_def.contract_kind then
-                  error lid.pos "Libraries can not be inherited from"
-          ) contract_def.contract_inheritance
-  end;
-
-  let c = Solidity_tenv.{
-    contract_abs_name = LongIdent.append mlid contract_name;
-    contract_env = new_env ~upper_env:module_env ();
-    contract_def; contract_hierarchy = [];
-  }
-  in
-
-  (* Perform the linearization of the contract hierarchy *)
-  Solidity_c3.linearize pos c;
-
-  (* Add parent contracts contents to derived contract env *)
-  Solidity_tenv.add_parent_definitions pos ~preprocess:true c;
-
-  Solidity_tenv.add_contract pos module_env contract_name c;
-
-  (* Iterate over contents to preprocess type definitions only *)
-  List.iter (fun part_node ->
-      match strip part_node with
-      | TypeDefinition (td) ->
-          preprocess_type_definition part_node.pos c.contract_env
-            (c.contract_abs_name) td c.contract_hierarchy
-      | StateVariableDeclaration (_)
-      | FunctionDefinition (_)
-      | ModifierDefinition (_)
-      | EventDefinition (_)
-      | UsingForDeclaration (_) ->
-          (* Nothing to do here, we just care about contract and types *)
-          ()
-    ) contract_def.contract_parts;
-  c
-
-
-
-
-let rec update_struct_fields ~env =
-  IdentMap.iter (fun _id iddl ->
-      List.iter (fun (id_desc, _inh) ->
-          match id_desc with
-          | Contract (c) ->
-              update_struct_fields ~env:c.contract_env
-          | Type (TDStruct (s)) ->
-              let fields =
-                List.map (fun (t, id_node) ->
-                    strip id_node,
-                    (Solidity_type_builder.ast_type_to_type id_node.pos
-                       ~loc:(LStorage (false)) s.struct_env t)
-                  ) (snd s.struct_def)
-              in
-              Solidity_tenv.add_struct_fields s fields
-          | Type (TDEnum _)
-          | Event (_)
-          | Variable (_)
-          | Function (_)
-          | Modifier (_) -> ()
-          | Field _ | Constr _ ->
-              failwith "Invariant broken"
-        ) iddl
-    ) env.ident_map
-
-
-
-
-
-let check_types_acyclicity ~env =
-  (* We only consider direct dependencies
-     (recursive types are allowed under indirection *)
-  let rec add_field_type_deps struct_ field_name field_type ty_deps =
-    match field_type with
-    | UserDefinedType (lid_node) ->
-        let rel_lid = strip lid_node in
-        let abs_lid =
-          match Solidity_tenv.find_type env rel_lid with
-          | Some (TEnum (abs_lid, _))
-          | Some (TStruct (abs_lid, _, _))
-          | Some (TContract (abs_lid, _, _)) -> abs_lid
-          | Some (_) | None -> failwith "Invariant broken"
-        in
-        AbsLongIdentSet.add abs_lid ty_deps
-    | Array (type_, Some (_)) ->
-        add_field_type_deps struct_ field_name type_ ty_deps
-    | Array (_, None) -> ty_deps
-    | Mapping (_) -> ty_deps
-    | FunctionType (_) -> ty_deps
-    | ElementaryType (_) -> ty_deps
-  in
-  let rec compute_types_deps deps ~env =
-    IdentMap.fold (fun _name idl deps ->
-        List.fold_left (fun deps (id_desc, _inh) ->
-            match id_desc with
-            | Contract (c) ->
-                compute_types_deps deps ~env:c.contract_env
-            | Type (TDStruct (s)) ->
-                let ty_deps =
-                  List.fold_left (fun ty_deps (field_type, field_name) ->
-                      add_field_type_deps s field_name field_type ty_deps
-                    ) AbsLongIdentSet.empty (snd s.struct_def)
-                in
-                AbsLongIdentMap.add s.struct_abs_name ty_deps deps
-            | Type (TDEnum (_))
-            | Event (_)
-            | Variable (_)
-            | Function (_)
-            | Modifier (_) -> deps
-            | Field _ | Constr _ ->
-                failwith "Invariant broken"
-          ) deps idl
-      ) env.ident_map deps
-  in
-  let rec compute_type_deps_closure deps ty_deps ty_deps_closure =
-    if AbsLongIdentSet.is_empty ty_deps then ty_deps_closure
-    else
-      let new_ty_deps = AbsLongIdentSet.diff ty_deps ty_deps_closure in
-      let ty_deps_closure = AbsLongIdentSet.union new_ty_deps ty_deps_closure in
-      let next_ty_deps = AbsLongIdentSet.fold (fun ty next_ty_deps ->
-          match AbsLongIdentMap.find_opt ty deps with
-          | None -> next_ty_deps
-          | Some (ty_deps) -> AbsLongIdentSet.union ty_deps next_ty_deps
-        ) new_ty_deps AbsLongIdentSet.empty
-      in
-      compute_type_deps_closure deps next_ty_deps ty_deps_closure
-  in
-  let deps = compute_types_deps AbsLongIdentMap.empty ~env in
-  let _ = AbsLongIdentMap.iter (fun ty ty_deps ->
-      let ty_deps_closure =
-        compute_type_deps_closure deps ty_deps AbsLongIdentSet.empty in
-      if AbsLongIdentSet.mem ty ty_deps_closure then
-        error dummy_pos "Type definition %s is cyclic" (LongIdent.to_string ty)
-        (* todo: provide correct position *)
-    ) deps
-  in
-  ()
-
-
-
-
-(* Add contracts and types to environments *)
-let preprocess_module pos mlid module_ =
-  let module_env = Solidity_tenv.new_env () in
-  let contents = List.rev (List.fold_left (fun contents unit_node ->
-      match strip unit_node with
-      | Pragma (_) ->
-          contents
-      | Import (_) ->
-          failwith "Imports are not supported yet"
-          (* set_annot unit_node (AImport (Ident.root 0)); *)
-      | GlobalTypeDefinition (td) ->
-          preprocess_type_definition pos module_env mlid td [];
-          contents
-      | GlobalFunctionDefinition (fd) ->
-          (`Function (fd, unit_node) :: contents)
-      | ContractDefinition (cd) ->
-          let cd = preprocess_contract_definition pos ~module_env mlid cd in
-          set_annot unit_node (AContract (cd));
-          (`Contract (cd) :: contents)
-    ) [] module_)
-  in
-  update_struct_fields ~env:module_env; (* This also ensures user types exist *)
-  check_types_acyclicity ~env:module_env;
-  contents, module_env
-
-let type_module_units pos mlid module_ =
-  (* Types and contract linearization *)
-  let contents, module_env = preprocess_module pos mlid module_ in
-  (* State variables, functions, modifiers, events *)
-  let contents =
-    List.map (function
-        | `Contract (cd) ->
-            type_contract_definitions pos cd;
-            `Contract (cd)
-        | `Function (fd, unit_node) ->
-            let fd = type_free_function_definition pos mlid module_env fd in
-            set_annot unit_node (AFunction (fd, false));
-            `Function (fd)
-      ) contents
-  in
-  (* Code *)
-  List.iter (function
-      | `Contract (cd) -> type_contract_code cd
-      | `Function (fd) -> type_free_function_code module_env fd
-    ) contents;
-  module_env
-
-let type_module m =
-  let mlid = LongIdent.of_ident_abs m.module_id in
-  let pos = Solidity_tenv.node_list_pos m.module_units in
-  ignore (type_module_units pos mlid m.module_units)
-
-let type_program p =
-  List.iter (fun m ->
-      type_module m
-    ) p.program_modules
-
-
-let () =
-  Solidity_primitives.init ()
-
-*)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1857,10 +1274,11 @@ let typecheck_contract_code pos (cd : contract_desc) =
     ) cd.contract_def.contract_inheritance;
 
   IdentMap.iter (fun id iddl ->
-      List.iter (fun (id_desc, inh) ->
-          if not inh then
+      List.iter (fun (id_desc, id_origin) ->
+          if not (Solidity_tenv.is_inherited id_origin) then
             match id_desc with
-            | Variable ({ variable_init = Some (e); _ } as v) ->
+            | Variable ({ variable_def =
+                            Some ({ var_init = Some (e); _ }); _ } as v) ->
                 expect_expression_type opt cenv e v.variable_type
             | Variable (_) ->
                 () (* Note: variable without initializer or inherited variable*)
@@ -1885,8 +1303,8 @@ let typecheck_contract_code pos (cd : contract_desc) =
             | Event (_)
             | Contract (_) ->
                 ()
-            | Field _ | Constr _ ->
-                failwith "Invariant broken"
+            | Field _ | Constr _ | Module _ | Alias _ ->
+                invariant_broken __LOC__
         ) iddl
     ) cenv.ident_map
 
@@ -1927,60 +1345,230 @@ let typecheck_code menv m =
 
 
 
+let postprocess_module_contracts m =
+  List.iter (fun unit_node ->
+      match strip unit_node with
+      | ContractDefinition (cd) ->
+          let cd' =
+            match get_annot unit_node with
+            | AContract (cd') -> cd'
+            | _ -> error unit_node.pos "Contract annotation not set"
+          in
+          let cenv = cd'.contract_env in
+          List.iter (fun part_node ->
+              match strip part_node with
+              | UsingForDeclaration (lid_node, type_opt) ->
+                  let lid = strip lid_node in
+                  let pos = lid_node.pos in
+                  begin
+                    match Solidity_tenv.find_contract cenv lid with
+                    | None ->
+                        error pos "Identifier not found or not unique"
+                    | Some (c)
+                      when not (is_library c.contract_def.contract_kind) ->
+                        error pos "Library name expected"
+                    | Some (lib) ->
+                        set_annot lid_node (AContract (lib));
+                        let type_opt =
+                          Option.map (fun t ->
+                              Solidity_type_builder.ast_type_to_type pos
+                                ~loc:(LStorage (true)) cenv t) type_opt
+                        in
+                        Solidity_tenv_builder.add_using_for cenv lib type_opt;
+                  end
+              | _ ->
+                  ()
+            ) cd.contract_parts;
+          if not cd.contract_abstract &&
+               not (is_interface cd.contract_kind) then
+            begin
+              (* Note: may be abstract even if all functions implemented *)
+              match Solidity_tenv.has_abstract_function cd' with
+              | None -> ()
+              | Some (fid) ->
+                  error cd.contract_name.pos
+                    "Contract %s should be marked as \
+                     abstract because %s is virtual"
+                    (LongIdent.to_string cd'.contract_abs_name)
+                    (Ident.to_string fid);
+            end
+      | Pragma (_) | Import (_)
+      | GlobalFunctionDefinition (_)
+      | GlobalTypeDefinition (_) ->
+          ()
+    ) m.module_units
 
+(* Ensure that struct definitions are acyclic.
+   Note that we only consider direct dependencies
+   (i.e. dependencies through structs and static arrays),
+   because recursive types are allowed under indirection. *)
+let check_struct_acyclicity env =
+  let rec check_struct seen sd =
+    if AbsLongIdentSet.mem sd.struct_abs_name seen then
+      error (fst sd.struct_def).pos
+        "Type definition %s is cyclic"
+        (LongIdent.to_string sd.struct_abs_name);
+    let seen = AbsLongIdentSet.add sd.struct_abs_name seen in
+    List.iter (fun (_id, t) -> check_type seen t) sd.struct_fields
+  and check_type seen t =
+    match t with
+    | TStruct (_lid, sd, _) ->
+        check_struct seen sd
+    | TArray (t, Some (_), _) ->
+        check_type seen t
+    | _ -> ()
+  in
+  let rec aux env =
+    IdentMap.iter (fun _name iddl ->
+        List.iter (fun (idd, id_origin) ->
+            match id_origin with
+            | Imported | Inherited ->
+                (* Imported and inherited definitions will be
+                   processed in their original environment *)
+                ()
+            | Defined ->
+                begin
+                  match idd with
+                  | Field (_) | Constr (_) | Alias (_) ->
+                      invariant_broken __LOC__
+                  | Module (_md) ->
+                      (* Modules in environments are just pointers to top-level
+                         modules, they don't need to be processed here *)
+                      ()
+                  | Contract (cd) ->
+                      aux cd.contract_env
+                  | Type (TDStruct (sd)) ->
+                      check_struct AbsLongIdentSet.empty sd
+                  | Type (TDEnum (_)) | Event (_) | Modifier (_)
+                  | Variable (_) | Function (_) ->
+                      ()
+                end
+          ) iddl
+      ) env.ident_map
+  in
+  aux env
 
-let process_contract_definitions pos cd =
+let rec update_struct_fields env =
+  IdentMap.iter (fun _id iddl ->
+      List.iter (fun (idd, id_origin) ->
+          match id_origin with
+          | Imported | Inherited ->
+              (* Imported and inherited definitions will be
+                 processed in their original environment *)
+              ()
+          | Defined ->
+              begin
+                match idd with
+                | Field (_) | Constr (_) | Alias (_) ->
+                    invariant_broken __LOC__
+                | Module (_md) ->
+                    (* Modules in environments are just pointers to top-level
+                         modules, they don't need to be processed here *)
+                    ()
+                | Contract (cd) ->
+                    update_struct_fields cd.contract_env
+                | Type (TDStruct (sd)) ->
+                    let fields =
+                      List.map (fun (t, id_node) ->
+                          strip id_node,
+                          (Solidity_type_builder.ast_type_to_type
+                             id_node.pos ~loc:(LStorage (false)) env t)
+                        ) (snd sd.struct_def)
+                    in
+                    Solidity_type_builder.update_struct_fields sd fields
+                | Type (TDEnum (_)) | Event (_) | Modifier (_)
+                | Variable (_) | Function (_) -> ()
+              end
+        ) iddl
+    ) env.ident_map
+
+let preprocess_type_definition (blid : absolute LongIdent.t) td =
+  match td with
+  | StructDefinition (id_node, fields) ->
+      let id = strip id_node in
+      let lid = LongIdent.append blid id in
+      let sd = {
+        struct_abs_name = lid; struct_fields = [];
+        has_mapping = false; struct_def = (id_node, fields); }
+      in
+      id_node, TDStruct (sd)
+  | EnumDefinition (id_node, values) ->
+      let id = strip id_node in
+      let lid = LongIdent.append blid id in
+      let values_rev, _ =
+        List.fold_left (fun (enum_values, i) enum_value ->
+            IdentAList.add_uniq enum_value i enum_values, (i+1)
+          ) ([], 0) (List.map strip values)
+      in
+      let ed = {
+        enum_abs_name = lid;
+        enum_pos = id_node.pos;
+        enum_values = List.rev values_rev }
+      in
+      id_node, TDEnum (ed)
+
+let preprocess_contract_definitions cd =
+  let contract_kind = cd.contract_def.contract_kind in
+  let contract_abstract = cd.contract_def.contract_abstract in
+  let cid_node = cd.contract_def.contract_name in
+  let cid = strip cid_node in
   let clid = cd.contract_abs_name in
-  let cenv = cd.contract_env in
-  Solidity_tenv.add_parent_definitions pos ~preprocess:false cd;
   List.iter (fun part_node ->
       let pos = part_node.pos in
       match strip part_node with
+      | TypeDefinition (td) ->
+          let tid_node, td' = preprocess_type_definition clid td in
+          Solidity_tenv_builder.add_contract_ident
+            cd (strip tid_node) (Type (td'));
+          set_annot part_node (ATypeId (td'))
+
       | StateVariableDeclaration (vd) ->
-          let id = strip vd.var_name in
-          let vd' =
-            Solidity_type_builder.state_variable_def_to_desc pos cd vd in
+          let vid_node = vd.var_name in
+          let vid = strip vid_node in
+          let vlid = LongIdent.append clid vid in
           begin
-            match cd.contract_def.contract_kind with
+            match contract_kind with
             | Library ->
-                if not (is_constant vd'.variable_mutability) then
+                if not (is_constant vd.var_mutability) then
                   error pos "Library cannot have non-constant state variables"
             | Interface ->
                 error pos "Variables can not be declared in interfaces"
             | _ ->
                 ()
           end;
-          if is_external vd'.variable_visibility then
+          if is_external vd.var_visibility then
             error pos "Variable visibility set to external";
-          if is_constant vd'.variable_mutability &&
-               is_none vd'.variable_init then
+          if is_constant vd.var_mutability &&
+               is_none vd.var_init then
             error pos "Uninitialized \"constant\" variable";
-          if not (is_public vd'.variable_visibility) &&
-               is_some vd.var_override then
+          if not (is_public vd.var_visibility) && is_some vd.var_override then
             error pos "Override can only be used with public state variables";
-          Solidity_tenv.add_variable pos cenv ~inherited:false id vd';
+          let vd' = Solidity_type_builder.make_variable_desc vlid vd in
+          Solidity_tenv_builder.add_contract_ident cd vid (Variable (vd'));
           set_annot part_node (AVariable (vd', false))
 
       | FunctionDefinition (fd) ->
-          let id =
-            if Ident.equal (strip fd.fun_name)
-                 (strip cd.contract_def.contract_name) then
+          let fid_node = fd.fun_name in
+          let fid = strip fid_node in
+          let fid =
+            if Ident.equal fid cid then
               match fd.fun_returns with
               | [] -> Ident.constructor
               | _ -> error pos "Non-empty \"returns\" directive for constructor"
             else
-              strip fd.fun_name
+              fid
           in
-          let fd = { fd with fun_name = { fd.fun_name with contents = id } } in
-          let is_construct = Ident.equal Ident.constructor id in
-          let is_fallback = Ident.equal Ident.fallback id in
-          let is_receive = Ident.equal Ident.receive id in
+          let flid = LongIdent.append clid fid in
+          let fd = { fd with fun_name = { fd.fun_name with contents = fid } } in
+          let is_construct = Ident.equal Ident.constructor fid in
+          let is_fallback = Ident.equal Ident.fallback fid in
+          let is_receive = Ident.equal Ident.receive fid in
           let is_external, is_internal, is_private =
             let v = fd.fun_visibility in
             is_external v, is_internal v, is_private v
           in
           begin
-            match cd.contract_def.contract_kind with
+            match contract_kind with
             | Library ->
                 if is_construct then
                   error pos "Constructor can not be defined in libraries";
@@ -2005,16 +1593,9 @@ let process_contract_definitions pos cd =
                 if not is_external then
                   error pos "Functions in interfaces must be declared external"
             | Contract ->
-                (* Note: may be abstract even if all functions implemented *)
-                if is_none fd.fun_body &&
-                     not fd.fun_virtual then
+                if is_none fd.fun_body && not fd.fun_virtual then
                   error pos "Functions without implementation \
-                             must be marked virtual";
-                if is_none fd.fun_body &&
-                     not cd.contract_def.contract_abstract then
-                  error pos "Contract %s should be marked as \
-                             abstract because %s is virtual"
-                    (LongIdent.to_string clid) (Ident.to_string id);
+                             must be marked virtual"
           end;
           if is_private && fd.fun_virtual then
             error pos "\"virtual\" and \"private\" can not be used together";
@@ -2026,7 +1607,7 @@ let process_contract_definitions pos cd =
                 error pos "Constructors cannot be virtual";
               if is_private || is_external then
                 error pos "Constructor cannot have visibility";
-              if is_internal && not cd.contract_def.contract_abstract then
+              if is_internal && not contract_abstract then
                 error pos "Non-abstract contracts cannot have internal \
                            constructors. Remove the \"internal\" keyword \
                            and make the contract abstract to fix this";
@@ -2056,17 +1637,25 @@ let process_contract_definitions pos cd =
                            payable, but is \"%s\""
                   (Solidity_printer.string_of_fun_mutability fd.fun_mutability)
             end;
-          let fd' = Solidity_type_builder.function_def_to_desc pos cd fd in
-          Solidity_tenv.add_function pos cenv ~inherited:false id fd';
+          let fd, method_ =
+            match contract_kind with
+            | Interface -> { fd with fun_virtual = true }, true
+            | Contract -> fd, true
+            | Library -> fd, false
+          in
+          let fd' = Solidity_type_builder.make_function_desc flid fd method_ in
+          Solidity_tenv_builder.add_contract_ident cd fid (Function (fd'));
           set_annot part_node (AFunction (fd', false))
 
       | ModifierDefinition (md) ->
-          let id = strip md.mod_name in
+          let mid_node = md.mod_name in
+          let mid = strip mid_node in
+          let mlid = LongIdent.append clid mid in
           if is_none md.mod_body && not md.mod_virtual then
             error pos
               "Modifiers without implementation must be marked virtual";
           begin
-            match cd.contract_def.contract_kind with
+            match contract_kind with
             | Library ->
                 if md.mod_virtual then
                   error pos "Modifiers in a library can not be virtual";
@@ -2078,59 +1667,110 @@ let process_contract_definitions pos cd =
             | Interface ->
                 ()
             | Contract ->
-                (* Note: may be abstract even if all functions implemented *)
-                if is_none md.mod_body &&
-                     not cd.contract_def.contract_abstract then
-                  error pos "Contract %s should be marked as \
-                             abstract because %s is virtual"
-                    (LongIdent.to_string cd.contract_abs_name)
-                    (Ident.to_string id);
+                ()
           end;
-          let md' = Solidity_type_builder.modifier_def_to_desc pos cd md in
-          Solidity_tenv.add_modifier pos cenv ~inherited:false id md';
+          let md' = Solidity_type_builder.make_modifier_desc mlid md in
+          Solidity_tenv_builder.add_contract_ident cd mid (Modifier (md'));
           set_annot part_node (AModifier (md'))
 
       | EventDefinition (ed) ->
-          let id = strip ed.event_name in
-          let ed' = Solidity_type_builder.event_def_to_desc pos cd ed in
-          Solidity_tenv.add_event pos cenv ~inherited:false id ed';
+          let eid_node = ed.event_name in
+          let eid = strip eid_node in
+          let elid = LongIdent.append clid eid in
+          let ed' = Solidity_type_builder.make_event_desc elid ed in
+          Solidity_tenv_builder.add_contract_ident cd eid (Event (ed'));
           set_annot part_node (AEvent (ed'))
 
-      | UsingForDeclaration (lid_node, type_opt) ->
+      | UsingForDeclaration (_) ->
+          (* Note: this is done later *)
+          ()
+
+    ) cd.contract_def.contract_parts
+
+let preprocess_contract_inheritance menv cd =
+  let cid_node = cd.contract_name in
+  let cid = strip cid_node in
+  let ensure_is_defined_before pos cd =
+    if ExtList.is_empty cd.contract_hierarchy then
+      error pos
+        "Definition of base has to precede definition of derived contract"
+  in
+  match cd.contract_kind with
+  | Library ->
+      if cd.contract_abstract then
+        error cid_node.pos "Libraries can not be abstract";
+      begin
+        match cd.contract_inheritance with
+        | _ :: _ -> error cid_node.pos "Library is not allowed to inherit"
+        | _ -> ()
+      end
+  | Interface ->
+      if cd.contract_abstract then
+        error cid_node.pos
+          "Interfaces do not need the \"abstract\" keyword, \
+           they are abstract implicitly";
+      List.iter (fun (lid_node, _el) ->
           let lid = strip lid_node in
-          let pos = lid_node.pos in
-          begin
-            match Solidity_tenv.find_contract cenv lid with
-            | None ->
-                error pos "Identifier not found or not unique"
-            | Some (c) when not (is_library c.contract_def.contract_kind) ->
-                error pos "Library name expected"
-            | Some (lib) ->
-                set_annot lid_node (AContract (lib));
-                let type_opt =
-                  Option.map (fun t ->
-                      Solidity_type_builder.ast_type_to_type pos
-                        ~loc:(LStorage (true)) cenv t) type_opt
-                in
-                Solidity_tenv.add_using_for cenv lib type_opt;
-          end
+          match Solidity_tenv.find_contract menv lid with
+          | None ->
+              error lid_node.pos
+                "Interface %s parent interface %s is undefined"
+                (Ident.to_string cid) (LongIdent.to_string lid)
+          | Some (cd') ->
+              set_annot lid_node (AContract (cd'));
+              ensure_is_defined_before lid_node.pos cd';
+              if not (is_interface cd'.contract_def.contract_kind) then
+                error lid_node.pos
+                  "Interfaces can only inherit from other interfaces";
+        ) cd.contract_inheritance
+  | Contract ->
+      List.iter (fun (lid_node, _el) ->
+          let lid = strip lid_node in
+          match Solidity_tenv.find_contract menv lid with
+          | None ->
+              error lid_node.pos
+                "Contract %s parent contract %s is undefined"
+                (Ident.to_string cid) (LongIdent.to_string lid)
+          | Some (cd') ->
+              set_annot lid_node (AContract (cd'));
+              ensure_is_defined_before lid_node.pos cd';
+              if is_library cd'.contract_def.contract_kind then
+                error lid_node.pos "Libraries can not be inherited from"
+        ) cd.contract_inheritance
 
-      | TypeDefinition (_td) ->
-          () (* Note: already handled during preprocessing *)
+let preprocess_module_contracts menv m =
+  List.iter (fun unit_node ->
+      match strip unit_node with
+      | ContractDefinition (cd) ->
+          let cd' =
+            match get_annot unit_node with
+            | AContract (cd') -> cd'
+            | _ -> error unit_node.pos "Contract annotation not set"
+          in
+          let pos = cd.contract_name.pos in
+          preprocess_contract_inheritance menv cd;
+          Solidity_c3.linearize pos cd';
+          Solidity_tenv_builder.add_inherited_definitions cd';
+          preprocess_contract_definitions cd';
+      | Pragma (_) | Import (_)
+      | GlobalFunctionDefinition (_)
+      | GlobalTypeDefinition (_) ->
+          ()
+    ) m.module_units
 
-    ) cd.contract_def.contract_parts;
+let preprocess_contract_definition menv (mlid : absolute LongIdent.t) cd =
+  let cid = strip cd.contract_name in
+  let clid = LongIdent.append mlid cid in
+  let cenv = Solidity_tenv_builder.new_env ~upper_env:menv () in
+  let cd' = {
+    contract_abs_name = clid; contract_env = cenv;
+    contract_def = cd; contract_hierarchy = [] }
+  in
+  Solidity_tenv_builder.add_module_ident menv cid (Contract (cd'));
+  cd'
 
-  if not cd.contract_def.contract_abstract &&
-       not (is_interface cd.contract_def.contract_kind) then
-      match Solidity_tenv.has_abstract_function cd with
-      | None -> ()
-      | Some (function_name) ->
-          error pos "Contract %s should be marked as \
-                     abstract because %s is virtual"
-            (LongIdent.to_string cd.contract_abs_name)
-            (Ident.to_string function_name)
-
-let process_free_function_definition pos menv mlid fd =
+let preprocess_free_function_definition menv (mlid : absolute LongIdent.t) fd =
+  let pos = fd.fun_name.pos in
   let id = strip fd.fun_name in
   let lid = LongIdent.append mlid id in
   if fd.fun_virtual then
@@ -2141,535 +1781,210 @@ let process_free_function_definition pos menv mlid fd =
     error pos "Free functions must be implemented";
   if is_payable fd.fun_mutability then
     error pos "Free functions can not be payable";
-  let fd =
-    Solidity_type_builder.make_function_desc pos menv
-      ~funtype:false ~library:false ~is_method:false
-      id lid fd.fun_params fd.fun_returns false
-      fd.fun_visibility fd.fun_mutability (Some (fd))
+  let fd' = {
+      function_abs_name = lid;
+      function_params = [];
+      function_returns = [];
+      function_visibility = fd.fun_visibility;
+      function_mutability = fd.fun_mutability;
+      function_returns_lvalue = false;
+      function_override = None;
+      function_selector = None;
+      function_is_method = false;
+      function_is_primitive = false;
+      function_def = Some (fd); }
   in
-  Solidity_tenv.add_function pos menv ~inherited:false id fd;
-  fd
+  Solidity_tenv_builder.add_module_ident menv id (Function (fd'));
+  fd'
 
-let process_definitions menv m =
+let preprocess_module p menvs m =
+  let menv = IdentMap.find m.module_id menvs in
   let mlid = LongIdent.of_ident_abs m.module_id in
+  let base = FilePath.dirname m.module_file in
   List.iter (fun unit_node ->
       match strip unit_node with
-      | ContractDefinition (_cd) ->
-          let cd' =
-            match get_annot unit_node with
-            | AContract (cd') -> cd'
-            | _ -> assert false
-          in
-          process_contract_definitions unit_node.pos cd'
-      | GlobalFunctionDefinition (fd) ->
-          let fd =
-            process_free_function_definition unit_node.pos menv mlid fd in
-          set_annot unit_node (AFunction (fd, false));
-      | Pragma (_) | Import (_)
-      | GlobalTypeDefinition (_) ->
+      | Pragma (_) ->
           ()
-    ) m.module_units
-
-
-
-
-
-
-
-
-
-let rec update_struct_fields env =
-  IdentMap.iter (fun _id iddl ->
-      List.iter (fun (id_desc, _inh) ->
-          match id_desc with
-          | Contract (c) ->
-              update_struct_fields c.contract_env
-          | Type (TDStruct (s)) ->
-              let fields =
-                List.map (fun (t, id_node) ->
-                    strip id_node,
-                    (Solidity_type_builder.ast_type_to_type id_node.pos
-                       ~loc:(LStorage (false)) s.struct_env t)
-                  ) (snd s.struct_def)
-              in
-              Solidity_tenv.add_struct_fields s fields
-          | Type (TDEnum _)
-          | Event (_)
-          | Variable (_)
-          | Function (_)
-          | Modifier (_) -> ()
-          | Field _ | Constr _ ->
-              failwith "Invariant broken"
-        ) iddl
-    ) env.ident_map
-
-
-
-
-
-let check_types_acyclicity env =
-  (* We only consider direct dependencies
-     (recursive types are allowed under indirection *)
-  let rec add_field_type_deps struct_ field_name field_type ty_deps =
-    match field_type with
-    | UserDefinedType (lid_node) ->
-        let rel_lid = strip lid_node in
-        let abs_lid =
-          match Solidity_tenv.find_type env rel_lid with
-          | Some (TEnum (abs_lid, _))
-          | Some (TStruct (abs_lid, _, _))
-          | Some (TContract (abs_lid, _, _)) -> abs_lid
-          | Some (_) | None -> failwith "Invariant broken"
-        in
-        AbsLongIdentSet.add abs_lid ty_deps
-    | Array (type_, Some (_)) ->
-        add_field_type_deps struct_ field_name type_ ty_deps
-    | Array (_, None) -> ty_deps
-    | Mapping (_) -> ty_deps
-    | FunctionType (_) -> ty_deps
-    | ElementaryType (_) -> ty_deps
-  in
-  let rec compute_types_deps deps ~env =
-    IdentMap.fold (fun _name idl deps ->
-        List.fold_left (fun deps (id_desc, _inh) ->
-            match id_desc with
-            | Contract (c) ->
-                compute_types_deps deps ~env:c.contract_env
-            | Type (TDStruct (s)) ->
-                let ty_deps =
-                  List.fold_left (fun ty_deps (field_type, field_name) ->
-                      add_field_type_deps s field_name field_type ty_deps
-                    ) AbsLongIdentSet.empty (snd s.struct_def)
+      | Import { import_from; import_symbols } ->
+          let file = make_absolute_path base import_from in
+          let im = StringMap.find file p.program_modules_by_file in
+          let imenv = IdentMap.find im.module_id menvs in
+          begin
+            match import_symbols with
+            | ImportAll (None) ->
+                () (* Dealt with later *)
+            | ImportAll (Some (mid_node)) ->
+                let mid = strip mid_node in
+                let md = {
+                  module_abs_name = LongIdent.append mlid mid;
+                  module_pos = mid_node.pos;
+                  module_file = file;
+                  module_env = imenv }
                 in
-                AbsLongIdentMap.add s.struct_abs_name ty_deps deps
-            | Type (TDEnum (_))
-            | Event (_)
-            | Variable (_)
-            | Function (_)
-            | Modifier (_) -> deps
-            | Field _ | Constr _ ->
-                failwith "Invariant broken"
-          ) deps idl
-      ) env.ident_map deps
-  in
-  let rec compute_type_deps_closure deps ty_deps ty_deps_closure =
-    if AbsLongIdentSet.is_empty ty_deps then ty_deps_closure
-    else
-      let new_ty_deps = AbsLongIdentSet.diff ty_deps ty_deps_closure in
-      let ty_deps_closure = AbsLongIdentSet.union new_ty_deps ty_deps_closure in
-      let next_ty_deps = AbsLongIdentSet.fold (fun ty next_ty_deps ->
-          match AbsLongIdentMap.find_opt ty deps with
-          | None -> next_ty_deps
-          | Some (ty_deps) -> AbsLongIdentSet.union ty_deps next_ty_deps
-        ) new_ty_deps AbsLongIdentSet.empty
-      in
-      compute_type_deps_closure deps next_ty_deps ty_deps_closure
-  in
-  let deps = compute_types_deps AbsLongIdentMap.empty ~env in
-  let _ = AbsLongIdentMap.iter (fun ty ty_deps ->
-      let ty_deps_closure =
-        compute_type_deps_closure deps ty_deps AbsLongIdentSet.empty in
-      if AbsLongIdentSet.mem ty ty_deps_closure then
-        error dummy_pos "Type definition %s is cyclic" (LongIdent.to_string ty)
-        (* todo: provide correct position *)
-    ) deps
-  in
-  ()
-
-
-
-
-
-
-
-let preprocess_contract menv cd =
-  let id_node = cd.contract_name in
-  let id = strip id_node in
-  match cd.contract_kind with
-  | Library ->
-      if cd.contract_abstract then
-        error id_node.pos "Libraries can not be abstract";
-      begin
-        match cd.contract_inheritance with
-        | _ :: _ -> error id_node.pos "Library is not allowed to inherit"
-        | _ -> ()
-      end;
-  | Interface ->
-      if cd.contract_abstract then
-        error id_node.pos
-          "Interfaces do not need the \"abstract\" keyword, \
-           they are abstract implicitly";
-      List.iter (fun (lid_node, _el) ->
-          let lid = strip lid_node in
-          match Solidity_tenv.find_contract menv lid with
-          | None ->
-              error lid_node.pos
-                "Interface %s parent interface %s is undefined"
-                (Ident.to_string id) (LongIdent.to_string lid)
-          | Some (cd') ->
-              set_annot lid_node (AContract cd');
-              if not (is_interface cd'.contract_def.contract_kind) then
-                error lid_node.pos
-                  "Interfaces can only inherit from other interfaces"
-        ) cd.contract_inheritance
-  | Contract ->
-      List.iter (fun (lid_node, _el) ->
-          let lid = strip lid_node in
-          match Solidity_tenv.find_contract menv lid with
-          | None ->
-              error lid_node.pos
-                "Contract %s parent contract %s is undefined"
-                (Ident.to_string id) (LongIdent.to_string lid)
-          | Some (cd') ->
-              set_annot lid_node (AContract cd');
-              if is_library cd'.contract_def.contract_kind then
-                error lid_node.pos "Libraries can not be inherited from"
-        ) cd.contract_inheritance
-
-let preprocess_contracts menv m =
-  List.iter (fun unit_node ->
-      match strip unit_node with
+                Solidity_tenv_builder.add_module_ident menv mid (Module (md))
+            | ImportIdents (iidl) ->
+                List.iter (fun (tid_node, aid_node_opt) ->
+                    let aid_node =
+                      match aid_node_opt with
+                      | None -> tid_node
+                      | Some (aid_node) -> aid_node
+                    in
+                    let tid = strip tid_node in
+                    let aid = strip aid_node in
+                    let ad = {
+                      alias_abs_name = LongIdent.append mlid aid;
+                      alias_pos = aid_node.pos;
+                      alias_target_id = tid;
+                      alias_target_file = file;
+                      alias_target_env = imenv;
+                      alias_targets = []; }
+                    in
+                    Solidity_tenv_builder.add_module_ident menv aid (Alias (ad))
+                  ) iidl;
+          end
+      | GlobalTypeDefinition (td) ->
+          let tid_node, td' = preprocess_type_definition mlid td in
+          Solidity_tenv_builder.add_module_ident menv
+            (strip tid_node) (Type (td'));
+          set_annot unit_node (ATypeId (td'))
+      | GlobalFunctionDefinition (fd) ->
+          let fd = preprocess_free_function_definition menv mlid fd in
+          set_annot unit_node (AFunction (fd, false))
       | ContractDefinition (cd) ->
-          preprocess_contract menv cd;
-          let cd' =
-            match get_annot unit_node with
-            | AContract (cd') -> cd'
-            | _ -> assert false
-          in
-          Solidity_c3.linearize unit_node.pos cd';
-          Solidity_tenv.add_parent_definitions
-            unit_node.pos ~preprocess:true cd'
-      | Pragma (_) | Import (_)
-      | GlobalFunctionDefinition (_)
-      | GlobalTypeDefinition (_) ->
-          ()
+          let cd = preprocess_contract_definition menv mlid cd in
+          set_annot unit_node (AContract (cd))
     ) m.module_units
 
+(* Determine the import resolution order in a DFS fashion *)
 
+let rec resolve_imports_internal ~only_anonymous
+    p seen ordered (m : Solidity_ast.module_) =
+  if StringSet.mem m.module_file seen then
+    seen, ordered
+  else
+    begin
+      let base = FilePath.dirname m.module_file in
+      let seen = StringSet.add m.module_file seen in
+      let seen, ordered =
+        List.fold_left (fun (seen, ordered) unit_node ->
+            match strip unit_node with
+            | Import { import_from; import_symbols } ->
+                let do_imports =
+                  match import_symbols with
+                  | ImportAll (_) -> true
+                  | ImportIdents (_) -> not only_anonymous
+                in
+                if do_imports then
+                  let file = make_absolute_path base import_from in
+                  resolve_imports_internal ~only_anonymous p seen ordered
+                    (StringMap.find file p.program_modules_by_file)
+                else
+                  (seen, ordered)
+            | _ ->
+                (seen, ordered)
+          ) (seen, ordered) m.module_units
+      in
+      let ordered = m :: ordered in
+      seen, ordered
+    end
 
-
-let prepare_type_definition env (blid : absolute LongIdent.t) td =
-  match td with
-  | StructDefinition (id_node, fields) ->
-      let id = strip id_node in
-      let lid = LongIdent.append blid id in
-      Solidity_tenv.add_struct id_node.pos env ~inherited:false
-        id lid (id, fields)
-  | EnumDefinition (id_node, values) ->
-      let id = strip id_node in
-      let lid = LongIdent.append blid id in
-      Solidity_tenv.add_enum id_node.pos env ~inherited:false
-        id lid (List.map strip values)
-
-let prepare_contract_definition menv (mlid : absolute LongIdent.t) cd =
-  let id_node = cd.contract_name in
-  let id = strip id_node in
-  let lid = LongIdent.append mlid id in
-  let cenv = Solidity_tenv.new_env ~upper_env:menv () in
-  let cd' = {
-    contract_abs_name = lid; contract_env = cenv;
-    contract_def = cd; contract_hierarchy = [] }
+let resolve_anonymous_module_imports p m =
+  let _seen, ordered_rev =
+    resolve_imports_internal ~only_anonymous:true p StringSet.empty [] m
   in
-  Solidity_tenv.add_contract id_node.pos menv id cd';
-  List.iter (fun part_node ->
-      match strip part_node with
-      | TypeDefinition (td) ->
-          prepare_type_definition cenv lid td
-      | StateVariableDeclaration (_)
-      | FunctionDefinition (_)
-      | ModifierDefinition (_)
-      | EventDefinition (_)
-      | UsingForDeclaration (_) ->
-          ()
-    ) cd.contract_parts;
-  cd'
+  List.rev ordered_rev
 
-let prepare_module_env m =
-  let menv = Solidity_tenv.new_env () in
-  let mlid = LongIdent.of_ident_abs m.module_id in
-  List.iter (fun unit_node ->
-      match strip unit_node with
-      | GlobalTypeDefinition (td) ->
-          prepare_type_definition menv mlid td
-      | ContractDefinition (cd) ->
-          let cd = prepare_contract_definition menv mlid cd in
-          set_annot unit_node (AContract (cd))
-      | Pragma (_) | Import (_)
-      | GlobalFunctionDefinition (_) ->
-          ()
-    ) m.module_units;
-  menv
-
-
+let resolve_program_imports p =
+  let _seen, ordered_rev =
+    StringMap.fold (fun _file m (seen, ordered) ->
+        resolve_imports_internal ~only_anonymous:false p seen ordered m
+      ) p.program_modules_by_file (StringSet.empty, [])
+  in
+  List.rev ordered_rev
 
 let type_program p =
 
-  (* Prepare the module and contract environments *)
+  let ordered_modules = resolve_program_imports p in
+
+  (* Create the module environments *)
   let menvs =
     List.fold_left (fun menvs m ->
-        let menv = prepare_module_env m in
+        let menv = Solidity_tenv_builder.new_env () in
         IdentMap.add m.module_id menv menvs
-      ) IdentMap.empty p.program_modules
+      ) IdentMap.empty ordered_modules
   in
 
-(* TODO: imports step 1 (contract names and types) *)
+  (* Preprocess modules.
+     This populates module environments with modules,
+     aliases, types, variables, functions and contracts.
+     Their definition is incomplete, i.e. aliases, types,
+     variables types and function argument types are not
+     resolved, and contracts are empty.
+     Also, anonymous imports are not performed yet. *)
+  List.iter (fun m ->
+      preprocess_module p menvs m
+    ) ordered_modules;
 
-  (* Preprocess contracts: linearization and checks *)
+  (* Performs the anonymous imports *)
+  List.iter (fun m ->
+      let iml = resolve_anonymous_module_imports p m in
+      Solidity_tenv_builder.add_imported_definitions menvs m iml
+    ) ordered_modules;
+
+  (* Resolve all aliases *)
+  List.iter (fun m ->
+      Solidity_tenv_builder.resolve_aliases menvs m
+    ) ordered_modules;
+
+  (* Check for name clashes in modules *)
+  List.iter (fun m ->
+      Solidity_tenv_builder.check_clashes_in_module menvs m
+    ) ordered_modules;
+
+  (* Preprocess contracts.
+     This first checks inheritance and perform linearization.
+     Then, it populate contract environments with (incomplete)
+     types, variables, functions, modifiers and events. *)
   List.iter (fun m ->
       let menv = IdentMap.find m.module_id menvs in
-      preprocess_contracts menv m
-    ) p.program_modules;
+      preprocess_module_contracts menv m
+    ) ordered_modules;
 
-
-  (* Preprocess types: update struct fields and check for acyclicity *)
+  (* Finalize type definitions *)
   List.iter (fun m ->
       let menv = IdentMap.find m.module_id menvs in
-      update_struct_fields menv; (* This also ensures user types exist *)
-      check_types_acyclicity menv
-    ) p.program_modules;
+      update_struct_fields menv;
+(* TODO: populate has_mapping *)
+      check_struct_acyclicity menv
+    ) ordered_modules;
 
-  (* Process definitions (other than types) *)
+  (* Finalize variable, functions, modifier and events *)
   List.iter (fun m ->
-      let menv = IdentMap.find m.module_id menvs in
-      process_definitions menv m
-    ) p.program_modules;
+      let _menv = IdentMap.find m.module_id menvs in
+      Solidity_tenv_builder.finalize_definitions menvs m
+    ) ordered_modules;
 
-(* TODO: imports step 2 (variables, functions, modifiers, events) *)
+  (* Check and filter overloads  *)
+  List.iter (fun m ->
+      let _menv = IdentMap.find m.module_id menvs in
+      Solidity_tenv_builder.check_and_filter_overloads menvs m
+    ) ordered_modules;
+
+  (* Postprocess contracts.
+     This adds libraries opened with 'using for' to contract environments.
+     It also ensure all inherited virtual function are redefined. *)
+  List.iter (fun m ->
+      postprocess_module_contracts m
+    ) ordered_modules;
 
   (* Typecheck code *)
   List.iter (fun m ->
       let menv = IdentMap.find m.module_id menvs in
       typecheck_code menv m
-    ) p.program_modules;
+    ) ordered_modules;
 
   ()
 
 
 let () =
   Solidity_primitives.init ()
-
-
-
-
-
-
-
-(*
-Should do
-
-1/ for each module
-     - create a fresh module env
-         - add global types to this env
-         - for each contract
-             - create a fresh env
-             - add contract env to module env
-
-1.5/ Perform import on types/contracts
-
-2/ for each module
-     - for each contract
-         - linearize the contract ***** will need to look into imported modules
-         - add parents definition to env
-
-3/ globally
-     - update struct fields in env ***** will need to look into imported modules
-     - check struct acyclicity ***** will need to look into imported modules
-*)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(*
-each file is added to a map filename -> file
-
-map is iterated lexicographically (behavior may vary if path is abs/rel)
-
-iteration is BFS : for each file the compiler considers the import
-in the order defined in the file, and adds them at the END of the queue.
-
-that was just parsing
-
-
-then there is analysis, performed in different phases
-
-each phase is performed for all the loaded and
-imported files before we can advance to the next
-
-first phase = import resolution -> determines the order
-in which the files are analyzed in subsequent phases
-
-// topological sorting (depth first search) of the import graph, cutting potential cycles
-
-There's also a step later in the analysis where stuff from imported modules is used to update the syntax tree for the current module
-
-
-
-
-bool CompilerStack::parse()
--> parse the files given on command line, after each parse, check to see
-   if there are imports, if so, add them at the end of files to parse
-   (ignore if already added)
-
-
-
-bool CompilerStack::analyze()
--> call resolveImports
--> SyntaxChecker syntaxChecker
-     - checkSyntax (on each AST)
--> DocStringTagParser docStringTagParser
-     - parseDocStrings (on each AST)
--> NameAndTypeResolver resolver
-     - registerDeclarations (on each AST)
-     - performImports (on each file/AST)
-     - resolveNameAndTypes (on each AST)
--> DeclarationTypeChecker declarationTypeChecker
-     - check (on each AST)
--> ContractLevelChecker contractLevelChecker (inheritance, overrides, collision)
-     - check (on each AST)                 (also check if contract is abstract)
--> DocStringAnalyser docStringAnalyser
-     - analyseDocStrings (on each AST)
--> TypeChecker typeChecker (fully check expressions AND resolve overloads)
-     - checkTypeRequirements (on each AST)  (what type is given to them then ?)
--> PostTypeChecker postTypeChecker
-     - check (on each AST)
-     - finalize (once)
--> ImmutableValidator(...)
-     - analyze (on each contract)
--> CFG cfg
-     - constructFlow (on each AST)
--> ControlFlowAnalyzer controlFlowAnalyzer
-     - analyze (on each AST)
--> StaticAnalyzer staticAnalyzer
-     - analyze (on each AST)
--> ViewPureChecker(...)
-     - check (on each root node ?)
--> ModelChecker modelChecker
-     - analyze (on each AST)
-
-
-void CompilerStack::resolveImports()
-
-
-for each source in list of sources
-  if source already seen -> loop
-  otherwise
-    add to seen sources
-    for each import in import directive
-      get absolute path (from annot)
-      set ast annot to actual contents
-      recurse on this import
-    end for
-    add source to source order list
-
-
-
-
-
-
-resolve imports
-syntax check
- register declarations
- actually perform imports
- resolve names and types (not overloads)
-check declarations (enum, structs (recursive...), usings...)
-check contracts (inheritance, overrides, collisions, abstract flag)
-typecheck (expressions, incl. overload)
-
-
-
-
-for each module
-
-  1/ create a fresh module env
-       - add global types to this env
-       - for each contract
-           - create a fresh env
-           - linearize the contract
-           - add parents definition to env
-           - add contract env to module env
-        - then update struct fields in env
-        - check struct acyclicity
-
-  2/ check and add state_variables/functions/modifiers/events/usings
-     definitions (not code) to the module env
-
-  3/ typecheck the code (functions, free functions, state variables init)
-
-
-Should do
-
-1/ for each module
-     - create a fresh module env
-         - add global types to this env
-         - for each contract
-             - create a fresh env
-             - add contract env to module env
-
-1.5/ Perform import on types/contracts
-
-2/ for each module
-     - for each contract
-         - linearize the contract ***** will need to look into imported modules
-         - add parents definition to env
-
-3/ globally
-     - update struct fields in env ***** will need to look into imported modules
-     - check struct acyclicity ***** will need to look into imported modules
-
-
-
-
-
-
-std::map<ASTNode const*, std::shared_ptr<DeclarationContainer>>& m_scopes;
-ASTNode const* m_currentScope = nullptr;
-VariableScope* m_currentFunction = nullptr;
-ContractDefinition const* m_currentContract = nullptr;
-langutil::ErrorReporter& m_errorReporter;
-GlobalContext& m_globalContext;
-
-
-
-/**
- * Container for all global objects which look like AST nodes, but are not part of the AST
- * that is currently being compiled.
- * @note must not be destroyed or moved during compilation as its objects can be referenced from
- * other objects.
- */
-class GlobalContext: private boost::noncopyable
-{
-public:
-	GlobalContext();
-	void setCurrentContract(ContractDefinition const& _contract);
-	void resetCurrentContract() { m_currentContract = nullptr; }
-	MagicVariableDeclaration const* currentThis() const;
-	MagicVariableDeclaration const* currentSuper() const;
-
-	/// @returns a vector of all implicit global declarations excluding "this".
-	std::vector<Declaration const*> declarations() const;
-
-private:
-	std::vector<std::shared_ptr<MagicVariableDeclaration const>> m_magicVariables;
-	ContractDefinition const* m_currentContract = nullptr;
-	std::map<ContractDefinition const*, std::shared_ptr<MagicVariableDeclaration const>> mutable m_thisPointer;
-	std::map<ContractDefinition const*, std::shared_ptr<MagicVariableDeclaration const>> mutable m_superPointer;
-};
-
-
-global context :
-"magic" variables : *abi, addmod, *block, *msg, *tx, ..., super, this, type
-
-just constructs magic variables and allow to get correct this/super
-
-*)

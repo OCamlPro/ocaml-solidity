@@ -4,7 +4,7 @@
   (name ocaml_solidity_parser)
   (public_name ocaml-solidity-parser)
   (wrapped false)
-  (libraries ocaml-solidity-common hex fileutils )
+  (libraries ocaml-solidity-common hex )
   
   
   )
