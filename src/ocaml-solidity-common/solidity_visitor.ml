@@ -523,6 +523,7 @@ module Ast = struct
           visitImportDirective v id
       | GlobalTypeDefinition td -> visitTypeDef v td
       | GlobalFunctionDefinition fd -> visitFunctionDef v fd
+      | GlobalVariableDefinition vd -> visitStateVariableDef v vd
       | ContractDefinition cdn -> visitContractDef v cdn
     in
     handleAction v#visitSourceUnit continueVisit su

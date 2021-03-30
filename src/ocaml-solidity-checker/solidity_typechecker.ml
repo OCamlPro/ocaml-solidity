@@ -1336,6 +1336,21 @@ let typecheck_code menv m =
             | _ -> assert false
           in
           typecheck_free_function_code unit_node.pos menv fd'
+      | GlobalVariableDefinition (vd) ->
+          begin
+            match vd.var_init with
+            | Some (e) ->
+                let vd' =
+                  match get_annot unit_node with
+                  | AVariable (vd', _inh) -> vd'
+                  | _ -> assert false
+                in
+                let opt = default_options in
+                expect_expression_type opt menv e vd'.variable_type
+            | None ->
+                ()
+          end
+          (* typecheck_free_function_code unit_node.pos menv fd' *)
       | Pragma (_) | Import (_)
       | GlobalTypeDefinition (_) ->
           ()
@@ -1394,6 +1409,7 @@ let postprocess_module_contracts m =
             end
       | Pragma (_) | Import (_)
       | GlobalFunctionDefinition (_)
+      | GlobalVariableDefinition (_)
       | GlobalTypeDefinition (_) ->
           ()
     ) m.module_units
@@ -1754,6 +1770,7 @@ let preprocess_module_contracts menv m =
           preprocess_contract_definitions cd';
       | Pragma (_) | Import (_)
       | GlobalFunctionDefinition (_)
+      | GlobalVariableDefinition (_)
       | GlobalTypeDefinition (_) ->
           ()
     ) m.module_units
@@ -1796,6 +1813,18 @@ let preprocess_free_function_definition menv (mlid : absolute LongIdent.t) fd =
   in
   Solidity_tenv_builder.add_module_ident menv id (Function (fd'));
   fd'
+
+let preprocess_free_variable_definition menv (mlid : absolute LongIdent.t) vd =
+  let pos = vd.var_name.pos in
+  let id = strip vd.var_name in
+  let lid = LongIdent.append mlid id in
+  if not (is_constant vd.var_mutability) then
+    error pos "Only constant variables are allowed at file level";
+  if is_none vd.var_init then
+    error pos "Uninitialized \"constant\" variable";
+  let vd' = Solidity_type_builder.make_variable_desc lid vd in
+  Solidity_tenv_builder.add_module_ident menv id (Variable (vd'));
+  vd'
 
 let preprocess_module p menvs m =
   let menv = IdentMap.find m.module_id menvs in
@@ -1850,6 +1879,9 @@ let preprocess_module p menvs m =
       | GlobalFunctionDefinition (fd) ->
           let fd = preprocess_free_function_definition menv mlid fd in
           set_annot unit_node (AFunction (fd, false))
+      | GlobalVariableDefinition (vd) ->
+          let vd = preprocess_free_variable_definition menv mlid vd in
+          set_annot unit_node (AVariable (vd, false))
       | ContractDefinition (cd) ->
           let cd = preprocess_contract_definition menv mlid cd in
           set_annot unit_node (AContract (cd))
@@ -1871,7 +1903,8 @@ let rec resolve_imports_internal ~only_anonymous
             | Import { import_from; import_symbols } ->
                 let do_imports =
                   match import_symbols with
-                  | ImportAll (_) -> true
+                  | ImportAll (None) -> true
+                  | ImportAll (Some (_))
                   | ImportIdents (_) -> not only_anonymous
                 in
                 if do_imports then

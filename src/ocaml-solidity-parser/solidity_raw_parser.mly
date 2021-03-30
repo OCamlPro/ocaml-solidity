@@ -36,6 +36,19 @@
     | Override of longident list
     | Invocation of longident * expression list option
 
+  let add_free_var_modifiers pos var ml =
+    let has_mut = ref false in
+    List.fold_left (fun var m ->
+      match m with
+        | VMutability mut ->
+            if !has_mut then
+              error pos "Mutability already specified";
+            has_mut := true;
+            { var with var_mutability = mut }
+        | _ ->
+            error pos "Invalid modifier for free variable declaration"
+      ) var ml
+
   let add_var_modifiers pos var ml =
     let has_vis = ref false in
     let has_mut = ref false in
@@ -387,6 +400,15 @@ source_unit:
   | IMPORT import_directive SEMI { mk $loc (Import ($2)) }
   | contract_definition          { mk $loc (ContractDefinition ($1)) }
   | type_definition              { mk $loc (GlobalTypeDefinition ($1)) }
+  | type_name_no_function variable_modifiers identifier
+        equal_expression? SEMI
+      { mk $loc (GlobalVariableDefinition (add_free_var_modifiers $loc {
+            var_name = $3;
+            var_type = $1;
+            var_visibility = VInternal;
+            var_mutability = MMutable;
+            var_override = None;
+            var_init = $4; } $2)) }
   | function_descriptor parameters function_modifier*
         returns_opt function_body_opt
       { mk $loc (GlobalFunctionDefinition (add_fun_modifiers $loc {

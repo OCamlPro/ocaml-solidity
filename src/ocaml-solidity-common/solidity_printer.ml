@@ -150,6 +150,8 @@ and bprint_source_unit b indent su =
       type_definition b indent td
   | GlobalFunctionDefinition (fd) ->
       function_definition b indent fd
+  | GlobalVariableDefinition (vd) ->
+      variable_definition b indent vd
   | ContractDefinition (cd) ->
       bprint b indent
         (Format.sprintf "%s%s %s %s {"
@@ -178,28 +180,8 @@ and contract_part b indent cp =
   match strip cp with
   | TypeDefinition td ->
       type_definition b indent td
-  | StateVariableDeclaration {
-        var_name; var_type; var_visibility;
-        var_mutability; var_override; var_init; } ->
-      bprint b indent
-        (Format.sprintf "%s %s%s%s%s%s"
-           (string_of_type var_type)
-           (string_of_ident var_name)
-           (match var_visibility with
-            | VInternal -> ""
-            | v -> " " ^ (string_of_visibility v))
-           (match var_mutability with
-            | MMutable -> ""
-            | m -> " " ^ (string_of_var_mutability m))
-           (match var_override with
-            | None -> ""
-            | Some [] -> " override"
-            | Some ol -> " override(" ^
-                           (String.concat ","
-                              (List.map string_of_longident ol)) ^ ")")
-           (match var_init with
-            | None -> ";"
-            | Some e -> Format.sprintf " = %s;" (string_of_expression e)))
+  | StateVariableDeclaration (vd) ->
+      variable_definition b indent vd
   | FunctionDefinition (fd) ->
       function_definition b indent fd
   | ModifierDefinition {
@@ -261,6 +243,29 @@ and type_definition b indent = function
 
 and string_of_field_declaration (t, id) =
   Format.sprintf "%s %s" (string_of_type t) (string_of_ident id)
+
+and variable_definition b indent {
+    var_name; var_type; var_visibility;
+    var_mutability; var_override; var_init; } =
+  bprint b indent
+    (Format.sprintf "%s %s%s%s%s%s"
+       (string_of_type var_type)
+       (string_of_ident var_name)
+       (match var_visibility with
+        | VInternal -> ""
+        | v -> " " ^ (string_of_visibility v))
+       (match var_mutability with
+        | MMutable -> ""
+        | m -> " " ^ (string_of_var_mutability m))
+       (match var_override with
+        | None -> ""
+        | Some [] -> " override"
+        | Some ol -> " override(" ^
+                       (String.concat ","
+                          (List.map string_of_longident ol)) ^ ")")
+       (match var_init with
+        | None -> ";"
+        | Some e -> Format.sprintf " = %s;" (string_of_expression e)))
 
 and function_definition b indent {
     fun_name; fun_params; fun_returns; fun_modifiers; fun_visibility;

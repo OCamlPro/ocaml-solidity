@@ -35,6 +35,7 @@ and source_unit =
   | Import of import_directive
   | GlobalTypeDefinition of type_definition
   | GlobalFunctionDefinition of function_definition
+  | GlobalVariableDefinition of state_variable_definition
   | ContractDefinition of contract_definition
 
 and import_directive = {
