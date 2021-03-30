@@ -688,13 +688,7 @@ let checkEnv _name (envs : env) (env : contract_env) =
   let () = checkConstructionFlow env in
   let () = checkGlobals env in
   let () = checkConstantFlow env in
-  let () = checkMultipleInheritedFuns env in(*
-                let () =
-                  let test =
-                    let str = LongIdent.to_string _name in
-                    let (=) = Compare.String.equal in
-                    str = "@1.C0" || str = "@1.CA1"|| str = "@1.CA2" in
-                  if not test then failwith @@ Format.asprintf "%a" pp_env env in *)
+  let () = checkMultipleInheritedFuns env in
   let () = checkPurity envs env in
   ()
 
