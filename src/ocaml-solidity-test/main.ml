@@ -62,12 +62,8 @@ let main () =
       Format.printf "Parsed code:\n%s@."
         (Solidity_printer.string_of_program program);
 
-      let () = if !typecheck then Solidity_typechecker.type_program program in
-
-      List.iter (fun m ->
-          if !postcheck then ignore @@ Solidity_postprocess.checkModule m
-        ) program.program_modules;
-
+      let program = if !typecheck then Solidity_typechecker.type_program program else program in
+      let () = if !typecheck && !postcheck then ignore @@ Solidity_postprocess.checkProgram program in
       ()
 
 

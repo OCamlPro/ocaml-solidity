@@ -1983,7 +1983,7 @@ let type_program p =
       typecheck_code menv m
     ) ordered_modules;
 
-  ()
+  {p with program_modules = ordered_modules}
 
 
 let () =

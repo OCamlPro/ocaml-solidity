@@ -11,8 +11,8 @@ let check_file file () =
   let () =
     try
       let program = Solidity_parser.parse file in
-      Solidity_typechecker.type_program program;
-      List.iter (fun m -> ignore @@ Solidity_postprocess.checkModule m) program.program_modules
+      let program = Solidity_typechecker.type_program program in
+      ignore @@ Solidity_postprocess.checkProgram program;
     with
     | e ->
         Format.printf "Fail: %s@." (Printexc.to_string e);

@@ -698,7 +698,7 @@ let checkEnv _name (envs : env) (env : contract_env) =
   let () = checkPurity envs env in
   ()
 
-let checkModule (m : module_) : env =
+let checkModule (env : env) (m : module_) : env =
   List.fold_left
     (fun (env : env) {contents; annot; pos = _} ->
       match contents, annot with
@@ -723,5 +723,8 @@ let checkModule (m : module_) : env =
       | ContractDefinition _, _ ->
           raise (InvariantBroken "Contract should have contract annot")
       | _ -> env)
-    empty_project_env
+    env
     m.module_units
+
+let checkProgram (p : program) : env =
+  List.fold_left checkModule empty_project_env p.program_modules

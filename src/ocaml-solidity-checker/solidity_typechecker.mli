@@ -10,4 +10,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val type_program : Solidity_ast.program -> unit
+(** Types a program and, if successful, returns the
+    annoted program where the program_modules are ordered wrt.
+    their dependencies. *)
+val type_program : Solidity_ast.program -> Solidity_ast.program
