@@ -86,11 +86,55 @@ let checkNoWrite (fname : Ident.t) (fdetails : function_details) =
     | _ -> raise (InvariantBroken "") in
   ()
 
+let stateVariableAnalyser ?current_position env svd annot =
+  let () = (* Checking the variable has not been defined before. *)
+    match getGlobal svd.var_name.contents env with
+    | None -> ()
+    | Some _ ->
+        raise (VariableAlreadyDefined (svd.var_name.contents, svd.var_name.pos)) in
+  let gd_def, gd_updates =
+    match svd.var_init, svd.var_mutability with
+    | None, MConstant -> raise (UndefinedConstant svd.var_name.contents)
+    | None, _ -> GDeclared, []
+    | Some e, _ ->
+        let ed = getExpressionDetails e in
+        GDefined (ed, e), [e.annot, e.pos] in
+  let new_env =
+    {env with
+     env_glob =
+       IdentMap.add
+         svd.var_name.contents
+         {gd_def; gd_mutab = svd.var_mutability; gd_updates}
+         env.env_glob} in
+  let type_ =
+    match annot with
+    | AType t -> t
+    | AVariable (v, _is_getter) -> v.variable_type
+    | a -> failOnAnnot a in
+  let new_env =
+    match svd.var_visibility with
+    | VPublic ->
+        let params, _ =
+          Solidity_type_builder.variable_type_to_function_type
+            svd.var_name.pos type_ in
+        let getter_details =
+          getDetails new_env (Getter svd) params (the current_position) in
+        let () =
+          checkDetails new_env svd.var_name.contents getter_details in
+        addFun
+          svd.var_name
+          params
+          getter_details
+          new_env
+    | VPrivate | VInternal | VExternal -> new_env in
+  new_env
+
+
 (* Computes the environment for a given contract *)
 let analyseContract
   (env : contract_env)
   (contract : contract_definition) =
-  let visit = object(self)
+  let visit = object
     inherit Ast.init_ast_visitor
     val mutable env = env
 
@@ -167,47 +211,8 @@ let analyseContract
       SkipChildren
 
     method! visitStateVariableDef svd =
-      let () = (* Checking the variable has not been defined before. *)
-        match getGlobal svd.var_name.contents env with
-          | None -> ()
-          | Some _ ->
-            raise (VariableAlreadyDefined (svd.var_name.contents, svd.var_name.pos)) in
-      let gd_def, gd_updates =
-        match svd.var_init, svd.var_mutability with
-        | None, MConstant -> raise (UndefinedConstant svd.var_name.contents)
-        | None, _ -> GDeclared, []
-        | Some e, _ ->
-            let ed = getExpressionDetails e in
-            GDefined (ed, e), [e.annot, e.pos] in
-      let new_env =
-        {env with
-         env_glob =
-           IdentMap.add
-             svd.var_name.contents
-             {gd_def; gd_mutab = svd.var_mutability; gd_updates}
-             env.env_glob} in
-      let type_ =
-        match self#getAnnot () with
-        | Some (AType t) -> t
-        | Some (AVariable (v, _is_getter)) -> v.variable_type
-        | Some a -> failOnAnnot a
-        | None -> assert false in
-      let new_env =
-        match svd.var_visibility with
-          | VPublic ->
-            let params, _ =
-              Solidity_type_builder.variable_type_to_function_type
-                svd.var_name.pos type_ in
-            let getter_details =
-              getDetails new_env (Getter svd) params (the current_position) in
-              let () =
-                checkDetails new_env svd.var_name.contents getter_details in
-            addFun
-              svd.var_name
-              params
-              getter_details
-              new_env
-          | VPrivate | VInternal | VExternal -> new_env in
+      let annot = the current_annot in
+      let new_env = stateVariableAnalyser ?current_position env svd annot in
       env <- new_env;
       SkipChildren
   end in
@@ -683,6 +688,12 @@ let checkPurity =
       env.env_funs in
   ()
 
+let assertGlobalIsConstant svd =
+  match svd.var_mutability with
+    | MConstant -> ()
+    | MMutable | MImmutable ->
+        raise (FileGlobalNotConstant (svd.var_name.contents, svd.var_name.pos))
+
 let checkEnv _name (envs : env) (env : contract_env) =
   let () = checkFuns env in
   let () = checkConstructionFlow env in
@@ -693,8 +704,14 @@ let checkEnv _name (envs : env) (env : contract_env) =
   ()
 
 let checkModule (env : env) (m : module_) : env =
-  List.fold_left
-    (fun (env : env) {contents; annot; pos = _} ->
+  let _, env = List.fold_left
+    (fun
+      (* 'globals' is a function building an empty environment with the global
+         definitions ;
+         'env' is the whole environment to which we add the module *)
+      ((globals, env) : (contract_definition -> contract_env) * env)
+
+      {contents; annot; pos} ->
       match contents, annot with
       | ContractDefinition contract, AContract cd ->
           let name = cd.contract_abs_name in
@@ -708,17 +725,26 @@ let checkModule (env : env) (m : module_) : env =
                 if LongIdent.equal id name then acc
                 else
                   inheritFrom id acc env)
-              (empty_contract_env contract)
+              (globals contract)
               cd.contract_hierarchy in
           let ctrct_env = analyseContract initial_env contract in
           let env = addContractEnv name ctrct_env env in
           checkEnv name env ctrct_env;
-          env
+          globals, env
       | ContractDefinition _, _ ->
           raise (InvariantBroken "Contract should have contract annot")
-      | _ -> env)
-    env
+      | GlobalVariableDefinition svd, annot -> (* Updates the global function *)
+          assertGlobalIsConstant svd;
+          let globals contract =
+            stateVariableAnalyser ~current_position:pos (globals contract) svd annot
+          in
+          globals, env
+
+      | _ -> globals, env)
+    (empty_contract_env, env)
     m.module_units
+  in
+  env
 
 let checkProgram (p : program) : env =
   List.fold_left checkModule empty_project_env p.program_modules

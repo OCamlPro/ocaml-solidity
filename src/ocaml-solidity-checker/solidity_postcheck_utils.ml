@@ -165,9 +165,12 @@ exception InconsistentVisibility of
     pos (* Position of second definition *)
 
 exception MissingPlaceholderStatement of
-    Ident.t (* Modifier name with an empty body *) *
+    Ident.t * (* Modifier name with an empty body *)
     pos
 
+exception FileGlobalNotConstant of
+    Ident.t * (* Global name *)
+    pos
 
 let failOnAnnot = function
   | AType _ -> raise (InvariantBroken "AType")
@@ -1171,3 +1174,4 @@ let inheritFrom
     | None -> raise (InvariantBroken ("Cannot find inherited contract " ^ LongIdent.to_string id))
     | Some e -> e in
   {env with env_inherited = env.env_inherited @ [id, inherit_env]}
+
