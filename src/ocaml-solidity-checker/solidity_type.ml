@@ -300,36 +300,49 @@ let is_storage = function
 (* Change a type's location ; promote components
    from storage pointer to storage ref if needed.
    This is needed for immediate array elements and structure fields *)
-(* TODO: need proper cycle detection *)
-let rec change_type_location loc : type_ -> type_ = function
-  | TString (_loc) ->
-      TString (loc)
-  | TBytes (_loc) ->
-      TBytes (loc)
-  (* Note: storage struct members always have a storage ref location ;
-     when requesting to change a struct's location from storage ref/ptr
-     to storage ref/ptr, we don't need to change the fields location.
-     This happens to be useful when processing cyclic structs definitions:
-     since struct definitions default to a storage location, we avoid an
-     endless recursion trying to change the location of struct fields. *)
-  | TStruct (lid, sd, LStorage (_)) when is_storage loc ->
-      TStruct (lid, sd, loc)
-  | TStruct (lid, sd, _loc) ->
-      TStruct (lid, {
-          sd with struct_fields =
-                    List.map (fun (id, t) ->
-                        (id, change_type_location (promote_loc loc) t)
-                      ) sd.struct_fields }, loc)
-  | TArray (t, sz_opt, _loc) ->
-      TArray (change_type_location (promote_loc loc) t, sz_opt, loc)
-  | TArraySlice (t, _loc) ->
-      TArraySlice (change_type_location (promote_loc loc) t, loc)
-  | TMapping (tk, tv, _loc) ->
-      TMapping (tk, change_type_location (promote_loc loc) tv, loc)
-  | TTuple (tl) ->
-      TTuple (List.map (Option.map (change_type_location loc)) tl)
-  | t ->
-      t
+let change_type_location loc t =
+  let rec aux seen loc t =
+    match t with
+    | TString (_loc) ->
+        TString (loc)
+    | TBytes (_loc) ->
+        TBytes (loc)
+    (* Note: storage struct members always have a storage ref location ;
+       when requesting to change a struct's location from storage ref/ptr
+       to storage ref/ptr, we don't need to change the fields location.
+       This happens to be useful when processing cyclic structs definitions:
+       since struct definitions default to a storage location, we avoid an
+       endless recursion trying to change the location of struct fields. *)
+    | TStruct (lid, sd, LStorage (_)) when is_storage loc ->
+        TStruct (lid, sd, loc)
+    | TStruct (lid, sd, _loc) ->
+        let sd' =
+          match AbsLongIdentMap.find_opt lid seen with
+          | Some (sd') ->
+              sd'
+          | None ->
+              let sd' = { sd with struct_fields = [] } in
+              let seen = AbsLongIdentMap.add lid sd' seen in
+              sd'.struct_fields <-
+                List.map (fun (id, t) ->
+                    (id, aux seen (promote_loc loc) t)
+                  ) sd.struct_fields;
+              sd'
+        in
+        TStruct (lid, sd', loc)
+    | TArray (t, sz_opt, _loc) ->
+        TArray (aux seen (promote_loc loc) t, sz_opt, loc)
+    | TArraySlice (t, _loc) ->
+        TArraySlice (aux seen (promote_loc loc) t, loc)
+    | TMapping (tk, tv, _loc) ->
+        TMapping (tk, aux seen (promote_loc loc) tv, loc)
+    | TTuple (tl) ->
+        TTuple (List.map (Option.map (aux seen loc)) tl)
+    | t ->
+        t
+  in
+  aux AbsLongIdentMap.empty loc t
+
 
 (* Return a type's location ; fails for a tuple *)
 let get_type_location pos : type_ -> location = function
