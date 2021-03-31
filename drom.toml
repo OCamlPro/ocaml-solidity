@@ -29,7 +29,7 @@ description = """\nOcaml-solidity provides a Solidity parser and typechecker
 """
 
 [project]
-skip = "src/ez-hash/index.mld src/ez-hash/ez-hash_stubs.c src/ez-hash/main.ml src/ocaml-solidity-common/main.ml src/ocaml-solidity-parser/main.ml src/ocaml-solidity-checker/main.ml src/ocaml-solidity-test/main.ml src/ocaml-solidity-alcotest/main.ml"
+skip = "src/ez-hash/index.mld src/ez-hash/ez-hash_stubs.c src/ez-hash/main.ml src/ocaml-solidity-common/main.ml src/ocaml-solidity-parser/main.ml src/ocaml-solidity-checker/main.ml src/ocaml-solidity-test/main.ml src/ocaml-solidity-alcotest/main.ml test/expect-tests/dune test/expect-tests/test.ml test/inline-tests/dune test/inline-tests/test.ml test/output-tests/dune test/output-tests/test1.expected test/output-tests/test2.expected test/output-tests/test2.ml"
 
 # project-wide library dependencies (not for package-specific deps)
 [dependencies]
