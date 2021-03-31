@@ -222,7 +222,6 @@ let can_add_function iddl _fd =
       | Type (_) | Event (_) | Modifier (_) | Variable (_) ->
           false
       | Function (_) ->
-(* TODO: overriding function should have same visibility *)
           true
     ) iddl
 

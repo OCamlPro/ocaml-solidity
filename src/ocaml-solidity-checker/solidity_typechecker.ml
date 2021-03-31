@@ -1414,6 +1414,36 @@ let postprocess_module_contracts m =
           ()
     ) m.module_units
 
+
+
+let rec postprocess_structs f env =
+  IdentMap.iter (fun _id iddl ->
+      List.iter (fun (idd, id_origin) ->
+          match id_origin with
+          | Imported | Inherited ->
+              (* Imported and inherited definitions will be
+                 processed in their original environment *)
+              ()
+          | Defined ->
+              begin
+                match idd with
+                | Field (_) | Constr (_) | Alias (_) ->
+                    invariant_broken __LOC__
+                | Module (_md) ->
+                    (* Modules in environments are just pointers to top-level
+                       modules, they don't need to be processed here *)
+                    ()
+                | Contract (cd) ->
+                    postprocess_structs f cd.contract_env
+                | Type (TDStruct (sd)) ->
+                    f sd
+                | Type (TDEnum (_)) | Event (_) | Modifier (_)
+                | Variable (_) | Function (_) ->
+                    ()
+              end
+        ) iddl
+    ) env.ident_map
+
 (* Ensure that struct definitions are acyclic.
    Note that we only consider direct dependencies
    (i.e. dependencies through structs and static arrays),
@@ -1434,69 +1464,41 @@ let check_struct_acyclicity env =
         check_type seen t
     | _ -> ()
   in
-  let rec aux env =
-    IdentMap.iter (fun _name iddl ->
-        List.iter (fun (idd, id_origin) ->
-            match id_origin with
-            | Imported | Inherited ->
-                (* Imported and inherited definitions will be
-                   processed in their original environment *)
-                ()
-            | Defined ->
-                begin
-                  match idd with
-                  | Field (_) | Constr (_) | Alias (_) ->
-                      invariant_broken __LOC__
-                  | Module (_md) ->
-                      (* Modules in environments are just pointers to top-level
-                         modules, they don't need to be processed here *)
-                      ()
-                  | Contract (cd) ->
-                      aux cd.contract_env
-                  | Type (TDStruct (sd)) ->
-                      check_struct AbsLongIdentSet.empty sd
-                  | Type (TDEnum (_)) | Event (_) | Modifier (_)
-                  | Variable (_) | Function (_) ->
-                      ()
-                end
-          ) iddl
-      ) env.ident_map
-  in
-  aux env
+  postprocess_structs (check_struct AbsLongIdentSet.empty) env
 
-let rec update_struct_fields env =
-  IdentMap.iter (fun _id iddl ->
-      List.iter (fun (idd, id_origin) ->
-          match id_origin with
-          | Imported | Inherited ->
-              (* Imported and inherited definitions will be
-                 processed in their original environment *)
-              ()
-          | Defined ->
-              begin
-                match idd with
-                | Field (_) | Constr (_) | Alias (_) ->
-                    invariant_broken __LOC__
-                | Module (_md) ->
-                    (* Modules in environments are just pointers to top-level
-                         modules, they don't need to be processed here *)
-                    ()
-                | Contract (cd) ->
-                    update_struct_fields cd.contract_env
-                | Type (TDStruct (sd)) ->
-                    let fields =
-                      List.map (fun (t, id_node) ->
-                          strip id_node,
-                          (Solidity_type_builder.ast_type_to_type
-                             id_node.pos ~loc:(LStorage (false)) env t)
-                        ) (snd sd.struct_def)
-                    in
-                    Solidity_type_builder.update_struct_fields sd fields
-                | Type (TDEnum (_)) | Event (_) | Modifier (_)
-                | Variable (_) | Function (_) -> ()
-              end
-        ) iddl
-    ) env.ident_map
+let update_struct_has_mapping env =
+  let rec update_struct seen sd =
+    if sd.has_mapping || AbsLongIdentSet.mem sd.struct_abs_name seen then
+      ()
+    else
+      let seen = AbsLongIdentSet.add sd.struct_abs_name seen in
+      let has_mapping =
+        List.exists (fun (_id, t) -> update_type seen t) sd.struct_fields
+      in
+      sd.has_mapping <- has_mapping
+  and update_type seen t =
+    match t with
+    | TStruct (_lid, sd, _) ->
+        update_struct seen sd;
+        sd.has_mapping
+    | TArray (t, _, _) ->
+        update_type seen t
+    | _ ->
+        false
+  in
+  postprocess_structs (update_struct AbsLongIdentSet.empty) env
+
+let update_struct_fields env =
+  postprocess_structs (fun sd ->
+      let fields =
+        List.map (fun (t, id_node) ->
+            strip id_node,
+            (Solidity_type_builder.ast_type_to_type
+               id_node.pos ~loc:(LStorage (false)) env t)
+          ) (snd sd.struct_def)
+      in
+      Solidity_type_builder.update_struct_fields sd fields
+    ) env
 
 let preprocess_type_definition (blid : absolute LongIdent.t) td =
   match td with
@@ -1983,15 +1985,20 @@ let type_program p =
       preprocess_module_contracts menv m
     ) ordered_modules;
 
-  (* Finalize type definitions *)
+  (* Update structure fields *)
   List.iter (fun m ->
       let menv = IdentMap.find m.module_id menvs in
-      update_struct_fields menv;
-(* TODO: populate has_mapping *)
+      update_struct_fields menv
+    ) ordered_modules;
+
+  (* Finalize struct definitions *)
+  List.iter (fun m ->
+      let menv = IdentMap.find m.module_id menvs in
+      update_struct_has_mapping menv;
       check_struct_acyclicity menv
     ) ordered_modules;
 
-  (* Finalize variable, functions, modifier and events *)
+  (* Finalize variables, functions, modifier and events *)
   List.iter (fun m ->
       let _menv = IdentMap.find m.module_id menvs in
       Solidity_tenv_builder.finalize_definitions menvs m

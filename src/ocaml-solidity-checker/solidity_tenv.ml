@@ -17,8 +17,6 @@ open Solidity_checker_TYPES
 let error pos fmt =
   Format.kasprintf (fun s -> raise (TypecheckError (s, pos))) fmt
 
-(* ---------- Environment lookup functions ---------- *)
-
 type lookup_kind =
   | LAny
   | LInternal
@@ -173,13 +171,7 @@ let find_contract env lident =
   match lookup_lident env ~upper:true ~lookup:LAny lident with
   | [Contract (cd)] -> Some (cd)
   | _ -> None
-(*
-let find_constructor cd =
-  match lookup_ident cd.contract_env ~upper:false
-          ~lookup:LAny Ident.constructor with
-  | [Function fd] -> Some (fd)
-  | _ -> None
-*)
+
 let find_constructor pos { contract_abs_name; contract_env; _ } =
   match lookup_ident contract_env ~upper:false
           ~lookup:LAny Ident.constructor with
@@ -203,12 +195,22 @@ let find_constructor pos { contract_abs_name; contract_env; _ } =
         function_is_primitive = false;
         function_def = None; }
 
-
-
-
-
-
-
+let has_abstract_function cd =
+  let exception Found of Ident.t in
+  try
+    IdentMap.iter (fun id idl ->
+        List.iter (fun (id_desc, _inh) ->
+            match id_desc with
+            | Function { function_def = Some { fun_body = None; _ }; _ }
+            | Modifier { modifier_def = { mod_body = None; _ }; _ } ->
+                raise (Found (id))
+            | _ ->
+                ()
+          ) idl
+      ) cd.contract_env.ident_map;
+    None
+  with Found (id) ->
+    Some (id)
 
 let prim_desc =
   Array.make (Solidity_common.max_primitives + 1) (fun _ -> assert false)
@@ -224,37 +226,3 @@ let add_primitive_desc id
   if (id > Solidity_common.max_primitives) then
     error dummy_pos "Primitive id above limit";
   prim_desc.(id) <- f
-
-
-
-
-
-
-
-(* ----- Check if contract has abstract functions/modifiers ----- *)
-
-let has_abstract_function c =
-  let exception Found of Ident.t in
-  try
-    IdentMap.iter (fun id idl ->
-        List.iter (fun (id_desc, _inh) ->
-            match id_desc with
-            | Function { function_def = Some { fun_body = None; _ }; _ }
-            | Modifier { modifier_def = { mod_body = None; _ }; _ } ->
-                raise (Found (id))
-            | _ ->
-                ()
-          ) idl
-      ) c.contract_env.ident_map;
-    None
-  with Found (id) ->
-    Some (id)
-
-
-
-let node_list_pos body =
-  match body with
-    | [] -> dummy_pos
-    | {pos; _} :: _ -> pos
-
-

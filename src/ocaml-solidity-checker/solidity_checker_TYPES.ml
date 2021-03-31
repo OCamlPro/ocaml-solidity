@@ -189,17 +189,17 @@ and magic_type =
 type annot += AImport of Ident.t
 
 (* expression, statement, ident/field (incl. contract) *)
-type annot += AType of type_
+type annot += AType of type_ (* Rename to exp_type *)
 
 type annot += ATypeId of type_desc
 
 (* source_unit (ContractDefinition), inheritance_specifier *)
 type annot += AContract of contract_desc
 
-(* contract_part (StateVariableDeclaration), ident/field *)
+(* contract_part (StateVariableDeclaration), ident/field (even getter) *)
 type annot += AVariable of variable_desc * bool (* true = getter *)
 
-(* contract_part (FunctionDefinition), constructor invocation, ident/field (functions AND getters) *)
+(* contract_part (FunctionDefinition), constructor invocation, ident/field (functions only) *)
 type annot += AFunction of function_desc * bool (* true = from a using for *)
 
 (* contract_part (ModifierDefinition), ident/field *)

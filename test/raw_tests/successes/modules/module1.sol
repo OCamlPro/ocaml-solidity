@@ -22,8 +22,8 @@ contract H is G {
 
 }
 
-import { f as g, x as y } from "./module2.sol";
-
+//import { f as g, x as y } from "./module2.sol";
+//int constant y = 42;
 contract I {
 
     function f(int z) public returns(int) {
