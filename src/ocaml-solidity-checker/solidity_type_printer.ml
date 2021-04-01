@@ -109,69 +109,70 @@ let storage_suffix library = function
   | LStorage (_) when library -> " storage"
   | _ -> ""
 
-let rec string_of_type_canonical pos ~library = function
-  | TBool ->
-      "bool"
-  | TInt (sz) ->
-      Format.sprintf "int%d" sz
-  | TUint (sz) ->
-      Format.sprintf "uint%d" sz
-  | TFixed (sz, dec) ->
-      Format.sprintf "fixed%dx%d" sz dec
-  | TUfixed (sz, dec) ->
-      Format.sprintf "ufixed%dx%d" sz dec
-  | TAddress (_) ->
-      "address"
-  | TFixBytes (sz)->
-      Format.sprintf "bytes%d" sz
-  | TBytes (l) ->
-      Format.sprintf "bytes%s" (storage_suffix library l)
-  | TString (l) ->
-      Format.sprintf "string%s" (storage_suffix library l)
-  | TArray (t, None, l) ->
-      Format.sprintf "%s[]%s"
-        (string_of_type_canonical pos ~library t)
-        (storage_suffix library l)
-  | TArray (t, Some sz, l) ->
-      Format.sprintf "%s[%s]%s"
-        (string_of_type_canonical pos ~library t) (Z.to_string sz)
-        (storage_suffix library l)
-  | TContract (lid, _cd, false) ->
-      if library then
-        LongIdent.to_string lid
-      else
-        "address"
-  | TEnum (lid, ed) ->
-      if library then
-        LongIdent.to_string lid
-      else
-        let n = List.length ed.enum_values in
-        let sz = ExtZ.numbits_mod8 (Z.of_int n) in
+let string_of_type_canonical pos ~library t =
+  let rec aux seen t =
+    match t with
+    | TBool ->
+        "bool"
+    | TInt (sz) ->
+        Format.sprintf "int%d" sz
+    | TUint (sz) ->
         Format.sprintf "uint%d" sz
-  | TStruct (lid, sd, l) ->
-      if library then
-        Format.sprintf "%s%s"
-          (LongIdent.to_string lid) (storage_suffix library l)
-      else
-        let tl = List.map (fun (_id, t) ->
-            string_of_type_canonical pos ~library t) sd.struct_fields in
-        Format.sprintf "(%s)" (String.concat "," tl)
-  | TFunction (fd, _fd_opt) ->
-      let tl = List.map (fun (t, _id) ->
-          string_of_type_canonical pos ~library t) fd.function_params in
-      Format.sprintf "function(%s)" (String.concat "," tl)
-  | TMapping (t1, t2, _loc) -> (* Note: loc is only LStorage*)
-      Format.sprintf "mapping(%s => %s) storage"
-        (string_of_type_canonical pos ~library t1)
-        (string_of_type_canonical pos ~library t2)
-  | TContract (_, _, true)
-  | TModifier (_)
-  | TEvent (_)
-  | TTuple (_)
-  | TArraySlice (_)
-  | TType (_)
-  | TMagic (_)
-  | TModule (_)
-  | TRationalConst (_)
-  | TLiteralString (_) ->
-      error pos "Internal type can not be canonized"
+    | TFixed (sz, dec) ->
+        Format.sprintf "fixed%dx%d" sz dec
+    | TUfixed (sz, dec) ->
+        Format.sprintf "ufixed%dx%d" sz dec
+    | TAddress (_) ->
+        "address"
+    | TFixBytes (sz)->
+        Format.sprintf "bytes%d" sz
+    | TBytes (l) ->
+        Format.sprintf "bytes%s" (storage_suffix library l)
+    | TString (l) ->
+        Format.sprintf "string%s" (storage_suffix library l)
+    | TArray (t, None, l) ->
+        Format.sprintf "%s[]%s" (aux seen t) (storage_suffix library l)
+    | TArray (t, Some sz, l) ->
+        Format.sprintf "%s[%s]%s"
+          (aux seen t) (Z.to_string sz) (storage_suffix library l)
+    | TContract (lid, _cd, false) ->
+        if library then
+          LongIdent.to_string lid
+        else
+          "address"
+    | TEnum (lid, ed) ->
+        if library then
+          LongIdent.to_string lid
+        else
+          let n = List.length ed.enum_values in
+          let sz = ExtZ.numbits_mod8 (Z.of_int n) in
+          Format.sprintf "uint%d" sz
+    | TStruct (lid, sd, l) ->
+        if AbsLongIdentSet.mem lid seen then
+          error pos "Recursive type not allowed for \
+                     public or external functions";
+        let seen = AbsLongIdentSet.add lid seen in
+        if library then
+          Format.sprintf "%s%s"
+            (LongIdent.to_string lid) (storage_suffix library l)
+        else
+          let tl = List.map (fun (_id, t) -> aux seen t) sd.struct_fields in
+          Format.sprintf "(%s)" (String.concat "," tl)
+    | TFunction (fd, _fd_opt) ->
+        let tl = List.map (fun (t, _id) -> aux seen t) fd.function_params in
+        Format.sprintf "function(%s)" (String.concat "," tl)
+    | TMapping (t1, t2, _loc) -> (* Note: loc is only LStorage*)
+        Format.sprintf "mapping(%s => %s) storage" (aux seen t1) (aux seen t2)
+    | TContract (_, _, true)
+    | TModifier (_)
+    | TEvent (_)
+    | TTuple (_)
+    | TArraySlice (_)
+    | TType (_)
+    | TMagic (_)
+    | TModule (_)
+    | TRationalConst (_)
+    | TLiteralString (_) ->
+        error pos "Internal type can not be canonized"
+  in
+  aux AbsLongIdentSet.empty t

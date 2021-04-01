@@ -1481,8 +1481,11 @@ let update_struct_has_mapping env =
     | TStruct (_lid, sd, _) ->
         update_struct seen sd;
         sd.has_mapping
-    | TArray (t, _, _) ->
+    | TArray (t, _, _)
+    | TArraySlice (t, _) ->
         update_type seen t
+    | TMapping _ ->
+        true
     | _ ->
         false
   in
