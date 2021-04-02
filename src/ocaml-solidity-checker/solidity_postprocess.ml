@@ -64,8 +64,8 @@ let checkNoRead (env : contract_env) (fname : Ident.t) (fdetails : function_deta
           | AType (TFunction _) -> ()
           | _ -> (* Pure function can read globals iff these globals are not mutable *)
               match IdentMap.find_opt g env.env_glob with
-              | None -> (* This global is not registered *)
-                  raise (InvariantBroken "Unregistered global")
+              | None -> (* This global is not registered ; must be an imported constant *)
+                  ()
               | Some {gd_mutab = MMutable; _} ->
                   raise (PureFunctionReadsGlobal (fname, g, pos))
               | Some _ -> ()
