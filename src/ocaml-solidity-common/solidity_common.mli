@@ -12,16 +12,11 @@
 
 type pos = (int * int) * (int * int)
 
-exception GenericError of string
-exception InvariantBroken of string
-exception SyntaxError of string * pos
-exception TypecheckError of string * pos
-
 val dummy_pos : pos
 
-val error : ('a, Format.formatter, unit, 'b) format4 -> 'a
+exception GenericError of string
 
-val invariant_broken : string -> 'a
+val error : ('a, Format.formatter, unit, 'b) format4 -> 'a
 
 type relative = [`Relative]
 type absolute = [`Absolute]

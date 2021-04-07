@@ -13,6 +13,7 @@
 
   open Solidity_common
   open Solidity_ast
+  open Solidity_exceptions
 
   let to_pos pos =
     let open Lexing in

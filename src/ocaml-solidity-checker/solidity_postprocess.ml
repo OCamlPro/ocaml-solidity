@@ -15,6 +15,7 @@ open Solidity_ast
 open Solidity_checker_TYPES
 open Solidity_visitor
 open Solidity_postcheck_utils
+open Solidity_exceptions
 
 (* Checks : Are there immutable variables defined in a interiting contract ?
             Are there immutable variables updated outside 'constructor' ? *)
@@ -70,7 +71,7 @@ let checkNoRead (env : contract_env) (fname : Ident.t) (fdetails : function_deta
                   raise (PureFunctionReadsGlobal (fname, g, pos))
               | Some _ -> ()
         end
-    | _ -> raise (InvariantBroken "") in
+    | _ -> invariant_broken "Empty binding in ed_read" in
   ()
 
 
@@ -83,7 +84,7 @@ let checkNoWrite (fname : Ident.t) (fdetails : function_details) =
     match IdentMap.find_first_opt (fun _ -> true) fdetails.fd_details.ed_writ with
     | None -> ()
     | Some (g, ((_, pos) :: _)) -> raise (ForbiddenGlobalWrite (fname, g, pos))
-    | _ -> raise (InvariantBroken "") in
+    | _ -> invariant_broken "Empty binding in ed_write" in
   ()
 
 let stateVariableAnalyser ?current_position env svd annot =
@@ -150,7 +151,7 @@ let analyseContract
             let function_selector =
               Option.value ~default:"" function_selector in
             function_params, function_selector
-        | _ -> raise (InvariantBroken "Function should have function annot") in
+        | _ -> invariant_broken "Function should have function annot" in
       let fundet =
         getDetails env (Method (fd, selector)) params (the current_position) in
       let () = checkDetails env fd.fun_name.contents fundet in
@@ -181,7 +182,7 @@ let analyseContract
         | Interface -> {md with mod_virtual = true} in
       let params = match current_annot with
         | Some (AModifier {modifier_params; _}) -> modifier_params
-        | _ -> raise (InvariantBroken "Modifier should have modifier annot") in
+        | _ -> invariant_broken "Modifier should have modifier annot" in
       let fundet = getDetails env (Modifier md) params (the current_position) in
       let () = checkDetails env md.mod_name.contents fundet in
       let fd_purity = (* Inferring modifier real mutability *)
@@ -222,7 +223,7 @@ let analyseContract
 let hasConstructor (env : contract_env) =
   match IdentMap.find_opt Ident.constructor env.env_funs with
     | None -> None
-    | Some [] -> raise (InvariantBroken "There should be at least 1 annot")
+    | Some [] -> invariant_broken "There should be at least 1 annot"
     | Some ((fi_params, _) :: _) ->
       Some {fi_params; fi_name = Ident.constructor }
 
@@ -243,7 +244,7 @@ let checkWrittenVar
         | GDeclared ->
             begin
               match gd.gd_updates, a_list with
-              | _, [] -> raise (InvariantBroken "There should be at least 1 annot")
+              | _, [] -> invariant_broken "There should be at least 1 annot"
               | [], [annot] -> gd.gd_updates <- [annot]
               | annot1 :: _, annot2 :: _
               | [], annot1 :: annot2 :: _ ->
@@ -276,10 +277,9 @@ let checkUnreadVar
   let gd, _ =
     try the @@ getGlobal read env
     with InvariantBroken s ->
-      raise (
-        InvariantBroken (
-          Format.sprintf "Cannot find %s: %s" (Ident.to_string read) s
-        )) in
+      invariant_broken (
+        Format.sprintf "Cannot find %s: %s" (Ident.to_string read) s
+      ) in
   match gd.gd_mutab with
   | MImmutable -> raise (ReadImmutable (read, getPos a_list))
   | _ -> ()
@@ -343,7 +343,7 @@ let checkGlobals (env : contract_env) =
          match gd.gd_def, gd.gd_mutab, gd.gd_updates with
          | GDeclared, MConstant, _ -> raise (UndefinedConstant glob)
          | GDefined _, MConstant, [] ->
-             raise (InvariantBroken "There should be at least 1 update if constant is defined")
+             invariant_broken "There should be at least 1 update if constant is defined"
          | GDefined (ad, _e), MConstant, [_a'] -> (* assert e.annot = a'; *)
              ignore @@ checkDefExpression ~env ad
          | GDefined _, MConstant, a1 :: a2 :: _ ->
@@ -354,7 +354,7 @@ let checkGlobals (env : contract_env) =
          | GDefined (ad, _e), MImmutable, [_a'] -> (* assert e.annot = a'; *)
              ignore @@ checkDefExpression ~env ad
          | GDefined _, MImmutable, [] ->
-             raise (InvariantBroken "There should be at least 1 update if immutable is defined")
+             invariant_broken "There should be at least 1 update if immutable is defined"
          | GDeclared, MImmutable, (a1 :: a2 :: _)
          | GDefined _, MImmutable, (a1 :: a2 :: _) ->
              raise (ImmutableUpdatedTwice (glob, snd a1, snd a2))
@@ -598,10 +598,9 @@ let checkPurity =
                                  fident.fi_name, max_purity,
                                  fi_name, MPayable, pos))
                        | _a ->
-                           raise (
-                             InvariantBroken (
-                               (Ident.to_string fi_name)
-                               ^ " was expected to be a function"))
+                           invariant_broken (
+                             (Ident.to_string fi_name)
+                             ^ " was expected to be a function")
                    end
                  | Some ((_, studied_details), _) ->
                      if callablePurity max_purity studied_details.fd_purity then
@@ -635,12 +634,10 @@ let checkPurity =
     ((mod_params, _mod_details) : fun_params * modifier_details) =
     match getFunInEnvs mod_name mod_params whole_envs with
     | None ->
-        raise (
-          InvariantBroken (
-            Format.sprintf
-              "Cannot find modifier %s"
-              (LongIdent.to_string mod_name)
-          )
+        invariant_broken (
+          Format.sprintf
+            "Cannot find modifier %s"
+            (LongIdent.to_string mod_name)
         )
     | Some (fident, fdetails) -> begin
         match max_purity with
@@ -732,7 +729,7 @@ let checkModule (env : env) (m : module_) : env =
           checkEnv name env ctrct_env;
           globals, env
       | ContractDefinition _, _ ->
-          raise (InvariantBroken "Contract should have contract annot")
+          invariant_broken "Contract should have contract annot"
       | GlobalVariableDefinition svd, annot -> (* Updates the global function *)
           assertGlobalIsConstant svd;
           let globals contract =

@@ -13,9 +13,9 @@
 open Solidity_common
 open Solidity_ast
 open Solidity_checker_TYPES
+open Solidity_exceptions
 
-let error pos fmt =
-  Format.kasprintf (fun s -> raise (TypecheckError (s, pos))) fmt
+let error = type_error
 
 let error_already_declared pos ident =
   error pos "Identifier %s already declared" (Ident.to_string ident)
