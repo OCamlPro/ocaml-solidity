@@ -528,7 +528,6 @@ let checkMultipleInheritedFuns (env : contract_env) =
     ) fun_decl
 
 type funs_tested = (fun_params * fun_mutability) list IdentMap.t
-type ext_funs_tested = (fun_params * fun_mutability) list AbsLongIdentMap.t
 
 let isTested (fi : fun_identity) (ft : funs_tested) : fun_mutability option =
   match IdentMap.find_opt fi.fi_name ft with
@@ -743,5 +742,6 @@ let checkModule (env : env) (m : module_) : env =
   in
   env
 
-let checkProgram (p : program) : env =
-  List.fold_left checkModule empty_project_env p.program_modules
+let checkProgram (p : program) : unit =
+  let _env = List.fold_left checkModule empty_project_env p.program_modules in
+  ()
