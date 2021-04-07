@@ -71,7 +71,7 @@ let main () =
       in
       let () =
         if !typecheck && !postcheck then
-          ignore @@ Solidity_postprocess.checkProgram program
+          Solidity_postprocess.checkProgram program
       in
       ()
 
