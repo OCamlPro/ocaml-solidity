@@ -130,14 +130,14 @@ let visitNode
     (elt : 'a node) : unit =
   let continueVisit elt =
     let old_annot = v#getAnnot () in
-    let old_loc = v#getLoc () in
+    let old_pos = v#getPos () in
     let () =
       v#setAnnot (Some elt.annot);
-      v#setLoc   (Some elt.loc) in
+      v#setPos   (Some elt.pos) in
     let res = visitElt v elt.contents in
     let () =
       v#setAnnot old_annot;
-      v#setLoc   old_loc in
+      v#setPos   old_pos in
     res in
   handleAction v#visitNode continueVisit elt
 
@@ -194,13 +194,13 @@ module Ast = struct
     method virtual visitFunctionCallArguments : function_call_arguments -> action
     method virtual visitSourceUnit : source_unit -> action
     val mutable current_annot : annot option = None
-    val mutable current_location : loc option = None
+    val mutable current_position : pos option = None
 
     method getAnnot () : annot option = current_annot
     method setAnnot (annot : annot option) : unit = current_annot <- annot
 
-    method getLoc () : loc option = current_location
-    method setLoc (loc : loc option) : unit = current_location <- loc
+    method getPos () : pos option = current_position
+    method setPos (pos : pos option) : unit = current_position <- pos
   end
 
   class init_ast_visitor = object
@@ -240,9 +240,6 @@ module Ast = struct
           visitFunctionType v f
       | UserDefinedType li ->
           visitNode visitLongIdent v li
-      (* TON-specific *)
-      | Optional (t) ->
-          visitType v t;
     in
     handleAction v#visitType continueVisit t
 
@@ -526,6 +523,7 @@ module Ast = struct
           visitImportDirective v id
       | GlobalTypeDefinition td -> visitTypeDef v td
       | GlobalFunctionDefinition fd -> visitFunctionDef v fd
+      | GlobalVariableDefinition vd -> visitStateVariableDef v vd
       | ContractDefinition cdn -> visitContractDef v cdn
     in
     handleAction v#visitSourceUnit continueVisit su
@@ -545,5 +543,5 @@ module Ast = struct
     handleAction v#visitImportSymbols continueVisit is
 
   and visitModule (v : ast_visitor) (m : module_) : unit =
-    visitList (visitNode visitSourceUnit) v m
+    visitList (visitNode visitSourceUnit) v m.module_units
 end

@@ -1,9 +1,0 @@
-{1 Library ocaml-solidity-typechecker}
-
-Ocaml-solidity provides a Solidity parser and typechecker
-
-
-
-This library exposes the following toplevel modules:
-{!modules:Solidity_checker Solidity_postcheck_utils Solidity_postprocess Solidity_primitives Solidity_tenv}
-

@@ -12,7 +12,7 @@
 
 {
   open Solidity_common
-  open Solidity_parser
+  open Solidity_raw_parser
 
   let to_loc loc =
     let open Lexing in
@@ -153,7 +153,7 @@ rule token = parse
   | ("hex" as h)? '"' (([^ '"' '\r' '\n' '\\'] | "\\" _)* as s) '"'
       { match h with
         | None ->
-            STRINGLITERAL (s)
+            STRINGLITERAL (Scanf.unescaped s)
         | Some _ ->
             let s =
               try Hex.to_string (`Hex s)
@@ -279,22 +279,6 @@ and end_pragma = parse
           "days", NUMBERUNIT (Days);
           "weeks", NUMBERUNIT (Weeks);
           "years", NUMBERUNIT (Years);
-          (* TON-specific *)
-          "nanoton", NUMBERUNIT (Nanoton);
-          "nano", NUMBERUNIT (Nanoton);
-          "nTon", NUMBERUNIT (Nanoton);
-          "microton", NUMBERUNIT (Microton);
-          "micro", NUMBERUNIT (Microton);
-          "milliton", NUMBERUNIT (Milliton);
-          "milli", NUMBERUNIT (Milliton);
-          "ton", NUMBERUNIT (Ton);
-          "Ton", NUMBERUNIT (Ton);
-          "kiloton", NUMBERUNIT (Kiloton);
-          "kTon", NUMBERUNIT (Kiloton);
-          "megaton", NUMBERUNIT (Megaton);
-          "MTon", NUMBERUNIT (Megaton);
-          "gigaton", NUMBERUNIT (Gigaton);
-          "GTon", NUMBERUNIT (Gigaton);
         ];
     ()
 

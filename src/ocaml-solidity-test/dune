@@ -3,7 +3,7 @@
   (name main)
   (public_name ocaml-solidity-test)
   (package ocaml-solidity-test)
-  (libraries ocaml-solidity-typechecker ocaml-solidity-parser ocaml-solidity-common )
+  (libraries ocaml-solidity-parser ocaml-solidity-common ocaml-solidity-checker )
   
   
   )

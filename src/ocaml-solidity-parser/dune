@@ -9,7 +9,7 @@
   
   )
 
-(menhir (modules solidity_parser))
+(menhir (modules solidity_raw_parser))
 (ocamllex solidity_lexer)
 
 (rule

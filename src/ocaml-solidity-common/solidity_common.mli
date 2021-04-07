@@ -10,15 +10,18 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type loc = (int * int) * (int * int)
+type pos = (int * int) * (int * int)
 
 exception GenericError of string
-exception SyntaxError of string * loc
-exception TypecheckError of string * loc
+exception InvariantBroken of string
+exception SyntaxError of string * pos
+exception TypecheckError of string * pos
 
-val dummy_loc : loc
+val dummy_pos : pos
 
 val error : ('a, Format.formatter, unit, 'b) format4 -> 'a
+
+val invariant_broken : string -> 'a
 
 type relative = [`Relative]
 type absolute = [`Absolute]
@@ -46,6 +49,8 @@ module ZSet : Set.S with type elt = Z.t
 module IntMap : ExtMap.S with type key = int
 
 module StringMap : ExtMap.S with type key = string
+
+module StringSet : Set.S with type elt = string
 
 module Ident : sig
   type t
@@ -109,6 +114,7 @@ module RelLongIdentSet : Set.S with type elt = relative LongIdent.t
 
 module ExtList : sig
   include module type of List
+  val is_empty : 'a list -> bool
   val same_lengths : 'a list -> 'b list -> bool
   val for_all2 : ('a -> 'b -> bool) -> 'a list -> 'b list -> bool
   val iter3 :
@@ -171,14 +177,16 @@ end
 
 type annot = ..
 type annot += ANone
-type 'a node = { contents : 'a; mutable annot : annot; loc : loc }
+type 'a node = { contents : 'a; mutable annot : annot; pos : pos }
 
-val annot : 'a -> annot -> loc -> 'a node
+val annot : 'a -> annot -> pos -> 'a node
 val strip : 'a node -> 'a
 val get_annot : 'a node -> annot
 val set_annot : 'a node -> annot -> unit
 val replace_annot : 'a node -> annot -> unit
 
+
+val make_absolute_path : string -> string -> string
 
 
 val is_some : 'a option -> bool

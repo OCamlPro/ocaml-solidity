@@ -1,0 +1,4 @@
+contract D {}
+
+contract C {
+}

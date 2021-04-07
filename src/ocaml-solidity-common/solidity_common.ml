@@ -10,15 +10,20 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type loc = (int * int) * (int * int)
+type pos = (int * int) * (int * int)
 
 exception GenericError of string
-exception SyntaxError of string * loc
-exception TypecheckError of string * loc
+exception InvariantBroken of string
+exception SyntaxError of string * pos
+exception TypecheckError of string * pos
 
-let dummy_loc = (-1, -1), (-1, -1)
+let dummy_pos = (-1, -1), (-1, -1)
 
-let error fmt = Format.kasprintf (fun s -> raise (GenericError s)) fmt
+let error fmt =
+  Format.kasprintf (fun s -> raise (GenericError s)) fmt
+
+let invariant_broken s =
+  raise (InvariantBroken s)
 
 type relative = [`Relative]
 type absolute = [`Absolute]
@@ -77,6 +82,8 @@ module StringMap = ExtMap.Make (struct
     let compare = String.compare
     let to_string s = s
   end)
+
+module StringSet = Set.Make (String)
 
 module Ident = struct
   type t = string
@@ -209,6 +216,10 @@ module RelLongIdentSet = Set.Make (struct
 
 module ExtList = struct
   include List
+
+  let is_empty = function
+    | [] -> true
+    | _ -> false
 
   let same_lengths l1 l2 =
     List.compare_lengths l1 l2 = 0
@@ -414,11 +425,11 @@ type annot += ANone
 type 'a node = {
   contents : 'a;
   mutable annot : annot;
-  loc : loc;
+  pos : pos;
 }
 
-let annot contents annot loc =
-  { contents; annot; loc }
+let annot contents annot pos =
+  { contents; annot; pos }
 
 let strip n =
   n.contents
@@ -430,16 +441,27 @@ let set_annot n annot =
   match n.annot with
   | ANone -> n.annot <- annot
   | _ -> error "Node annotation already set at (%d,%d - %d,%d)"
-           (fst (fst n.loc)) (snd (fst n.loc))
-           (fst (snd n.loc)) (snd (snd n.loc))
+           (fst (fst n.pos)) (snd (fst n.pos))
+           (fst (snd n.pos)) (snd (snd n.pos))
 
 let replace_annot n annot =
   match n.annot with
   | ANone ->
       error "Node annotation not set at (%d,%d - %d,%d)"
-        (fst (fst n.loc)) (snd (fst n.loc))
-        (fst (snd n.loc)) (snd (snd n.loc))
+        (fst (fst n.pos)) (snd (fst n.pos))
+        (fst (snd n.pos)) (snd (snd n.pos))
   | _ -> n.annot <- annot
+
+
+
+
+let make_absolute_path base path =
+  FilePath.reduce ~no_symlink:true @@
+    if FilePath.is_relative path then
+      FilePath.make_absolute base path
+    else
+      path
+
 
 
 

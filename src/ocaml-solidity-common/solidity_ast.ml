@@ -16,13 +16,26 @@ type ident = Ident.t node
 
 type longident = relative LongIdent.t node
 
-type module_ = (source_unit node) list
+type program = {
+  program_modules : module_ list;
+  program_modules_by_id : module_ IdentMap.t;
+  program_modules_by_file : module_ StringMap.t;
+}
+
+and module_ = {
+  module_file : string; (* *absolute* path *)
+  module_id : Ident.t; (* the module id: @n *)
+  module_units : module_units;
+}
+
+and module_units = (source_unit node) list
 
 and source_unit =
   | Pragma of (Ident.t * string)
   | Import of import_directive
   | GlobalTypeDefinition of type_definition
   | GlobalFunctionDefinition of function_definition
+  | GlobalVariableDefinition of state_variable_definition
   | ContractDefinition of contract_definition
 
 and import_directive = {
@@ -55,6 +68,10 @@ and contract_part =
 and type_definition =
   | EnumDefinition of ident * ident list
   | StructDefinition of ident * field_definition list
+
+and enum_definition = ident * ident list
+
+and struct_definition = ident * field_definition list
 
 and field_definition = type_ * ident
 
@@ -103,23 +120,16 @@ and type_ =
   | Mapping of type_ * type_
   | FunctionType of function_type
   | UserDefinedType of longident
-  (* TON-specific *)
-  | Optional of type_
 
 and elementary_type =
   | TypeBool
-  | TypeInt of int option (* None = int, Some (N) = intN *)
-  | TypeUint of int option (* None = uint, Some (N) = uintN *)
-  | TypeFixed of int option * int (* None = fixedN, Some (M,N) = fixedMxN *)
-  | TypeUfixed of int option * int (* None = ufixedN, Some (M,N) = ufixedMxN *)
+  | TypeInt of int
+  | TypeUint of int
+  | TypeFixed of int * int
+  | TypeUfixed of int * int
   | TypeAddress of bool (* false = address, true = address payable *)
   | TypeBytes of int option (* None = bytes, Some (N) = bytesN *)
   | TypeString
-  (* TON-specific *)
-  | TvmCell
-  | TvmSlice
-  | TvmBuilder
-  | ExtraCurrencyCollection
 
 and function_type = {
   fun_type_params : param list;
@@ -228,14 +238,6 @@ and number_unit =
   | Days
   | Weeks
   | Years
-  (* TON-specific *)
-  | Nanoton  (*  nanoton / nano  / nTon *)
-  | Microton (* microton / micro /      *)
-  | Milliton (* milliton / milli /      *)
-  | Ton      (*      ton /       /  Ton *)
-  | Kiloton  (*  kiloton /       / kTon *)
-  | Megaton  (*  megaton /       / MTon *)
-  | Gigaton  (*  gigaton /       / GTon *)
 
 and unary_operator =
   | UPlus
@@ -389,21 +391,12 @@ let unit_factor unit =
     | Days     -> ExtZ._24x3600
     | Weeks    -> ExtZ._7x24x3600
     | Years    -> ExtZ._365x24x3600
-    (* TON-specific *)
-    | Nanoton  -> Z.one
-    | Microton -> ExtZ._10_3
-    | Milliton -> ExtZ._10_6
-    | Ton      -> ExtZ._10_9
-    | Kiloton  -> ExtZ._10_12
-    | Megaton  -> ExtZ._10_15
-    | Gigaton  -> ExtZ._10_18
   in
   Q.of_bigint z
 
 let apply_unit q unit =
   match unit with
   | Unit | Wei | Seconds -> q
-  | Nanoton (* TON-specific *) -> q
   | _ -> Q.mul q (unit_factor unit)
 
 let apply_unop op q =

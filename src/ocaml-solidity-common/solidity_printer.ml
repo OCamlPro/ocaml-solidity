@@ -61,14 +61,6 @@ let string_of_number_unit = function
   | Days ->     "days"
   | Weeks ->    "weeks"
   | Years ->    "years"
-  (* TON-specific *)
-  | Nanoton ->  "nanoton"
-  | Microton -> "microton"
-  | Milliton -> "milliton"
-  | Ton ->      "ton"
-  | Kiloton ->  "kiloton"
-  | Megaton ->  "megaton"
-  | Gigaton ->  "gigaton"
 
 let string_of_unop = function
   | UPlus ->   "+"
@@ -105,21 +97,13 @@ let string_of_cmpop = function
 let string_of_elementary_type = function
   | TypeBool ->
       "bool"
-  | TypeInt (None) ->
-      "int"
-  | TypeInt (Some size)->
+  | TypeInt (size)->
       Format.sprintf "int%d" size
-  | TypeUint (None) ->
-      "uint"
-  | TypeUint (Some size)->
+  | TypeUint (size)->
       Format.sprintf "uint%d" size
-  | TypeFixed (None, dec) ->
-      Format.sprintf "fixed%d" dec
-  | TypeFixed (Some size, dec) ->
+  | TypeFixed (size, dec) ->
       Format.sprintf "fixed%dx%d" size dec
-  | TypeUfixed (None, dec) ->
-      Format.sprintf "ufixed%d" dec
-  | TypeUfixed (Some size, dec) ->
+  | TypeUfixed (size, dec) ->
       Format.sprintf "ufixed%dx%d" size dec
   | TypeAddress (false) ->
       "address"
@@ -131,15 +115,6 @@ let string_of_elementary_type = function
       "bytes"
   | TypeBytes (Some size)->
       Format.sprintf "bytes%d" size
-  (* TON-specific *)
-  | TvmCell ->
-      "TvmCell"
-  | TvmSlice ->
-      "TvmSlice"
-  | TvmBuilder ->
-      "TvmBuilder"
-  | ExtraCurrencyCollection ->
-      "ExtraCurrencyCollection"
 
 
 
@@ -175,6 +150,8 @@ and bprint_source_unit b indent su =
       type_definition b indent td
   | GlobalFunctionDefinition (fd) ->
       function_definition b indent fd
+  | GlobalVariableDefinition (vd) ->
+      variable_definition b indent vd
   | ContractDefinition (cd) ->
       bprint b indent
         (Format.sprintf "%s%s %s %s {"
@@ -203,28 +180,8 @@ and contract_part b indent cp =
   match strip cp with
   | TypeDefinition td ->
       type_definition b indent td
-  | StateVariableDeclaration {
-        var_name; var_type; var_visibility;
-        var_mutability; var_override; var_init; } ->
-      bprint b indent
-        (Format.sprintf "%s %s%s%s%s%s"
-           (string_of_type var_type)
-           (string_of_ident var_name)
-           (match var_visibility with
-            | VInternal -> ""
-            | v -> " " ^ (string_of_visibility v))
-           (match var_mutability with
-            | MMutable -> ""
-            | m -> " " ^ (string_of_var_mutability m))
-           (match var_override with
-            | None -> ""
-            | Some [] -> " override"
-            | Some ol -> " override(" ^
-                           (String.concat ","
-                              (List.map string_of_longident ol)) ^ ")")
-           (match var_init with
-            | None -> ";"
-            | Some e -> Format.sprintf " = %s;" (string_of_expression e)))
+  | StateVariableDeclaration (vd) ->
+      variable_definition b indent vd
   | FunctionDefinition (fd) ->
       function_definition b indent fd
   | ModifierDefinition {
@@ -286,6 +243,29 @@ and type_definition b indent = function
 
 and string_of_field_declaration (t, id) =
   Format.sprintf "%s %s" (string_of_type t) (string_of_ident id)
+
+and variable_definition b indent {
+    var_name; var_type; var_visibility;
+    var_mutability; var_override; var_init; } =
+  bprint b indent
+    (Format.sprintf "%s %s%s%s%s%s"
+       (string_of_type var_type)
+       (string_of_ident var_name)
+       (match var_visibility with
+        | VInternal -> ""
+        | v -> " " ^ (string_of_visibility v))
+       (match var_mutability with
+        | MMutable -> ""
+        | m -> " " ^ (string_of_var_mutability m))
+       (match var_override with
+        | None -> ""
+        | Some [] -> " override"
+        | Some ol -> " override(" ^
+                       (String.concat ","
+                          (List.map string_of_longident ol)) ^ ")")
+       (match var_init with
+        | None -> ";"
+        | Some e -> Format.sprintf " = %s;" (string_of_expression e)))
 
 and function_definition b indent {
     fun_name; fun_params; fun_returns; fun_modifiers; fun_visibility;
@@ -376,10 +356,6 @@ and string_of_type = function
          | Some e -> string_of_expression e)
   | FunctionType ft ->
       string_of_function_type ft
-  (* TON-specific *)
-  | Optional (t) ->
-      Format.sprintf "optional(%s)"
-        (string_of_type t)
 
 and string_of_function_type {
     fun_type_params; fun_type_returns;
@@ -496,7 +472,7 @@ and string_of_expression e =
   | StringLiteral s ->
       Format.sprintf "%S" s
   | AddressLiteral s ->
-      Format.sprintf "%S" s
+      Format.sprintf "0x%s" (Hex.show (Hex.of_string s))
   | IdentifierExpression id ->
       string_of_ident id
   | ImmediateArray el ->
@@ -614,8 +590,17 @@ and string_of_function_call_arguments = function
                   (string_of_ident id) (string_of_expression e)
               ) id_exp_list))
 
-let string_of_module module_ =
+let string_of_module_units module_units =
   let b = Buffer.create 1000 in
   let indent = 0 in
-  bprint_contract b indent module_;
+  bprint_contract b indent module_units;
+  Buffer.contents b
+
+let string_of_program p =
+  let b = Buffer.create 1000 in
+  List.iter (fun m ->
+      bprint b 0 (Format.sprintf "%s: %s" (
+                      Ident.to_string m.module_id) m.module_file);
+      bprint b 0 (string_of_module_units m.module_units)
+    ) p.program_modules;
   Buffer.contents b

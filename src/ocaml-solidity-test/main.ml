@@ -10,21 +10,35 @@
 (*                                                                        *)
 (**************************************************************************)
 
-let () =
-  Solidity_primitives.init ()
+let typecheck = ref true
+let postcheck = ref true
+
+let disactiv_postcheck () =
+  postcheck := false
+
+let disactiv_typecheck () =
+  disactiv_postcheck ();
+  typecheck := false
+
 
 let main () =
   let arg_list = Arg.align [
       "--version", Arg.Unit (fun () ->
           Format.eprintf "Solidity Parser & Typechecker"; exit 0),
       " Show version and exit";
+
+      "--no-typecheck", Arg.Unit disactiv_typecheck,
+      " Disactivates the typechecker";
+
+      "--no-postcheck", Arg.Unit disactiv_postcheck,
+      " Disactivates the postchecker"
     ]
   in
 
   let arg_usage = String.concat "\n" [
       "solp [OPTIONS] FILE [OPTIONS]";
       "";
-      "This tool will parse a Solidity file (.solc) and print the result";
+      "This tool will parse a Solidity file (.sol) and print the result";
       "";
       "Available options:";
     ]
@@ -43,14 +57,23 @@ let main () =
       Arg.usage arg_list arg_usage;
       exit 1
   | Some file ->
-      let c = open_in file in
-      let lb = Lexing.from_channel c in
-      let module_ = Solidity_parser.top_module Solidity_lexer.token lb in
+      let program = Solidity_parser.parse file in
+
       Format.printf "Parsed code:\n%s@."
-        (Solidity_printer.string_of_module module_);
-      let () = Solidity_checker.type_module module_ in
+        (Solidity_printer.string_of_program program);
+
+      let program = if !typecheck then Solidity_typechecker.type_program program else program in
+      let () = if !typecheck && !postcheck then ignore @@ Solidity_postprocess.checkProgram program in
       ()
 
 
 let () =
-  main ()
+  try
+    main ()
+  with
+  | Solidity_common.GenericError (s) ->
+      Format.printf "Generic error: %s@." s
+  | Solidity_common.SyntaxError (s, ((c1,l1),(c2,l2))) ->
+      Format.printf "Syntax error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s
+  | Solidity_common.TypecheckError (s, ((c1,l1),(c2,l2))) ->
+      Format.printf "Typecheck error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s

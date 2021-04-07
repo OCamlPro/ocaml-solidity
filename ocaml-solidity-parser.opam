@@ -5,11 +5,17 @@ name: "ocaml-solidity-parser"
 version: "0.1.0"
 license: "LGPL-2.1-only with OCaml-LGPL-linking-exception"
 synopsis: "The ocaml-solidity project"
-description: """\
+description: """
 Ocaml-solidity provides a Solidity parser and typechecker
 """
-authors: ["David Declerck <david.declerck@ocamlpro.com>"]
-maintainer: ["David Declerck <david.declerck@ocamlpro.com>"]
+authors: [
+  "David Declerck <david.declerck@ocamlpro.com>"
+  "Steven De Oliveira <steven.de-oliveira@ocamlpro.com>"
+]
+maintainer: [
+  "David Declerck <david.declerck@ocamlpro.com>"
+  "Steven De Oliveira <steven.de-oliveira@ocamlpro.com>"
+]
 homepage: "https://github.com/OcamlPro/ocaml-solidity"
 doc: "https://OCamlPro.github.io/ocaml-solidity/sphinx"
 bug-reports: "https://github.com/OCamlPro/ocaml-solidity/issues"

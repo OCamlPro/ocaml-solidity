@@ -52,7 +52,7 @@ master_doc = 'index'
 # General information about the project.
 project = 'ocaml-solidity'
 copyright = 'OCamlPro & Origin Labs'
-author = 'David Declerck <david.declerck@ocamlpro.com>'
+author = 'David Declerck <david.declerck@ocamlpro.com> & Steven De Oliveira <steven.de-oliveira@ocamlpro.com>'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
