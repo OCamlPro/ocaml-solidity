@@ -12,18 +12,12 @@
 
 type pos = (int * int) * (int * int)
 
-exception GenericError of string
-exception InvariantBroken of string
-exception SyntaxError of string * pos
-exception TypecheckError of string * pos
-
 let dummy_pos = (-1, -1), (-1, -1)
+
+exception GenericError of string
 
 let error fmt =
   Format.kasprintf (fun s -> raise (GenericError s)) fmt
-
-let invariant_broken s =
-  raise (InvariantBroken s)
 
 type relative = [`Relative]
 type absolute = [`Absolute]

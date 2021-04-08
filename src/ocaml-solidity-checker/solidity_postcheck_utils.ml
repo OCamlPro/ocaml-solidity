@@ -14,6 +14,7 @@ open Solidity_common
 open Solidity_ast
 open Solidity_checker_TYPES
 open Solidity_visitor
+open Solidity_exceptions
 
 (** 1 Type definitions *)
 
@@ -109,80 +110,17 @@ type annot += ANew of Solidity_checker_TYPES.type_
 
 (** 2. Exceptions raised by the postprocessor *)
 
-exception InvariantBroken of string
-
-exception ImmutableUpdatedOutsideConstructor of Ident.t * pos
-exception ImmutableUpdatedTwice of Ident.t * pos * pos
-exception ConstantUpdatedTwice of Ident.t * pos * pos
-exception ConstantUpdated of Ident.t * pos
-exception ReadImmutable of Ident.t * pos
-exception UndefinedConstant of Ident.t
-exception UndefinedImmutable of Ident.t
-exception ConstantCycle of Ident.t list
-exception ConstantRequiringComputation of Ident.t
-exception CalldataModified of Ident.t * pos
-exception UninitializedReadLocal of storage_location * Ident.t * pos
-exception VariableAlreadyDefined of Ident.t * pos
-exception FunctionAlreadyDefined of Ident.t * pos
-exception ImmutableDefinedInInheritingContract of Ident.t * (Ident.t * pos)
-exception OverridingNonVirtual of
-  Ident.t * (* Fun name *)
-  pos * (* Pos of the override *)
-  pos (* Pos of the virtual *)
-
-exception UnexpectedOverride of Ident.t * pos
-exception ExpectedOverride of Ident.t * pos
-exception WrongOverride of Ident.t * pos * string * string
-
-exception NoOverrideMultipleFunDefs of
-  IdentSet.t * (* the contracts inherited *)
-  Ident.t * (* the inheriting contract *)
-  Ident.t (* the function *)
-
-exception PureFunctionReadsGlobal of
-    Ident.t * (* The function *)
-    Ident.t * (* The global *)
-    pos (* The read position *)
-
-exception ForbiddenGlobalWrite of
-    Ident.t * (* The function *)
-    Ident.t * (* The global *)
-    pos (* The read position *)
-
-exception ForbiddenCall of
-    Ident.t * fun_mutability * (* Caller function & its purity *)
-    Ident.t * fun_mutability * (* Called function & its purity *)
-    pos (* Call position *)
-
-exception ForbiddenReadAccess of pos
-
-exception ForbiddenWritState of pos
-
-exception InconsistentVisibility of
-    Ident.t * (* Name of the function *)
-    string * (* Name of the selector *)
-    pos * (* Position of first definition *)
-    pos (* Position of second definition *)
-
-exception MissingPlaceholderStatement of
-    Ident.t * (* Modifier name with an empty body *)
-    pos
-
-exception FileGlobalNotConstant of
-    Ident.t * (* Global name *)
-    pos
-
 let failOnAnnot = function
-  | AType _ -> raise (InvariantBroken "AType")
-  | AImport _ -> raise (InvariantBroken "AImport")
-  | AContract _ -> raise (InvariantBroken "AContract")
-  | AFunction _ -> raise (InvariantBroken "AFunction")
-  | AModifier _ -> raise (InvariantBroken "AModifier")
-  | AVariable _ -> raise (InvariantBroken "AVariable")
-  | APrimitive -> raise (InvariantBroken "APrimitive")
-  | ANone -> raise (InvariantBroken "ANone")
-  | ANew _ -> raise (InvariantBroken "ANew")
-  | _ -> raise (InvariantBroken "Unknown")
+  | AType _ -> invariant_broken "AType"
+  | AImport _ -> invariant_broken "AImport"
+  | AContract _ -> invariant_broken "AContract"
+  | AFunction _ -> invariant_broken "AFunction"
+  | AModifier _ -> invariant_broken "AModifier"
+  | AVariable _ -> invariant_broken "AVariable"
+  | APrimitive -> invariant_broken "APrimitive"
+  | ANone -> invariant_broken "ANone"
+  | ANew _ -> invariant_broken "ANew"
+  | _ -> invariant_broken "Unknown annotaiton"
 
 (** 3 Miscellaneous *)
 
@@ -213,7 +151,7 @@ let list_equal compare l1 l2 =
   list_compare compare l1 l2 = 0
 
 let the = function
-  | None -> raise (InvariantBroken "Deserialized None")
+  | None -> invariant_broken "Deserialized None"
   | Some e -> e
 
 let identmap_add_list_unique (=) key elt map =
@@ -222,7 +160,7 @@ let identmap_add_list_unique (=) key elt map =
     | Some l ->
         match List.find_opt (fun (e1, _) -> e1 = fst elt) l with
           | None -> IdentMap.add key (elt :: l) map
-          | Some _ -> raise (InvariantBroken "add_unique in map failed")
+          | Some _ -> invariant_broken "add_unique in map failed"
 
 let longidentmap_add_list key elt map =
   match AbsLongIdentMap.find_opt key map with
@@ -238,7 +176,7 @@ let equal_opt (=) o1 o2 =
 let typeOf elt =
   match elt.annot with
     | AType t -> t
-    | _ -> raise (InvariantBroken "Annot is not a type")
+    | _ -> invariant_broken "Annot is not a type"
 
 let list_assoc_opt (=) key l =
   let rec loop = function
@@ -299,7 +237,7 @@ let equalSortedParams (params1 : fun_params) (params2 : fun_params) =
   let compare (_, io1) (_, io2) =
     match io1, io2 with
       | Some i1, Some i2 -> Ident.compare i1 i2
-      | _ -> raise (InvariantBroken "Inconsistent sorted parameters")
+      | _ -> invariant_broken "Inconsistent sorted parameters"
   in
   equalParams ~check_ident:true
     (List.fast_sort compare params1)
@@ -313,7 +251,7 @@ let addContractEnv
   | None ->
       AbsLongIdentMap.add contract contract_env env
   | Some _ -> begin
-      raise (InvariantBroken "Cannot save two contracts with the same absolute ident")
+      invariant_broken "Cannot save two contracts with the same absolute ident"
   end
 
 let getInInherited get env =
@@ -383,7 +321,7 @@ let getFunInEnvs (id : absolute LongIdent.t) (fi_params : fun_params) (envs : en
   match AbsLongIdentMap.find_opt contract envs with
   | None ->
      let str = LongIdent.to_string contract in
-     raise (InvariantBroken ("Contract " ^ str ^ " not found in environment"))
+     invariant_broken ("Contract " ^ str ^ " not found in environment")
   | Some env ->
     let fi_ident = {fi_name; fi_params} in
     match getFun ~in_inherited:false fi_ident env with
@@ -573,7 +511,7 @@ let removeFromAssignDetails elts a = {
 
 let getPos al =
   match al with
-  | [] -> raise (InvariantBroken "getPos failed")
+  | [] -> invariant_broken "getPos failed"
   | (_,hd) :: _ -> hd
 
 let addWrit w ad = {ad with ed_writ = ad.ed_writ ++ w}
@@ -654,7 +592,7 @@ let callablePurity (pcaller : fun_mutability) (pcalled : fun_mutability) =
    that are accessed (i.e. a[0]). *)
 let rec variablesInExpression (e : expression) =
   let visit = object
-    inherit Ast.init_ast_visitor
+    inherit init_ast_visitor
     val mutable vars : ast_annot list IdentMap.t = IdentMap.empty
 
     val mutable accessed : ast_annot list IdentMap.t = IdentMap.empty
@@ -689,12 +627,12 @@ let rec variablesInExpression (e : expression) =
             SkipChildren
         | _ -> DoChildren
   end in
-  let () = Solidity_visitor.Ast.visitExpression (visit :> Solidity_visitor.Ast.ast_visitor) e in
+  let () = Solidity_visitor.visitExpression (visit :> Solidity_visitor.ast_visitor) e in
   (visit#getVars ()), (visit#getAccessed ())
 
 let rec getExpressionDetails e =
   let visit = object
-    inherit Ast.init_ast_visitor
+    inherit init_ast_visitor
 
     val mutable expr_details : expr_details = empty_expr_details
 
@@ -758,7 +696,7 @@ let rec getExpressionDetails e =
                       let acc_params =
                         match e.annot with
                           | AType t -> (t, None) :: acc_params
-                          | _ -> raise (InvariantBroken "Annot of expression should be a type") in
+                          | _ -> invariant_broken "Annot of expression should be a type" in
                       acc_dets, acc_params
                     )
                     (empty_expr_details,[])
@@ -861,7 +799,7 @@ let rec getExpressionDetails e =
         | _ -> DoChildren
 
   end in
-  let () = Solidity_visitor.Ast.visitExpression (visit :> Solidity_visitor.Ast.ast_visitor) e in
+  let () = Solidity_visitor.visitExpression (visit :> Solidity_visitor.ast_visitor) e in
   let res = visit#getDetails () in
   res
 
@@ -944,8 +882,8 @@ let getDetails
         fd.fun_params,
         (fun v ->
           let () =
-            Solidity_visitor.Ast.visitFunctionDef
-              (v :> Solidity_visitor.Ast.ast_visitor)
+            Solidity_visitor.visitFunctionDef
+              (v :> Solidity_visitor.ast_visitor)
               fd in
           v#getDetails ()
         ),
@@ -961,8 +899,8 @@ let getDetails
         md.mod_params,
         (fun v ->
           let () =
-            Solidity_visitor.Ast.visitModifierDef
-              (v :> Solidity_visitor.Ast.ast_visitor)
+            Solidity_visitor.visitModifierDef
+              (v :> Solidity_visitor.ast_visitor)
               md in
           v#getDetails ()
         ),
@@ -1048,7 +986,7 @@ let getDetails
         IdentMap.empty
         (params @ returns) in
     object
-      inherit Ast.init_ast_visitor
+      inherit init_ast_visitor
 
       val mutable local_vars : local_details IdentMap.t = local_vars
       val mutable expr_details : expr_details = empty_expr_details
@@ -1084,7 +1022,7 @@ let getDetails
                   in
                   local_vars <-
                     IdentMap.union
-                      (fun _v _ _ -> raise (InvariantBroken "Maps should be distinct (1)"))
+                      (fun _v _ _ -> invariant_broken "Maps should be distinct (1)")
                       local_vars
                       vset
               | VarInfer (l, e) ->
@@ -1103,7 +1041,7 @@ let getDetails
                   in
                   local_vars <-
                     IdentMap.union
-                      (fun _v _ _ ->  raise (InvariantBroken "Maps should be distinct (2)"))
+                      (fun _v _ _ ->  invariant_broken "Maps should be distinct (2)")
                       local_vars
                       vmap in
           DoChildren
@@ -1171,7 +1109,7 @@ let inheritFrom
   : contract_env =
   let inherit_env =
     match AbsLongIdentMap.find_opt id envs with
-    | None -> raise (InvariantBroken ("Cannot find inherited contract " ^ LongIdent.to_string id))
+    | None -> invariant_broken ("Cannot find inherited contract " ^ LongIdent.to_string id)
     | Some e -> e in
   {env with env_inherited = env.env_inherited @ [id, inherit_env]}
 
