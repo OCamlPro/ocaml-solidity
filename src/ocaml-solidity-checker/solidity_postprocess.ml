@@ -135,8 +135,8 @@ let stateVariableAnalyser ?current_position env svd annot =
 let analyseContract
   (env : contract_env)
   (contract : contract_definition) =
-  let visit = object
-    inherit Ast.init_ast_visitor
+  let visit = object(self)
+    inherit init_ast_visitor
     val mutable env = env
 
     method getEnv () = env
@@ -146,14 +146,14 @@ let analyseContract
         match contract.contract_kind with
         | Contract | Library -> fd
         | Interface -> {fd with fun_virtual = true} in
-      let params, selector = match current_annot with
+      let params, selector = match self#getAnnot () with
         | Some (AFunction ({function_params; function_selector; _}, _)) ->
             let function_selector =
               Option.value ~default:"" function_selector in
             function_params, function_selector
         | _ -> invariant_broken "Function should have function annot" in
       let fundet =
-        getDetails env (Method (fd, selector)) params (the current_position) in
+        getDetails env (Method (fd, selector)) params (the (self#getPos ())) in
       let () = checkDetails env fd.fun_name.contents fundet in
       env <-
         addFun
@@ -180,10 +180,10 @@ let analyseContract
         match contract.contract_kind with
         | Contract | Library -> md
         | Interface -> {md with mod_virtual = true} in
-      let params = match current_annot with
+      let params = match self#getAnnot () with
         | Some (AModifier {modifier_params; _}) -> modifier_params
         | _ -> invariant_broken "Modifier should have modifier annot" in
-      let fundet = getDetails env (Modifier md) params (the current_position) in
+      let fundet = getDetails env (Modifier md) params (the (self#getPos ())) in
       let () = checkDetails env md.mod_name.contents fundet in
       let fd_purity = (* Inferring modifier real mutability *)
         let no_write () = try
@@ -212,12 +212,12 @@ let analyseContract
       SkipChildren
 
     method! visitStateVariableDef svd =
-      let annot = the current_annot in
-      let new_env = stateVariableAnalyser ?current_position env svd annot in
+      let annot = the (self#getAnnot ()) in
+      let new_env = stateVariableAnalyser ?current_position:(self#getPos ()) env svd annot in
       env <- new_env;
       SkipChildren
   end in
-  let () = Ast.visitContractDef (visit :> Ast.ast_visitor) contract in
+  let () = Solidity_visitor.visitContractDef (visit :> Solidity_visitor.ast_visitor) contract in
   visit#getEnv ()
 
 let hasConstructor (env : contract_env) =

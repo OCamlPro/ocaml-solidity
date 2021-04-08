@@ -592,7 +592,7 @@ let callablePurity (pcaller : fun_mutability) (pcalled : fun_mutability) =
    that are accessed (i.e. a[0]). *)
 let rec variablesInExpression (e : expression) =
   let visit = object
-    inherit Ast.init_ast_visitor
+    inherit init_ast_visitor
     val mutable vars : ast_annot list IdentMap.t = IdentMap.empty
 
     val mutable accessed : ast_annot list IdentMap.t = IdentMap.empty
@@ -627,12 +627,12 @@ let rec variablesInExpression (e : expression) =
             SkipChildren
         | _ -> DoChildren
   end in
-  let () = Solidity_visitor.Ast.visitExpression (visit :> Solidity_visitor.Ast.ast_visitor) e in
+  let () = Solidity_visitor.visitExpression (visit :> Solidity_visitor.ast_visitor) e in
   (visit#getVars ()), (visit#getAccessed ())
 
 let rec getExpressionDetails e =
   let visit = object
-    inherit Ast.init_ast_visitor
+    inherit init_ast_visitor
 
     val mutable expr_details : expr_details = empty_expr_details
 
@@ -799,7 +799,7 @@ let rec getExpressionDetails e =
         | _ -> DoChildren
 
   end in
-  let () = Solidity_visitor.Ast.visitExpression (visit :> Solidity_visitor.Ast.ast_visitor) e in
+  let () = Solidity_visitor.visitExpression (visit :> Solidity_visitor.ast_visitor) e in
   let res = visit#getDetails () in
   res
 
@@ -882,8 +882,8 @@ let getDetails
         fd.fun_params,
         (fun v ->
           let () =
-            Solidity_visitor.Ast.visitFunctionDef
-              (v :> Solidity_visitor.Ast.ast_visitor)
+            Solidity_visitor.visitFunctionDef
+              (v :> Solidity_visitor.ast_visitor)
               fd in
           v#getDetails ()
         ),
@@ -899,8 +899,8 @@ let getDetails
         md.mod_params,
         (fun v ->
           let () =
-            Solidity_visitor.Ast.visitModifierDef
-              (v :> Solidity_visitor.Ast.ast_visitor)
+            Solidity_visitor.visitModifierDef
+              (v :> Solidity_visitor.ast_visitor)
               md in
           v#getDetails ()
         ),
@@ -986,7 +986,7 @@ let getDetails
         IdentMap.empty
         (params @ returns) in
     object
-      inherit Ast.init_ast_visitor
+      inherit init_ast_visitor
 
       val mutable local_vars : local_details IdentMap.t = local_vars
       val mutable expr_details : expr_details = empty_expr_details
