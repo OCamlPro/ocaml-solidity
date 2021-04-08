@@ -12,31 +12,48 @@
 
 open Solidity_common
 
+(** Generic identifiers *)
 type ident = Ident.t node
 
+(** Context relative identifiers *)
 type longident = relative LongIdent.t node
 
+(** The program definition.
+    Modules (files) are sorted in different ways, but they all are the same. *)
 type program = {
   program_modules : module_ list;
   program_modules_by_id : module_ IdentMap.t;
   program_modules_by_file : module_ StringMap.t;
 }
 
+(** A file definition *)
 and module_ = {
-  module_file : string; (* *absolute* path *)
-  module_id : Ident.t; (* the module id: @n *)
+  module_file : string;
+  module_id : Ident.t;
   module_units : module_units;
 }
 
-and module_units = (source_unit node) list
+and module_units = source_unit node list
 
+(** The different kind of contents. *)
 and source_unit =
   | Pragma of (Ident.t * string)
+  (** Options for the official solidity compiler *)
+
   | Import of import_directive
+  (** Import directive *)
+
   | GlobalTypeDefinition of type_definition
+  (** Definition of a type for the whole file *)
+
   | GlobalFunctionDefinition of function_definition
+  (** Definition of a function for the whole file *)
+
   | GlobalVariableDefinition of state_variable_definition
+  (** Definition of a variable for the whole file *)
+
   | ContractDefinition of contract_definition
+  (** Definition of a contract *)
 
 and import_directive = {
   import_from : string;
@@ -52,21 +69,32 @@ and contract_definition = {
   contract_kind : contract_kind;
   contract_abstract : bool;
   contract_inheritance : inheritance_specifier list;
-  contract_parts : (contract_part node) list;
+  contract_parts : contract_part node list;
 }
 
 and inheritance_specifier = longident * expression list
 
+(** Components of a contract *)
 and contract_part =
   | TypeDefinition of type_definition
+  (** Definition of a local type ; can be an enum or a struct *)
+
   | StateVariableDeclaration of state_variable_definition
+  (** Declaration/definition of a state variable *)
+
   | FunctionDefinition of function_definition
+  (** Declaration/definition of a state variable *)
+
   | ModifierDefinition of modifier_definition
+  (** Definition of a modifier *)
+
   | EventDefinition of event_definition
+  (** Definition of an event *)
+
   | UsingForDeclaration of longident * type_ option
 
 and type_definition =
-  | EnumDefinition of enum_definition
+  | EnumDefinition   of enum_definition
   | StructDefinition of struct_definition
 
 and enum_definition = ident * ident list
@@ -75,27 +103,33 @@ and struct_definition = ident * field_definition list
 
 and field_definition = type_ * ident
 
+(** Definition of a state variable.
+    Its initializer is optional, in which case it is only a declaration. *)
 and state_variable_definition = {
   var_name : ident;
   var_type : type_;
-  var_visibility : visibility; (* def: internal *)
-  var_mutability : var_mutability; (* def: mutable *)
+  var_visibility : visibility;
+  var_mutability : var_mutability;
   var_override : longident list option;
   var_init : expression option;
 }
 
+(** Definition of a contract function.
+    Its body is optional, in which case it is only a declaration. *)
 and function_definition = {
   fun_name : ident;
   fun_params : param list;
   fun_returns : return list;
   fun_modifiers : (longident * expression list option) list;
-  fun_visibility : visibility; (* def: public (external in interface) *)
-  fun_mutability : fun_mutability; (* ctor: public/forbidden ? *)
-  fun_override : longident list option; (* fallback/receive: external *)
-  fun_virtual : bool;                   (* but public if missing...  *)
-  fun_body : block option;        (* mutability : nonpayable by default *)
+  fun_visibility : visibility;
+  fun_mutability : fun_mutability;
+  fun_override : longident list option;
+  fun_virtual : bool;
+  fun_body : block option;
 }
 
+(** Definition of a modifier.
+    Its body is optional, in which case it is only a declaration. *)
 and modifier_definition = {
   mod_name : ident;
   mod_params : param list;
@@ -104,9 +138,10 @@ and modifier_definition = {
   mod_body : block option;
 }
 
+(** Definition of an event. *)
 and event_definition = {
   event_name : ident;
-  event_params : (type_ * bool * ident option) list; (* indexed *)
+  event_params : (type_ * bool * ident option) list;
   event_anonymous : bool;
 }
 
@@ -114,12 +149,22 @@ and param = type_ * storage_location option * ident option
 
 and return = type_ * storage_location option * ident option
 
+(** Type identifiers *)
 and type_ =
   | ElementaryType of elementary_type
+  (** A builtin elementary type *)
+
   | Array of type_ * expression option
+  (** Array types *)
+
   | Mapping of type_ * type_
+  (** Type of mappings with types (key, element) *)
+
   | FunctionType of function_type
+  (** Type of functions *)
+
   | UserDefinedType of longident
+  (** User defined type (see type_definition) *)
 
 and elementary_type =
   | TypeBool
@@ -127,40 +172,71 @@ and elementary_type =
   | TypeUint of int
   | TypeFixed of int * int
   | TypeUfixed of int * int
-  | TypeAddress of bool (* false = address, true = address payable *)
-  | TypeBytes of int option (* None = bytes, Some (N) = bytesN *)
+  | TypeAddress of bool (** bool => payable *)
+  | TypeBytes of int option (** None => equivalent to byte arrays *)
   | TypeString
 
 and function_type = {
   fun_type_params : param list;
-  fun_type_returns : (type_ * storage_location option) list; (* ident forbid *)
-  fun_type_visibility : visibility; (* def: internal *) (* only intern/extern *)
-  fun_type_mutability : fun_mutability; (* def: non-payable *)
+  fun_type_returns : (type_ * storage_location option) list;
+  fun_type_visibility : visibility;
+  fun_type_mutability : fun_mutability;
 }
 
 and statement = raw_statement node
 
 and raw_statement =
   | Block of block
+  (** An ordered list of statements *)
+
   | VariableDefinition of variable_definition
+  (** Local variable definition *)
+
   | ExpressionStatement of expression
+  (** Single expression returning nothing *)
+
   | IfStatement of expression * statement * statement option
+  (** If-then-else statement; else is optional *)
+
   | WhileStatement of expression * statement
+  (** While loop;
+      expression is the boolean condition, statement is its body *)
+
   | DoWhileStatement of statement * expression
+  (** Do while loop;
+      expression is the boolean condition, statement is its body *)
+
   | ForStatement of statement option * expression option *
                     expression option * statement
+  (** For loop ;
+      the first statement is the initializer, the next
+      expression is the condition, the third is the for action
+      and the last statement the loop body. *)
+
   | TryStatement of expression * return list * block * catch_clause list
+  (** Try-catch statement *)
+
   | Emit of expression * function_call_arguments
+  (** Event emission *)
+
   | Return of expression option
+  (** Return statement *)
+
   | Continue
+  (** Continue (loop statement) *)
+
   | Break
+  (** Break (loop statement) *)
+
   | PlaceholderStatement
+  (** Placeholder for modifiers *)
+
 
 and expression = raw_expression node
 
 and raw_expression =
   | BooleanLiteral of bool
-  | NumberLiteral of Q.t * number_unit * int option (* hex size / use type *)
+  | NumberLiteral of Q.t * number_unit * int option
   | StringLiteral of string
   | AddressLiteral of string
   | IdentifierExpression of ident
@@ -168,14 +244,12 @@ and raw_expression =
   | ArrayAccess of expression * expression option
   | ArraySlice of expression * expression option * expression option
   | TupleExpression of expression option list
-
   | PrefixExpression of unary_operator * expression
   | SuffixExpression of expression * unary_operator
   | CompareExpression of expression * compare_operator * expression
   | BinaryExpression of expression * binary_operator * expression
   | AssignExpression of expression * expression
   | AssignBinaryExpression of expression * binary_operator * expression
-
   | IfExpression of expression * expression * expression
   | FieldExpression of expression * ident
   | FunctionCallExpression of expression * function_call_arguments
@@ -189,12 +263,18 @@ and catch_clause = ident option * param list * block
 
 and variable_definition =
   | VarInfer of ident option list * expression
+  (** Variable without type *)
+
   | VarType of (type_ * storage_location option * ident) option list *
                expression option
+  (** Typed variable *)
 
 and function_call_arguments =
   | ExpressionList of expression list
+  (** Anonymous arguments *)
+
   | NameValueList of (ident * expression) list
+  (** Named arguments *)
 
 and contract_kind =
   | Contract
@@ -271,197 +351,54 @@ and compare_operator =
   | CLeq
   | CGeq
 
+val is_contract  : contract_kind -> bool
+val is_library   : contract_kind -> bool
+val is_interface : contract_kind -> bool
 
-let is_contract = function
-  | Contract -> true
-  | Library | Interface -> false
+val is_mutable   : var_mutability -> bool
+val is_constant  : var_mutability -> bool
+val is_immutable : var_mutability -> bool
 
-let is_library = function
-  | Library -> true
-  | Contract | Interface -> false
+val is_payable    : fun_mutability -> bool
+val is_nonpayable : fun_mutability -> bool
 
-let is_interface = function
-  | Interface -> true
-  | Contract | Library -> false
+val is_external    : visibility -> bool
+val is_internal    : visibility -> bool
+val is_private     : visibility -> bool
+val is_public      : visibility -> bool
 
+(** True iff not private *)
+val is_inheritable : visibility -> bool
 
-let is_mutable = function
-  | MMutable -> true
-  | MConstant | MImmutable -> false
+(** Checks the equality of mutabilities *)
+val same_mutability : fun_mutability -> fun_mutability -> bool
 
-let is_constant = function
-  | MConstant -> true
-  | MMutable | MImmutable -> false
+(** Tests if a function with `from` mutability can be overridden by a
+    function with `to` mutability. *)
+val convertible_mutability :
+  from:fun_mutability -> to_:fun_mutability -> bool
 
-let is_immutable = function
-  | MImmutable -> true
-  | MConstant | MMutable -> false
+(** Checks the equality of visibilities *)
+val same_visibility : visibility -> visibility -> bool
 
+(** Tests if a function with `from` visibility can be overridden by a
+    function with `to` visibility. *)
+val convertible_visibility : from:visibility -> to_:visibility -> bool
 
-let is_payable = function
-  | MPayable -> true
-  | MNonPayable | MView | MPure -> false
+(** Returns the quantity in argument with the unit in argument
+    in the smallest quantity of the language of the similar
+    unit.
+    Examples:
+    * `apply_unit 1 Minutes = 60 (Seconds)`
+    * `apply_unit 1 Ether = 1e15 (Wei)`
+    * `apply_unit 1 Unit = 1 (Unit)` *)
+val apply_unit : Q.t -> number_unit -> Q.t
 
-let is_nonpayable = function
-  | MNonPayable -> true
-  | MPayable | MView | MPure -> false
+(** Apply the unary operator in argument to a zarith rational.
+    Returns `None` when applying UNot on non-integers
+    If the operator is not an arithmetical operator, also returns `None`. *)
+val apply_unop : unary_operator -> Q.t -> Q.t option
 
-
-let is_external = function
-  | VExternal -> true
-  | VInternal | VPublic | VPrivate -> false
-
-let is_internal = function
-  | VInternal -> true
-  | VExternal | VPublic | VPrivate -> false
-
-let is_private = function
-  | VPrivate -> true
-  | VExternal | VInternal | VPublic -> false
-
-let is_public = function
-  | VPublic -> true
-  | VExternal | VInternal | VPrivate -> false
-
-let is_inheritable = function
-  | VPublic | VExternal | VInternal -> true
-  | VPrivate -> false
-
-
-
-let same_mutability m1 m2 =
-  match m1, m2 with
-  | MPure, MPure -> true
-  | MView, MView -> true
-  | MPayable, MPayable -> true
-  | MNonPayable, MNonPayable -> true
-  | _ -> false
-
-(* for the purpose of overriding *)
-let convertible_mutability ~from ~to_ =
-  match from, to_ with
-  | MNonPayable, (MView | MPure | MNonPayable) -> true
-  | MNonPayable, MPayable -> false
-  | MView, (MPure | MView) -> true
-  | MView, (MPayable | MNonPayable) -> false
-  | MPure, MPure -> true
-  | MPure, (MView | MPayable | MNonPayable) -> false
-  | MPayable, MPayable -> true
-  | MPayable, (MPure | MView | MNonPayable) -> false
-
-
-
-let same_visibility v1 v2 =
-  match v1, v2 with
-  | VExternal, VExternal -> true
-  | VInternal, VInternal -> true
-  | VPublic, VPublic -> true
-  | VPrivate, VPrivate -> true
-  | _ -> false
-
-(* for the purpose of overriding *)
-let convertible_visibility ~from ~to_ =
-  match from, to_ with
-  | VExternal, (VPublic | VExternal) -> true
-  | VExternal, (VInternal | VPrivate) -> false
-  | VPublic, VPublic -> true
-  | VPublic, (VExternal | VInternal | VPrivate) -> false
-  | VInternal, VInternal -> true
-  | VInternal, (VExternal | VPublic | VPrivate) -> false
-  | VPrivate, VPrivate -> true
-  | VPrivate, (VExternal | VPublic | VInternal) -> false
-
-
-
-let unit_factor unit =
-  let z =
-    match unit with
-    | Unit     -> Z.one
-    | Wei      -> Z.one
-    | Kwei     -> ExtZ._10_3
-    | Mwei     -> ExtZ._10_6
-    | Gwei     -> ExtZ._10_9
-    | Twei     -> ExtZ._10_12
-    | Pwei     -> ExtZ._10_15
-    | Ether    -> ExtZ._10_18
-    | Hours    -> ExtZ._3600
-    | Minutes  -> ExtZ._60
-    | Seconds  -> Z.one
-    | Days     -> ExtZ._24x3600
-    | Weeks    -> ExtZ._7x24x3600
-    | Years    -> ExtZ._365x24x3600
-  in
-  Q.of_bigint z
-
-let apply_unit q unit =
-  match unit with
-  | Unit | Wei | Seconds -> q
-  | _ -> Q.mul q (unit_factor unit)
-
-let apply_unop op q =
-  match op with
-  | UPlus ->
-      Some (q)
-  | UMinus ->
-      Some (Q.neg q)
-  | UNot ->
-      if ExtQ.is_int q then
-        Some (Q.of_bigint (Z.lognot (Q.num q)))
-      else
-        None
-  | ULNot
-  | UInc | UDec
-  | UDelete ->
-      None
-
-let apply_binop q1 op q2 =
-  match op with
-  | BPlus ->
-      Some (Q.add q1 q2)
-  | BMinus ->
-      Some (Q.sub q1 q2)
-  | BTimes ->
-      Some (Q.mul q1 q2)
-  | BDiv ->
-      Some (Q.div q1 q2)
-  | BMod ->
-(* TODO: Solidity allows this on fractions *)
-      if ExtQ.is_int q1 && ExtQ.is_int q2 then
-        Some (Q.of_bigint (snd (Z.ediv_rem (Q.num q1) (Q.num q2))))
-      else
-        None
-  | BExp ->
-      if ExtQ.is_int q2 then
-        let e = Z.to_int (Q.num q2) in (* Warning: may overflow *)
-        let n = Z.pow (Q.num q1) e in
-        let d = Z.pow (Q.den q1) e in
-        Some (Q.make n d)
-      else
-        None
-  | BAnd ->
-      if ExtQ.is_int q1 && ExtQ.is_int q2 then
-        Some (Q.of_bigint (Z.logand (Q.num q1) (Q.num q2)))
-      else
-        None
-  | BOr ->
-      if ExtQ.is_int q1 && ExtQ.is_int q2 then
-        Some (Q.of_bigint (Z.logor (Q.num q1) (Q.num q2)))
-      else
-        None
-  | BXor ->
-      if ExtQ.is_int q1 && ExtQ.is_int q2 then
-        Some (Q.of_bigint (Z.logxor (Q.num q1) (Q.num q2)))
-      else
-        None
-  | BLShift ->
-      if ExtQ.is_int q1 && ExtQ.is_int q2 && ExtQ.is_pos q2 then
-        Some (Q.of_bigint (Z.shift_left (Q.num q1) (Q.to_int q2)))
-      else
-        None
-  | BRShift ->
-      if ExtQ.is_int q1 && ExtQ.is_int q2 && ExtQ.is_pos q2 then
-        Some (Q.of_bigint (Z.shift_right (Q.num q1) (Q.to_int q2)))
-      else
-        None
-  | BLAnd | BLOr ->
-      None
+(** Apply the binary operator in argument to a zarith rational.
+    If the operator is not an arithmetical operator, returns `None`. *)
+val apply_binop : Q.t -> binary_operator -> Q.t -> Q.t option

@@ -5,8 +5,9 @@
   (public_name ocaml-solidity-checker)
   (wrapped false)
   (libraries uutf ocaml-solidity-parser ocaml-solidity-common ez-hash )
-  
-  
+  (private_modules
+	solidity_c3
+  )
   )
 
 
