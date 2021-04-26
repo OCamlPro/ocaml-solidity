@@ -11,4 +11,4 @@ Ocaml-solidity provides a Solidity parser and typechecker
 * Website: https://github.com/OcamlPro/ocaml-solidity
 * General Documentation: https://OCamlPro.github.io/ocaml-solidity/sphinx
 * API Documentation: https://OCamlPro.github.io/ocaml-solidity/doc
-* Sources: git+https://github.com/OcamlPro/ocaml-solidity
+* Sources: https://github.com/OcamlPro/ocaml-solidity

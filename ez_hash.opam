@@ -2,7 +2,7 @@
 # Do not modify, or add to the `skip` field of `drom.toml`.
 opam-version: "2.0"
 name: "ez_hash"
-version: "dev"
+version: "0.2.0"
 license: "LGPL-2.1-only with OCaml-LGPL-linking-exception"
 synopsis: "Hash functions: sha3, sha256, blake2b"
 description: """
@@ -17,7 +17,7 @@ maintainer: [
 homepage: "https://github.com/OcamlPro/ocaml-solidity"
 doc: "https://OCamlPro.github.io/ocaml-solidity/sphinx"
 bug-reports: "https://github.com/OCamlPro/ocaml-solidity/issues"
-dev-repo: "git+git+https://github.com/OcamlPro/ocaml-solidity.git"
+dev-repo: "git+https://github.com/OcamlPro/ocaml-solidity.git"
 tags: "org:OCamlPro"
 build: [
   ["dune" "subst"] {dev}

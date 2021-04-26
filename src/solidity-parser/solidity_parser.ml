@@ -14,7 +14,7 @@ open Solidity_common
 open Solidity_ast
 
 let get_imported_files m =
-  let base = FilePath.dirname m.module_file in
+  let base = Filename.dirname m.module_file in
   List.fold_left (fun fileset unit_node ->
       match strip unit_node with
       | Import { import_from; _ } ->

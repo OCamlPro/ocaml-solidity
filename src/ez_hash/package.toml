@@ -4,7 +4,7 @@ name = "ez_hash"
 skeleton = "c_binding"
 
 # version if different from project version
-version = "dev"
+# version = "dev"
 
 # synopsis if different from project synopsis
 synopsis = "Hash functions: sha3, sha256, blake2b"

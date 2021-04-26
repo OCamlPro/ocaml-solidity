@@ -1,5 +1,5 @@
-/ocaml-solidity-test
-/ocaml-solidity-alcotest
+/solidity-test
+/solidity-alcotest
 *~
 _build
 .merlin

@@ -1,6 +1,6 @@
 
 # name of package
-name = "ocaml-solidity-checker"
+name = "solidity-parser"
 skeleton = "library"
 
 # version if different from project version
@@ -23,7 +23,7 @@ gen-version = "version.ml"
 
 # supported file generators are "ocamllex", "ocamlyacc" and "menhir" 
 # default is [ "ocamllex", "ocamlyacc" ] 
-# generators = [ "ocamllex", "menhir" ]
+generators = ["menhir", "ocamllex"]
 
 # whether all modules should be packed/wrapped (default is true)
 pack-modules = false
@@ -36,20 +36,13 @@ pack-modules = false
 #   ez_file = ">=0.1 <1.3"
 #   base-unix = { libname = "unix", version = ">=base" } 
 [dependencies]
-uutf = ""
-ez_hash = ""
-ocaml-solidity-common = ""
-ocaml-solidity-parser = ""
+hex = "1"
+solidity-common = "version"
 
 # package tools dependencies
 [tools]
-# ...
+menhir = ""
 
 # package fields (depends on package skeleton)
 [fields]
 # ...
-dune-stanzas = """
-(private_modules
-        solidity_c3
-  )
-"""

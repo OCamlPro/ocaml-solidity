@@ -1,0 +1,10 @@
+{1 Library solidity-common}
+
+
+Ocaml-solidity provides a Solidity parser and typechecker
+
+
+
+This library exposes the following toplevel modules:
+{!modules:Main Solidity_ast Solidity_common Solidity_exceptions Solidity_printer Solidity_visitor}
+
