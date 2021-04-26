@@ -5,7 +5,7 @@ drom-version = "0.1"
 authors = ["David Declerck <david.declerck@ocamlpro.com>",
            "Steven De Oliveira <steven.de-oliveira@ocamlpro.com>" ]
 bug-reports = "https://github.com/OCamlPro/ocaml-solidity/issues"
-ci-systems = ["ubuntu-latest", "macos-latest", "windows-latest"]
+ci-systems = ["ubuntu-latest", "macos-latest"]
 copyright = "OCamlPro & Origin Labs"
 dev-repo = "git+https://github.com/OcamlPro/ocaml-solidity"
 edition = "4.10.0"
@@ -29,7 +29,7 @@ description = """\nOcaml-solidity provides a Solidity parser and typechecker
 """
 
 [project]
-skip = "src/ez-hash/index.mld src/ez-hash/ez-hash_stubs.c src/ez-hash/main.ml src/ocaml-solidity-common/main.ml src/ocaml-solidity-parser/main.ml src/ocaml-solidity-checker/main.ml src/ocaml-solidity-test/main.ml src/ocaml-solidity-alcotest/main.ml test/expect-tests/dune test/expect-tests/test.ml test/inline-tests/dune test/inline-tests/test.ml test/output-tests/dune test/output-tests/test1.expected test/output-tests/test2.expected test/output-tests/test2.ml"
+skip = "src/ez_hash/ez_hash_stubs.c src/ez_hash/main.ml src/ocaml-solidity-common/main.ml src/ocaml-solidity-parser/main.ml src/ocaml-solidity-checker/main.ml src/ocaml-solidity-test/main.ml src/ocaml-solidity-alcotest/main.ml test/expect-tests/dune test/expect-tests/test.ml test/inline-tests/dune test/inline-tests/test.ml test/output-tests/dune test/output-tests/test1.expected test/output-tests/test2.expected test/output-tests/test2.ml"
 
 # project-wide library dependencies (not for package-specific deps)
 [dependencies]
@@ -71,8 +71,8 @@ dir = "src/ocaml-solidity"
 # edit 'src/ocaml-solidity/package.toml' for package-specific options
 
 [[package]]
-dir = "src/ez-hash"
-# edit 'src/ez-hash/package.toml' for package-specific options
+dir = "src/ez_hash"
+# edit 'src/ez_hash/package.toml' for package-specific options
 
 [[package]]
 dir = "src/ocaml-solidity-common"

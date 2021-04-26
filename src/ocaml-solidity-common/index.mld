@@ -6,5 +6,5 @@ Ocaml-solidity provides a Solidity parser and typechecker
 
 
 This library exposes the following toplevel modules:
-{!modules:Solidity_ast Solidity_common Solidity_printer Solidity_visitor}
+{!modules:Solidity_ast Solidity_common Solidity_exceptions Solidity_printer Solidity_visitor}
 

@@ -37,7 +37,7 @@ pack-modules = false
 #   base-unix = { libname = "unix", version = ">=base" } 
 [dependencies]
 uutf = ""
-ez-hash = ""
+ez_hash = ""
 ocaml-solidity-common = ""
 ocaml-solidity-parser = ""
 
@@ -48,3 +48,8 @@ ocaml-solidity-parser = ""
 # package fields (depends on package skeleton)
 [fields]
 # ...
+dune-stanzas = """
+(private_modules
+        solidity_c3
+  )
+"""

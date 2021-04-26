@@ -4,10 +4,12 @@
   (name ocaml_solidity_checker)
   (public_name ocaml-solidity-checker)
   (wrapped false)
-  (libraries uutf ocaml-solidity-parser ocaml-solidity-common ez-hash )
+  (libraries uutf ocaml-solidity-parser ocaml-solidity-common ez_hash )
+  
   (private_modules
-	solidity_c3
+        solidity_c3
   )
+
   )
 
 

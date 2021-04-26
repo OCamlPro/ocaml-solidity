@@ -15,7 +15,7 @@ all: build
 build:
 	./scripts/before.sh build
 	opam exec -- dune build @install
-	./scripts/copy-bin.sh ocaml-solidity ez-hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker ocaml-solidity-test ocaml-solidity-alcotest
+	./scripts/copy-bin.sh ez_hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker ocaml-solidity-test ocaml-solidity-alcotest
 	./scripts/after.sh build
 
 build-deps:

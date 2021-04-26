@@ -20,7 +20,7 @@
  ))
 
 (package
- (name ez-hash)
+ (name ez_hash)
  (synopsis "Hash functions: sha3, sha256, blake2b")
  (description "\nHash functions: sha3, sha256, blake2b\n")
  (depends
@@ -70,7 +70,7 @@
    uutf
    ocaml-solidity-parser
    ocaml-solidity-common
-   ez-hash
+   ez_hash
    ppx_inline_test
    ppx_expect
    odoc
