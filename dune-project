@@ -3,7 +3,7 @@
 (name ocaml-solidity)
 (allow_approximate_merlin)
 (generate_opam_files false)
-(version 0.1.0)
+(version 0.2.0)
 (formatting (enabled_for ocaml reason))
 (using menhir 2.0)
 
@@ -33,14 +33,14 @@
  ))
 
 (package
- (name ocaml-solidity-common)
+ (name solidity-common)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
    zarith
-   hex
-   fileutils
+   (hex ( >= 1 ))
+   (fileutils ( >= 0.6 ))
    ppx_inline_test
    ppx_expect
    odoc
@@ -48,13 +48,13 @@
  ))
 
 (package
- (name ocaml-solidity-parser)
+ (name solidity-parser)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
-   ocaml-solidity-common
-   hex
+   (solidity-common (= version))
+   (hex ( >= 1 ))
    menhir
    ppx_inline_test
    ppx_expect
@@ -63,15 +63,15 @@
  ))
 
 (package
- (name ocaml-solidity-checker)
+ (name solidity-typechecker)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
-   uutf
-   ocaml-solidity-parser
-   ocaml-solidity-common
-   ez_hash
+   (uutf ( >= 1 ))
+   (solidity-parser (= version))
+   (solidity-common (= version))
+   (ez_hash (= version))
    ppx_inline_test
    ppx_expect
    odoc
@@ -79,14 +79,14 @@
  ))
 
 (package
- (name ocaml-solidity-test)
+ (name solidity-test)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
-   ocaml-solidity-parser
-   ocaml-solidity-common
-   ocaml-solidity-checker
+   (solidity-typechecker (= version))
+   (solidity-parser (= version))
+   (solidity-common (= version))
    ppx_inline_test
    ppx_expect
    odoc
@@ -94,15 +94,15 @@
  ))
 
 (package
- (name ocaml-solidity-alcotest)
+ (name solidity-alcotest)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
  (depends
    (ocaml (>= 4.08.0))
-   ocaml-solidity-parser
-   ocaml-solidity-common
-   ocaml-solidity-checker
-   alcotest
+   (solidity-typechecker (= version))
+   (solidity-parser (= version))
+   (solidity-common (= version))
+   (alcotest ( >= 1.2 ))
    ppx_inline_test
    ppx_expect
    odoc

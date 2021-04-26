@@ -1,6 +1,6 @@
 
 # name of package
-name = "ocaml-solidity-alcotest"
+name = "solidity-alcotest"
 skeleton = "program"
 
 # version if different from project version
@@ -36,10 +36,10 @@ pack-modules = false
 #   ez_file = ">=0.1 <1.3"
 #   base-unix = { libname = "unix", version = ">=base" } 
 [dependencies]
-ocaml-solidity-common = ""
-ocaml-solidity-parser = ""
-ocaml-solidity-checker = ""
-alcotest = ""
+solidity-common = "version"
+solidity-parser = "version"
+solidity-typechecker = "version"
+alcotest = "1.2"
 
 # package tools dependencies
 [tools]
