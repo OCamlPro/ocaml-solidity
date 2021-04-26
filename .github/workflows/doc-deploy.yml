@@ -27,7 +27,12 @@ jobs:
         run: |
           sudo apt install -yqq python3-sphinx python3-sphinx-rtd-theme
           opam install -y dune odoc
+
+      # define opam-repo = "git+https://" to add an extra opam repo
+
       - run: opam pin add . -y --no-action
+      - run: opam depext -y ez_hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker ocaml-solidity-test ocaml-solidity-alcotest
+        if: steps.cache-opam.outputs.cache-hit != 'true'
       - run: opam install -y ./*.opam --deps-only --with-test
         if: steps.cache-opam.outputs.cache-hit != 'true'
       - run: opam upgrade --fixup

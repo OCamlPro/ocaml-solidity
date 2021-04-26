@@ -16,7 +16,6 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-latest
         ocaml-version:
           - 4.10.0
         skip_test:
@@ -53,7 +52,12 @@ jobs:
           git config --global user.name github-actions
           git config --global user.email github-actions-bot@users.noreply.github.com
 
+      # define opam-repo = "git+https://" to add an extra opam repo
+
       - run: opam pin add . -y --no-action
+
+      - run: opam depext -y ez_hash ocaml-solidity-common ocaml-solidity-parser ocaml-solidity-checker ocaml-solidity-test ocaml-solidity-alcotest
+        if: steps.cache-opam.outputs.cache-hit != 'true'
 
       - run: opam install -y ./*.opam --deps-only --with-test
         if: steps.cache-opam.outputs.cache-hit != 'true'

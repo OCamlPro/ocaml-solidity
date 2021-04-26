@@ -6,6 +6,7 @@ version: "0.1.0"
 license: "LGPL-2.1-only with OCaml-LGPL-linking-exception"
 synopsis: "The ocaml-solidity project"
 description: """
+
 Ocaml-solidity provides a Solidity parser and typechecker
 """
 authors: [

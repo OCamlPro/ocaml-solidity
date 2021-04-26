@@ -2,17 +2,17 @@
 
 # hash of toml configuration files
 # used for generation of all files
-41b0f1627c5eb715d039e119ebe49827:.
+f9527fe622490bf6fd0b4101b196f81a:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
 # file .github/workflows/doc-deploy.yml
-62a2ddd11bcf58ff09974838af1c4aa3:.github/workflows/doc-deploy.yml
+70ea1f8197c6b2aae3b91173d284d670:.github/workflows/doc-deploy.yml
 # end context for .github/workflows/doc-deploy.yml
 
 # begin context for .github/workflows/workflow.yml
 # file .github/workflows/workflow.yml
-6ebac06bf9b280cd51565160398522ac:.github/workflows/workflow.yml
+02359fb0e483f005d20fd4a7cdbae22a:.github/workflows/workflow.yml
 # end context for .github/workflows/workflow.yml
 
 # begin context for .gitignore
@@ -37,7 +37,7 @@ a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
 
 # begin context for CHANGES.md
 # file CHANGES.md
-7b7e52f78be4e5855924ac9037046e8c:CHANGES.md
+d15bec0211614edd9232e063b84e5d90:CHANGES.md
 # end context for CHANGES.md
 
 # begin context for LICENSE.md
@@ -47,7 +47,7 @@ a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
 
 # begin context for Makefile
 # file Makefile
-512c6f89ed36f5dbad9a23501afe3332:Makefile
+0214f3c6399dca0218524e1a1b1d6e8b:Makefile
 # end context for Makefile
 
 # begin context for README.md
@@ -97,37 +97,37 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-d5200c6ce415681ca2a5a6baf6f6bd4f:dune-project
+f63073b4dde70da2c99ed3e9b024c51c:dune-project
 # end context for dune-project
 
-# begin context for ez-hash.opam
-# file ez-hash.opam
-b94999435b90cda4056b8495a80cd81c:ez-hash.opam
-# end context for ez-hash.opam
+# begin context for ez_hash.opam
+# file ez_hash.opam
+f93e948def2bfaf259bde011881a80f7:ez_hash.opam
+# end context for ez_hash.opam
 
 # begin context for ocaml-solidity-alcotest.opam
 # file ocaml-solidity-alcotest.opam
-75db776473013f0f9ad2df1eded76c35:ocaml-solidity-alcotest.opam
+e10a6f309b2e05892cdaa29024efef13:ocaml-solidity-alcotest.opam
 # end context for ocaml-solidity-alcotest.opam
 
 # begin context for ocaml-solidity-checker.opam
 # file ocaml-solidity-checker.opam
-c9b94fdfc4f8e32f6bfdceabd361fabd:ocaml-solidity-checker.opam
+e5bff74bc5169653856e9e91d599e304:ocaml-solidity-checker.opam
 # end context for ocaml-solidity-checker.opam
 
 # begin context for ocaml-solidity-common.opam
 # file ocaml-solidity-common.opam
-15b12f9ab20dcd567cc6e2e889611830:ocaml-solidity-common.opam
+1fc4a990512bf27b7fab2e7977ec493b:ocaml-solidity-common.opam
 # end context for ocaml-solidity-common.opam
 
 # begin context for ocaml-solidity-parser.opam
 # file ocaml-solidity-parser.opam
-abbcdf5a6eed4fbeb653c3b8e37bc22a:ocaml-solidity-parser.opam
+7e527eee5dc10616daa6d8ed5d0d10c0:ocaml-solidity-parser.opam
 # end context for ocaml-solidity-parser.opam
 
 # begin context for ocaml-solidity-test.opam
 # file ocaml-solidity-test.opam
-7e5c1ed05508ce6c4f2bc4cfc843dd25:ocaml-solidity-test.opam
+8691e7f43024a7b1cb7faa80208606c2:ocaml-solidity-test.opam
 # end context for ocaml-solidity-test.opam
 
 # begin context for scripts/after.sh
@@ -175,15 +175,15 @@ f481df414cb3f029bd800c66946eb287:sphinx/install.rst
 be5b2f331733cbbbfed0aba411d34691:sphinx/license.rst
 # end context for sphinx/license.rst
 
-# begin context for src/ez-hash/dune
-# file src/ez-hash/dune
-75c98b77db1df5bc0cd034a1fb0b8363:src/ez-hash/dune
-# end context for src/ez-hash/dune
+# begin context for src/ez_hash/dune
+# file src/ez_hash/dune
+594545939b2217afd68d7306ba87ca42:src/ez_hash/dune
+# end context for src/ez_hash/dune
 
-# begin context for src/ez-hash/package.toml
-# file src/ez-hash/package.toml
-6bd8dc485688aac637aebb0c74c1f0d4:src/ez-hash/package.toml
-# end context for src/ez-hash/package.toml
+# begin context for src/ez_hash/index.mld
+# file src/ez_hash/index.mld
+99d0d4548d69d4d4b4fd2068e5ebec13:src/ez_hash/index.mld
+# end context for src/ez_hash/index.mld
 
 # begin context for src/ocaml-solidity-alcotest/dune
 # file src/ocaml-solidity-alcotest/dune
@@ -197,7 +197,7 @@ e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-alcotest/version.mlt
 
 # begin context for src/ocaml-solidity-checker/dune
 # file src/ocaml-solidity-checker/dune
-d45504b6e16bc7825d1698332424505d:src/ocaml-solidity-checker/dune
+fd1d0e47b07729ba466a0ed92a6f0014:src/ocaml-solidity-checker/dune
 # end context for src/ocaml-solidity-checker/dune
 
 # begin context for src/ocaml-solidity-checker/index.mld
@@ -222,7 +222,7 @@ e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-checker/version.mlt
 
 # begin context for src/ocaml-solidity-common/index.mld
 # file src/ocaml-solidity-common/index.mld
-d0fa07a6e1954f0994400127ffe172a2:src/ocaml-solidity-common/index.mld
+57a5baa1b2a043066df39918f42d07d1:src/ocaml-solidity-common/index.mld
 # end context for src/ocaml-solidity-common/index.mld
 
 # begin context for src/ocaml-solidity-common/package.toml
@@ -237,7 +237,7 @@ e5152b4b8b0489050db1e38339e55a7e:src/ocaml-solidity-common/version.mlt
 
 # begin context for src/ocaml-solidity-parser/dune
 # file src/ocaml-solidity-parser/dune
-de751855ef61bbff84d13e72225ea970:src/ocaml-solidity-parser/dune
+4043064cf5b6d7a073bbb46ac66d0a69:src/ocaml-solidity-parser/dune
 # end context for src/ocaml-solidity-parser/dune
 
 # begin context for src/ocaml-solidity-parser/index.mld

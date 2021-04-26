@@ -9,8 +9,8 @@
   
   )
 
-(menhir (modules solidity_raw_parser))
 (ocamllex solidity_lexer)
+(menhir (modules solidity_raw_parser))
 
 (rule
     (targets version.ml)

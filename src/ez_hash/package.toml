@@ -1,6 +1,6 @@
 
 # name of package
-name = "ez-hash"
+name = "ez_hash"
 skeleton = "c_binding"
 
 # version if different from project version
