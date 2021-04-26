@@ -55,6 +55,7 @@
    (ocaml (>= 4.08.0))
    ocaml-solidity-common
    hex
+   menhir
    ppx_inline_test
    ppx_expect
    odoc

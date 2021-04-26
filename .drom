@@ -2,7 +2,7 @@
 
 # hash of toml configuration files
 # used for generation of all files
-f9527fe622490bf6fd0b4101b196f81a:.
+5aa9e9140aea0eb0ab9b5e53fa11368a:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
@@ -97,7 +97,7 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-f63073b4dde70da2c99ed3e9b024c51c:dune-project
+69a4118b7c0f36150ece20f7a0916777:dune-project
 # end context for dune-project
 
 # begin context for ez_hash.opam
@@ -122,7 +122,7 @@ e5bff74bc5169653856e9e91d599e304:ocaml-solidity-checker.opam
 
 # begin context for ocaml-solidity-parser.opam
 # file ocaml-solidity-parser.opam
-7e527eee5dc10616daa6d8ed5d0d10c0:ocaml-solidity-parser.opam
+f2ac5efbea27eb1451ab646367436e7d:ocaml-solidity-parser.opam
 # end context for ocaml-solidity-parser.opam
 
 # begin context for ocaml-solidity-test.opam

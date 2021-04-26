@@ -41,7 +41,7 @@ ocaml-solidity-common = ""
 
 # package tools dependencies
 [tools]
-# ...
+menhir = ""
 
 # package fields (depends on package skeleton)
 [fields]
