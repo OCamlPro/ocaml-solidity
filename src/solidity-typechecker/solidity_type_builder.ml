@@ -152,6 +152,7 @@ let rec ast_type_to_type pos ~loc env = function
       in
       set_annot lid (AType t);
       t
+  | Optional _tk -> assert false (* freeton TODO *)
   | Mapping (tk, tv) ->
       begin
         match loc with

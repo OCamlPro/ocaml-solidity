@@ -979,6 +979,8 @@ let rec type_statement opt env s =
       expect_expression_type opt env e TBool;
       type_statement { opt with in_loop = true } env s
 
+  | RepeatStatement (_e, _s) -> assert false (* freeton TODO *)
+
   | DoWhileStatement (s, e) ->
       type_statement { opt with in_loop = true } env s;
       expect_expression_type opt env e TBool

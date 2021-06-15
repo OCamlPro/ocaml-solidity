@@ -61,6 +61,7 @@ let string_of_number_unit = function
   | Days ->     "days"
   | Weeks ->    "weeks"
   | Years ->    "years"
+  | Ton -> "ton"
 
 let string_of_unop = function
   | UPlus ->   "+"
@@ -246,10 +247,12 @@ and string_of_field_declaration (t, id) =
 
 and variable_definition b indent {
     var_name; var_type; var_visibility;
-    var_mutability; var_override; var_init; } =
+    var_mutability; var_override; var_init;
+    var_static } =
   bprint b indent
-    (Format.sprintf "%s %s%s%s%s%s"
+    (Format.sprintf "%s%s %s%s%s%s%s"
        (string_of_type var_type)
+       (if var_static then "static " else "")
        (string_of_ident var_name)
        (match var_visibility with
         | VInternal -> ""
@@ -356,6 +359,9 @@ and string_of_type = function
          | Some e -> string_of_expression e)
   | FunctionType ft ->
       string_of_function_type ft
+  | Optional tk ->
+      Format.sprintf "optional (%s)"
+        ( String.concat ", " (List.map string_of_type tk))
 
 and string_of_function_type {
     fun_type_params; fun_type_returns;
@@ -454,6 +460,9 @@ and statement b indent s =
         (Format.sprintf "%s;" (string_of_variable_definition vardef))
   | ExpressionStatement e ->
       bprint b indent (Format.sprintf "%s;" (string_of_expression e))
+  | RepeatStatement (e, body) ->
+      bprint b indent (Format.sprintf "repeat (%s)" (string_of_expression e));
+      statement b (indent + 2) body
 
 and string_of_expression_option = function
   | None -> ""

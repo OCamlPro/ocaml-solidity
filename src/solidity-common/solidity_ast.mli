@@ -112,6 +112,7 @@ and state_variable_definition = {
   var_mutability : var_mutability;
   var_override : longident list option;
   var_init : expression option;
+  var_static : bool ; (* freeton *)
 }
 
 (** Definition of a contract function.
@@ -165,6 +166,8 @@ and type_ =
 
   | UserDefinedType of longident
   (** User defined type (see type_definition) *)
+
+  | Optional of type_ list (* freeton *)
 
 and elementary_type =
   | TypeBool
@@ -230,6 +233,8 @@ and raw_statement =
 
   | PlaceholderStatement
   (** Placeholder for modifiers *)
+
+  | RepeatStatement of expression * statement (* freeton *)
 
 
 and expression = raw_expression node
@@ -318,6 +323,7 @@ and number_unit =
   | Days
   | Weeks
   | Years
+  | Ton (* freeton *)
 
 and unary_operator =
   | UPlus

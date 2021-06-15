@@ -210,6 +210,8 @@ let rec visitType (v : #ast_visitor) (t : Solidity_ast.type_) : unit =
         visitFunctionType v f
     | UserDefinedType li ->
         visitNode visitLongIdent v li
+    | Optional tk ->
+        List.iter (visitType v) tk
   in
   handleAction v#visitType continueVisit t
 
@@ -284,7 +286,8 @@ and visitStateVariableDef (v : #ast_visitor) (svd : state_variable_definition) :
         var_visibility;
         var_mutability;
         var_override;
-        var_init
+        var_init;
+        var_static = _;
        } : state_variable_definition) : unit =
     visitNode visitIdent v var_name;
     visitType v var_type;
@@ -404,6 +407,9 @@ and visitStatement (v : #ast_visitor) (s : statement) : unit =
     | Return eo ->
         visitOpt visitExpression v eo
     | Continue | Break | PlaceholderStatement -> ()
+    | RepeatStatement (e, s) ->
+        visitExpression v e;
+        visitStatement v s
   in
   handleAction v#visitStatement continueVisit s
 

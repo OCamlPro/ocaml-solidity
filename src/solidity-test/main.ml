@@ -22,6 +22,8 @@ let disable_typecheck () =
 
 
 let main () =
+  let freeton = ref false in
+
   let arg_list = Arg.align [
       "--version", Arg.Unit (fun () ->
           Format.eprintf "Solidity Parser & Typechecker"; exit 0),
@@ -29,6 +31,9 @@ let main () =
 
       "--no-typecheck", Arg.Unit disable_typecheck,
       " Disable the typechecker";
+
+      "--freeton", Arg.Set freeton,
+      " Parse for freeton";
 
       "--no-postcheck", Arg.Unit disable_postcheck,
       " Disable the postchecker"
@@ -58,7 +63,15 @@ let main () =
       Arg.usage arg_list arg_usage;
       exit 1
   | Some file ->
-      let program = Solidity_parser.parse file in
+      let freeton = !freeton in
+      let program = try
+          Solidity_parser.parse ~freeton file
+        with
+        | Solidity_parser.Parser_error ( file, pos ) ->
+          Printf.eprintf "Error while parsing file in %s at pos %d\n%!"
+            file pos;
+          exit 2
+      in
 
       Format.printf "Parsed code:\n%s@."
         (Solidity_printer.string_of_program program);

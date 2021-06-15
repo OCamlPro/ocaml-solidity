@@ -205,8 +205,11 @@ and end_pragma = parse
       { Buffer.add_string buf (Lexing.lexeme lexbuf);
         end_pragma lexbuf }
 
-{
-  let () =
+ {
+   let initialized = ref false
+let init ~freeton =
+  if not !initialized then begin
+    initialized := true;
     List.iter (fun (kwd, token) ->
         add_keyword kwd token
       ) [ "import", IMPORT;
@@ -269,6 +272,7 @@ and end_pragma = parse
           "catch", CATCH;
           "true", BOOLEANLITERAL (true);
           "false", BOOLEANLITERAL (false);
+          "ton", NUMBERUNIT (Ton);
           "wei", NUMBERUNIT (Wei);
           "gwei", NUMBERUNIT (Gwei);
           "szabo", NUMBERUNIT (Twei);
@@ -281,6 +285,15 @@ and end_pragma = parse
           "weeks", NUMBERUNIT (Weeks);
           "years", NUMBERUNIT (Years);
         ];
-    ()
-
+if freeton then
+    List.iter (fun (kwd, token) ->
+        add_keyword kwd token
+      ) [
+        "static", STATIC;
+        "optional", OPTIONAL;
+        "onBounce", ONBOUNCE;
+        "repeat", REPEAT;
+      ];
+      ()
+  end
 }
