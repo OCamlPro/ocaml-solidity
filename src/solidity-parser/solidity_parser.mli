@@ -10,8 +10,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val init : freeton:bool -> unit
+val parse : ?freeton:bool -> string -> Solidity_ast.program
 
-val reset : unit -> unit
-
-val token : Lexing.lexbuf -> Solidity_raw_parser.token
+exception Parser_error of string * int

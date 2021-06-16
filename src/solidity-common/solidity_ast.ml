@@ -82,6 +82,7 @@ and state_variable_definition = {
   var_mutability : var_mutability; (* def: mutable *)
   var_override : longident list option;
   var_init : expression option;
+  var_static : bool ; (* freeton: default is false *)
 }
 
 and function_definition = {
@@ -120,6 +121,7 @@ and type_ =
   | Mapping of type_ * type_
   | FunctionType of function_type
   | UserDefinedType of longident
+  | Optional of type_ list (* freeton *)
 
 and elementary_type =
   | TypeBool
@@ -155,6 +157,7 @@ and raw_statement =
   | Continue
   | Break
   | PlaceholderStatement
+  | RepeatStatement of expression * statement (* freeton *)
 
 and expression = raw_expression node
 
@@ -238,6 +241,7 @@ and number_unit =
   | Days
   | Weeks
   | Years
+  | Ton (* freeton *)
 
 and unary_operator =
   | UPlus
@@ -390,6 +394,7 @@ let unit_factor unit =
     | Days     -> ExtZ._24x3600
     | Weeks    -> ExtZ._7x24x3600
     | Years    -> ExtZ._365x24x3600
+    | Ton      -> ExtZ._10_9
   in
   Q.of_bigint z
 

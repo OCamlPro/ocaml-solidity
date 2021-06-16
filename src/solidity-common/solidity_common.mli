@@ -56,6 +56,7 @@ module Ident : sig
   val of_string : string -> t
   val printf : Format.formatter -> t -> unit
   val constructor : t
+  val onBounce: t (* freeton *)
   val receive : t
   val fallback : t
 end
@@ -206,3 +207,5 @@ val prim_of_id : int -> primitive option
 val prim_of_ident : Ident.t -> (int * primitive) option
 
 val add_primitive : int -> primitive -> unit
+
+val for_freeton : bool ref

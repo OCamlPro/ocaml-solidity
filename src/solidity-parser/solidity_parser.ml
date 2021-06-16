@@ -13,6 +13,8 @@
 open Solidity_common
 open Solidity_ast
 
+exception Parser_error of string * int
+
 let get_imported_files m =
   let base = Filename.dirname m.module_file in
   List.fold_left (fun fileset unit_node ->
@@ -27,8 +29,11 @@ let parse_module id file =
   let c = open_in file in
   let lb = Lexing.from_channel c in
   let module_units =
-    Solidity_raw_parser.module_units
-      Solidity_lexer.token lb
+    try
+      Solidity_raw_parser.module_units
+        Solidity_lexer.token lb
+    with Solidity_raw_parser.Error ->
+      raise ( Parser_error ( file , Lexing.lexeme_start lb ) )
   in
   close_in c;
   { module_file = file; module_id = Ident.root id; module_units }
@@ -38,7 +43,10 @@ let parse_module id file =
    imported files are added at the end of the input file queue.
    The imports of a file are ordered lexicographically
    before being added to the queue. *)
-let parse file =
+let parse ?(freeton=false) file =
+
+  Solidity_lexer.init ~freeton;
+  Solidity_common.for_freeton := freeton ;
 
   let file = make_absolute_path (Sys.getcwd ()) file in
 

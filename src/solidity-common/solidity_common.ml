@@ -88,6 +88,7 @@ module Ident = struct
   let of_string id = id
   let printf fmt id = Format.fprintf fmt "%s" id
   let constructor = "#"
+  let onBounce = "!"
   let receive = "@"
   let fallback = "*"
 end
@@ -509,3 +510,5 @@ let add_primitive id p =
   end;
   if id > !max_prim_id then
     max_prim_id := id
+
+let for_freeton = ref false

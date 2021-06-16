@@ -15,6 +15,9 @@
   open Solidity_ast
   open Solidity_exceptions
 
+  let freeton () =
+    if not !for_freeton then failwith "freeton feature"
+
   let to_pos pos =
     let open Lexing in
     let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; _ },
@@ -36,6 +39,7 @@
     | Virtual
     | Override of longident list
     | Invocation of longident * expression list option
+    | Static
 
   let add_free_var_modifiers pos var ml =
     let has_mut = ref false in
@@ -73,6 +77,8 @@
               error pos "Override already specified";
             has_over := true;
             { var with var_override = Some ol }
+        | Static ->
+           { var with var_static = true }
         | _ ->
             error pos "Invalid modifier for variable declaration"
       ) var ml
@@ -226,6 +232,10 @@
 %token IS
 %token USING
 %token PUBLIC
+%token STATIC (* freeton *)
+%token OPTIONAL (* freeton *)
+%token ONBOUNCE (* freeton *)
+%token REPEAT  (* freeton *)
 %token PRIVATE
 %token EXTERNAL
 %token INTERNAL
@@ -337,7 +347,7 @@
 (* Some convenience precedences *)
 %nonassoc below_IDENTIFIER
 %nonassoc IDENTIFIER
-%nonassoc FROM CONSTRUCTOR RECEIVE FALLBACK
+%nonassoc FROM CONSTRUCTOR ONBOUNCE RECEIVE FALLBACK
 
 %nonassoc below_mutability
 %nonassoc CONSTANT (* IMMUTABLE PURE VIEW PAYABLE *)
@@ -409,7 +419,8 @@ source_unit:
             var_visibility = VInternal;
             var_mutability = MMutable;
             var_override = None;
-            var_init = $4; } $2)) }
+            var_init = $4;
+            var_static = false; } $2)) }
   | function_descriptor parameters function_modifier*
         returns_opt function_body_opt
       { mk $loc (GlobalFunctionDefinition (add_fun_modifiers $loc {
@@ -477,7 +488,8 @@ contract_part:
             var_visibility = VInternal;
             var_mutability = MMutable;
             var_override = None;
-            var_init = $4; } $2)) }
+            var_init = $4;
+            var_static = false;  } $2)) }
   | ifunction_type_name ivariable_modifiers iidentifier
         ioption(equal_expression) SEMI
       { mk $loc (StateVariableDeclaration (add_var_modifiers $loc {
@@ -486,7 +498,8 @@ contract_part:
             var_visibility = VInternal;
             var_mutability = MMutable;
             var_override = None;
-            var_init = $4; } $2)) }
+            var_init = $4;
+            var_static = false; } $2)) }
   | midrule(MODIFIER { ctxt_modifier := true }) identifier
         loption(parameters) modifier_modifier* function_body_opt
       { ctxt_modifier := false;
@@ -552,6 +565,7 @@ struct_fields:
 function_descriptor:
   | FUNCTION identifier { $2 }
   | CONSTRUCTOR         { mk $loc Ident.constructor }
+  | ONBOUNCE            { freeton() ; mk $loc Ident.constructor }
   | RECEIVE             { mk $loc Ident.receive }
   | FALLBACK            { mk $loc Ident.fallback }
 ;;
@@ -621,6 +635,7 @@ variable_modifiers:
 ;;
 
 variable_modifier:
+  | STATIC             { freeton() ; Static }
   | public_private     { $1 }
   | INTERNAL           { Visibility VInternal }
   | CONSTANT           { VMutability MConstant }
@@ -694,6 +709,8 @@ non_ambiguous_type_name_no_function:
       { ElementaryType ($1) }
   | MAPPING LPAREN type_name EQUALGREATER type_name RPAREN
       { Mapping ($3, $5) }
+  | OPTIONAL LPAREN separated_list(COMMA, type_name) RPAREN
+      { freeton(); Optional ($3) }
   | non_ambiguous_type_name LBRACKET expression? RBRACKET
       { Array ($1, $3) }
 ;;
@@ -809,6 +826,7 @@ statement_no_semi:
   | if_statement    { mk $loc ($1) }
   | for_statement   { mk $loc ($1) }
   | while_statement { mk $loc ($1) }
+  | repeat_statement { freeton() ; mk $loc ($1) }
   | try_statement   { mk $loc ($1) }
   | block           { mk $loc (Block ($1)) }
 ;;
@@ -837,6 +855,10 @@ for_statement:
 
 while_statement:
   | WHILE LPAREN expression RPAREN statement { WhileStatement ($3, $5) }
+;;
+
+repeat_statement:
+  | REPEAT LPAREN expression RPAREN statement { RepeatStatement ($3, $5) }
 ;;
 
 (* For now, Solidity only accepts very specific catch clauses.
@@ -1073,6 +1095,10 @@ name_value_nonempty_list:
 
 name_value:
   | identifier COLON expression { ($1, $3) }
+  | identifier COLON LBRACE name_value_nonempty_list RBRACE
+      { freeton() ;
+        ($1, mk $loc ( CallOptions ( mk $loc ( BooleanLiteral false ),
+                                     $4)) ) }
 
 (* There is an ambiguity in the following expression:
      (exp)
@@ -1106,6 +1132,7 @@ identifier_raw:
   | IDENTIFIER  { $1 }
   | FROM        { Ident.of_string "from" }
   | CONSTRUCTOR { Ident.of_string "constructor" }
+  | ONBOUNCE    { freeton() ; Ident.of_string "onBounce" }
   | RECEIVE     { Ident.of_string "receive" }
   | FALLBACK    { Ident.of_string "fallback" }
 (*  | ADDRESS     { "address" } *)  (* The official grammar allows these two
