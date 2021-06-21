@@ -3,7 +3,7 @@
 (name ocaml-solidity)
 (allow_approximate_merlin)
 (generate_opam_files false)
-(version 0.2.0)
+(version 0.2.1)
 (formatting (enabled_for ocaml reason))
 (using menhir 2.0)
 
@@ -17,7 +17,8 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 
 (package
  (name ez_hash)
@@ -30,7 +31,8 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 
 (package
  (name solidity-common)
@@ -45,7 +47,8 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 
 (package
  (name solidity-parser)
@@ -60,7 +63,8 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 
 (package
  (name solidity-typechecker)
@@ -76,7 +80,8 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 
 (package
  (name solidity-test)
@@ -91,7 +96,8 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 
 (package
  (name solidity-alcotest)
@@ -107,5 +113,6 @@
    ppx_expect
    odoc
    ocamlformat
- ))
+  )
+ )
 

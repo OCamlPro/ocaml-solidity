@@ -463,6 +463,11 @@ and statement b indent s =
   | RepeatStatement (e, body) ->
       bprint b indent (Format.sprintf "repeat (%s)" (string_of_expression e));
       statement b (indent + 2) body
+  | ForRangeStatement (vd, s2) ->
+      bprint b indent
+        ( Printf.sprintf "for ( %s )"
+            (string_of_variable_definition vd)) ;
+      statement b (indent + 2) s2
 
 and string_of_expression_option = function
   | None -> ""

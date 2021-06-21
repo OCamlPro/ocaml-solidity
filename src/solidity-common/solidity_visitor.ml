@@ -410,6 +410,9 @@ and visitStatement (v : #ast_visitor) (s : statement) : unit =
     | RepeatStatement (e, s) ->
         visitExpression v e;
         visitStatement v s
+    | ForRangeStatement (vd, s2) ->
+        visitVariableDef v vd ;
+        visitStatement v s2
   in
   handleAction v#visitStatement continueVisit s
 

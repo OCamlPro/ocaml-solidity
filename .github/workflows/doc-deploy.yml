@@ -37,6 +37,7 @@ jobs:
         if: steps.cache-opam.outputs.cache-hit != 'true'
       - run: opam upgrade --fixup
         if: steps.cache-opam.outputs.cache-hit == 'true'
+
       - name: build-doc
         run: |
           make doc
