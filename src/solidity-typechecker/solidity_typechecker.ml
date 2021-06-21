@@ -980,6 +980,7 @@ let rec type_statement opt env s =
       type_statement { opt with in_loop = true } env s
 
   | RepeatStatement (_e, _s) -> assert false (* freeton TODO *)
+  | ForRangeStatement _ -> assert false (* freeton TODO *)
 
   | DoWhileStatement (s, e) ->
       type_statement { opt with in_loop = true } env s;

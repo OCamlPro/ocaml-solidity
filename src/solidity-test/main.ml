@@ -93,8 +93,11 @@ let () =
     main ()
   with
   | Solidity_common.GenericError (s) ->
-      Format.printf "Generic error: %s@." s
+      Format.printf "Generic error: %s@." s;
+      exit 2
   | Solidity_exceptions.SyntaxError (s, ((c1,l1),(c2,l2))) ->
-      Format.printf "Syntax error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s
+      Format.printf "Syntax error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s;
+      exit 2
   | Solidity_exceptions.TypecheckError (s, ((c1,l1),(c2,l2))) ->
-      Format.printf "Typecheck error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s
+      Format.printf "Typecheck error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s;
+      exit 2

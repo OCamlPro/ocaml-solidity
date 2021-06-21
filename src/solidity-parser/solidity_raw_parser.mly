@@ -850,7 +850,10 @@ if_statement:
 for_statement:
   | FOR LPAREN simple_statement? SEMI expression?
         SEMI expression? RPAREN statement
-      { ForStatement ($3, $5, $7, $9) }
+        { ForStatement ($3, $5, $7, $9) }
+  | FOR LPAREN variable_declaration_opt_list COLON expression RPAREN
+      statement
+        { ForRangeStatement ( VarType ($3, Some $5), $7) }
 ;;
 
 while_statement:
@@ -1092,13 +1095,29 @@ function_call_arguments:
 
 name_value_nonempty_list:
   | separated_or_terminated_nonempty_list(COMMA, name_value) { $1 }
+;;
 
 name_value:
   | identifier COLON expression { ($1, $3) }
-  | identifier COLON LBRACE name_value_nonempty_list RBRACE
+  | identifier COLON LBRACE identifier COLON expression
+      maybe_name_value_nonempty_list RBRACE
       { freeton() ;
-        ($1, mk $loc ( CallOptions ( mk $loc ( BooleanLiteral false ),
-                                     $4)) ) }
+        ($1, mk $loc ( CallOptions ( mk $loc @@ StringLiteral "stateInit" ,
+                                     ($4,$6) :: $7 )) )
+      }
+  | identifier COLON LBRACE expression_list RBRACE
+      { freeton() ;
+        ($1, mk $loc @@ CallOptions (
+                            mk $loc @@ StringLiteral "call" ,
+                            [ mk $loc @@ Ident.of_string "args" ,
+                              mk $loc @@ ImmediateArray $4 ] ))
+      }
+;;
+
+maybe_name_value_nonempty_list:
+  { [] }
+  | COMMA name_value_nonempty_list { $2 }
+;
 
 (* There is an ambiguity in the following expression:
      (exp)
