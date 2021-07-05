@@ -10,9 +10,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type pos = (int * int) * (int * int)
+type pos = string * (int * int) * (int * int)
 
-let dummy_pos = (-1, -1), (-1, -1)
+let dummy_pos = "", (-1, -1), (-1, -1)
 
 exception GenericError of string
 
@@ -432,19 +432,41 @@ let strip n =
 let get_annot n =
   n.annot
 
+let string_of_pos (file, pos1, pos2)  =
+  let source =
+    try
+      let line1 = fst pos1 in
+      let line2 = fst pos2 in
+      let lines = EzFile.read_lines file in
+      let b = Buffer.create 1000 in
+      Array.iteri (fun l line ->
+          let l = l+1 in
+          if l >= line1 - 3 && l < line2 + 3 then
+            Printf.bprintf b "%4d %c %s\n" l
+              (if l>=line1 && l<=line2 then '>' else ' ')
+              line
+        ) lines;
+      Buffer.contents b
+    with _ -> ""
+  in
+  Printf.sprintf "%s:%d-%d:%d-%d"
+    file
+    (fst pos1) (snd pos1)
+    (fst pos2) (snd pos2),
+  source
+
 let set_annot n annot =
   match n.annot with
   | ANone -> n.annot <- annot
-  | _ -> error "Node annotation already set at (%d,%d - %d,%d)"
-           (fst (fst n.pos)) (snd (fst n.pos))
-           (fst (snd n.pos)) (snd (snd n.pos))
+  | _ ->
+      let loc, source = string_of_pos n.pos in
+      error "%sNode annotation already set at %s" source loc
 
 let replace_annot n annot =
   match n.annot with
   | ANone ->
-      error "Node annotation not set at (%d,%d - %d,%d)"
-        (fst (fst n.pos)) (snd (fst n.pos))
-        (fst (snd n.pos)) (snd (snd n.pos))
+      let loc, source = string_of_pos n.pos in
+      error "%sNode annotation not set at %s" source loc
   | _ -> n.annot <- annot
 
 
@@ -481,7 +503,7 @@ type primitive = {
   prim_kind : primitive_kind;
 }
 
-let max_primitives = 64
+let max_primitives = 256
 let max_prim_id = ref 0
 
 let prim_by_id = Array.make (max_primitives + 1) None

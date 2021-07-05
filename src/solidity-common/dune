@@ -4,7 +4,7 @@
   (name solidity_common)
   (public_name solidity-common)
   (wrapped false)
-  (libraries zarith hex fileutils )
+  (libraries zarith hex fileutils ez_file )
   
   
   )

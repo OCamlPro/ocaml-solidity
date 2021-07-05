@@ -20,12 +20,19 @@ let string_of_location = function
   | LStorage (true) ->  "storage pointer"
   | LCalldata ->        "calldata"
 
+
+let string_of_abstract_type = function
+  | TvmCell -> "TvmCell"
+  | TvmSlice -> "TvmSlice"
+  | TvmBuilder -> "TvmBuilder"
+
 let rec string_of_magic_type = function
   | TMetaType (t) -> Format.sprintf "type(%s)" (string_of_type t)
   | TMsg ->   "msg"
   | TBlock -> "block"
   | TTx ->    "tx"
   | TAbi ->   "msg"
+  | TTvm ->   "tvm"
 
 and string_of_type = function
   | TBool ->
@@ -102,6 +109,13 @@ and string_of_type = function
              | Some (t) -> string_of_type t
              | None -> "") tl))
 
+  | TAbstract abstract_type -> string_of_abstract_type abstract_type
+  | TOptional t ->
+      Printf.sprintf "optional(%s)"
+        (string_of_type t)
+  | TAny -> "'a"
+  | TDots -> ".."
+
 and string_of_param_list pl =
   String.concat "," (List.map (fun (t, _) -> string_of_type t) pl)
 
@@ -174,5 +188,13 @@ let string_of_type_canonical pos ~library t =
     | TRationalConst (_)
     | TLiteralString (_) ->
         error pos "Internal type can not be canonized"
+
+
+    | TAbstract abstract_type -> string_of_abstract_type abstract_type
+    | TOptional t ->
+        Printf.sprintf "optional(%s)"
+          ( aux seen t )
+    | TAny -> assert false
+    | TDots -> assert false
   in
   aux AbsLongIdentSet.empty t

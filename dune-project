@@ -43,6 +43,7 @@
    zarith
    (hex ( >= 1 ))
    (fileutils ( >= 0.6 ))
+   (ez_file ( >= 0.1 ))
    ppx_inline_test
    ppx_expect
    odoc

@@ -148,6 +148,11 @@ and location =
   | LStorage of bool (* false = ref, true = pointer *)
   | LCalldata (* is always a reference *)
 
+and abstract_type =
+  | TvmCell
+  | TvmSlice
+  | TvmBuilder
+
 and type_ =
   | TBool
   | TInt of int
@@ -164,6 +169,10 @@ and type_ =
   | TArray of type_ * Z.t option * location
   | TMapping of type_ * type_ * location (* storage ref or storage pointer *)
   | TFunction of function_desc * function_options
+  | TAbstract of abstract_type
+  | TOptional of type_
+  | TAny (* one argument, but anything *)
+  | TDots (* any number of arguments, and anything *)
 
   (* Internal use only *)
   | TModifier of modifier_desc
@@ -182,7 +191,7 @@ and magic_type =
   | TMsg (* type of the 'msg' object *)
   | TTx (* type of the 'tx' object *)
   | TAbi (* type of the 'abi' object *)
-
+  | TTvm (* type of the 'tvm' object *)
 
 
 (* source_unit (Import) *)

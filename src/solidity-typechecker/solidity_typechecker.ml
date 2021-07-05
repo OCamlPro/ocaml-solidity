@@ -30,7 +30,7 @@ let default_options = {
 
 let binop_type pos op t1 t2 : type_ =
   let error_incompat () =
-    error pos "Operator %s not compatible with types %s and %s"
+    error pos "Operator %S not compatible with types %S and %S"
       (Solidity_printer.string_of_binop op)
       (Solidity_type_printer.string_of_type t1)
       (Solidity_type_printer.string_of_type t2)
@@ -70,7 +70,7 @@ let binop_type pos op t1 t2 : type_ =
 
 let unop_type pos op t : type_ =
   let error_incompat () =
-    error pos "Unary operator %s cannot be applied to type %s"
+    error pos "Unary operator %S cannot be applied to type %S"
       (Solidity_printer.string_of_unop op)
       (Solidity_type_printer.string_of_type t)
   in
@@ -94,7 +94,7 @@ let unop_type pos op t : type_ =
       let mt = Solidity_type_conv.mobile_type pos t in
       begin
         match mt with
-        | TInt _ | TUint _ | TFixed _ | TUfixed _ -> mt
+        | TInt _ | TUint _ | TFixed _ | TUfixed _  -> mt
         | _ -> error_incompat ()
       end
   | TBool, ULNot ->
@@ -132,7 +132,7 @@ let immediate_array_element_type pos tl : type_ =
             invariant_broken __LOC__
         | (TTuple _ | TArraySlice _ | TFunction _ |
            TModifier _ | TEvent _ | TType _ | TMagic _) as t ->
-            error pos "Type %s is only valid in storage"
+            error pos "Type %S is only valid in storage"
               (Solidity_type_printer.string_of_type t)
         | t ->
             (* Note: always LMemory, even when initializing state variables *)
@@ -146,8 +146,8 @@ let nb_args = function
 let check_argument_type pos kind ~expected ~provided =
   if not (Solidity_type_conv.implicitly_convertible
             ~from:provided ~to_:expected ()) then
-    error pos "Invalid type for argument in %s. \
-               Invalid implicit conversion from %s to %s requested" kind
+    error pos "Invalid type for argument in %S. \
+               Invalid implicit conversion from %S to %S requested" kind
       (Solidity_type_printer.string_of_type provided)
       (Solidity_type_printer.string_of_type expected)
 
@@ -155,17 +155,39 @@ let check_function_application pos kind fp args =
   let nb_args_expected = List.length fp in
   let nb_args_provided = nb_args args in
   (* Note: named arguments in ANamed ntl are unique (checked previously) *)
-  if nb_args_provided <> nb_args_expected then
-    error pos "Wrong argument count for %s: \
+  let has_dots = List.exists (function
+        (TDots, _ ) -> true
+      | _ -> false) fp in
+  if nb_args_provided <> nb_args_expected  &&
+     ( not has_dots || nb_args_expected > nb_args_provided )then
+    error pos "Wrong argument count for %S: \
                %d arguments given but expected %d"
       kind nb_args_provided nb_args_expected
   else
     begin
       match args with
       | AList (tl) ->
-          List.iter2 (fun (ft, _id_opt) at ->
-              check_argument_type pos kind ~expected:ft ~provided:at
-            ) fp tl
+          if has_dots then
+            let rec iter fp tl =
+              match fp, tl with
+              | (ft, _id_opt) :: fp, at :: tl ->
+                  begin
+                    match ft with
+                    | TDots -> ()
+                    | TAny ->
+                        iter fp tl
+                    | _ ->
+                        check_argument_type pos kind ~expected:ft ~provided:at;
+                        iter fp tl
+                  end
+              | [], [] -> ()
+              | _ -> assert false
+            in
+            iter fp tl
+          else
+            List.iter2 (fun (ft, _id_opt) at ->
+                check_argument_type pos kind ~expected:ft ~provided:at
+              ) fp tl
       | ANamed (ntl) ->
           List.iter (fun (fid, at) ->
               match List.find_opt (fun (_ft, id_opt) ->
@@ -175,17 +197,22 @@ let check_function_application pos kind fp args =
               | Some (ft, _id_opt) ->
                   check_argument_type pos kind ~expected:ft ~provided:at
               | None ->
-                  error pos "Named argument \"%s\" does not \
+                  error pos "Named argument %S does not \
                              match function declaration"
                     (Ident.to_string fid)
             ) ntl
     end
 
 let compatible_function_type (fd : function_desc) args  =
-  let nb_args_expected = List.length fd.function_params in
   let nb_args_provided = nb_args args in
+  let nb_args_expected = List.length fd.function_params in
+  let has_dots = List.exists (function
+        (TDots, _ ) -> true
+      | _ -> false) fd.function_params in
   (* Note: named arguments in ANamed ntl are unique (checked previously) *)
-  if nb_args_provided <> nb_args_expected then
+  if nb_args_provided <> nb_args_expected &&
+     ( not has_dots || nb_args_expected > nb_args_provided )
+  then
     false
   else
     begin
@@ -303,8 +330,8 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
     | None ->
         (* No result *)
         (fun () ->
-          error pos "Undeclared identifier: %s" (Ident.to_string id)),
-(*        error "Undeclared identifier. \"%s\" is not (or not yet) \
+          error pos "Undeclared identifier: %S" (Ident.to_string id)),
+(*        error "Undeclared identifier. %S is not (or not yet) \
                  visible at this point" (Ident.to_string id)) *)
         (* Multiple results and no args given (resolution impossible) *)
         (fun () ->
@@ -321,13 +348,13 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
     | Some (t) ->
         (* No result or multiple results and no match *)
         let err_notfound () =
-          error pos "Member %s not found or not visible after \
+          error pos "Member %S not found or not visible after \
                      argument-dependent lookup in %s" (Ident.to_string id)
             (Solidity_type_printer.string_of_type t)
         in
         (* Multiple results and no args or multiple match *)
         let err_notunique () =
-          error pos "Member %s not unique after argument-dependent \
+          error pos "Member %S not unique after argument-dependent \
                      lookup in %s" (Ident.to_string id)
             (Solidity_type_printer.string_of_type t)
         in
@@ -846,6 +873,10 @@ and type_expression_lv opt env exp : type_ * bool =
            TAddress _ | TFixBytes _ | TBytes _ | TString _ |
            TEnum _ | TStruct _ | TContract _ | TArray _ | TMapping _ |
            TTuple _ | TModifier _ | TArraySlice _ | TMagic _ | TModule _
+
+          | TAbstract _
+          | TOptional _
+          | TAny | TDots
           ), _ ->
             error pos "Type is not callable"
       end
@@ -859,10 +890,12 @@ and type_expression_lv opt env exp : type_ * bool =
                 let id = strip id in
                 let fo, already_set =
                   match Ident.to_string id, fo.kind with
-                  | "value", KExtContractFun when not is_payable ->
+                  | "value", KExtContractFun when
+                      not !for_freeton && not is_payable ->
                       error pos "Cannot set option \"value\" \
                                  on a non-payable function type"
-                  | "value", KNewContract when not is_payable ->
+                  | "value", KNewContract when
+                      not !for_freeton && not is_payable ->
                       error pos "Cannot set option \"value\", since the \
                                  constructor of contract is non-payable"
                   | "value", (KExtContractFun | KNewContract) ->
@@ -882,6 +915,11 @@ and type_expression_lv opt env exp : type_ * bool =
                       error pos "Function call option \"%s\" can \
                                  only be used with \"new\""
                         (Ident.to_string id);
+                  | "flag", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 8);
+                      fo, false (* TODO *)
+                  | "varInit", KNewContract when !for_freeton ->
+                      fo, false (* TODO *)
                   | _, KOther ->
                       error pos "Function call options can only be set on \
                                  external function calls or contract creations"
@@ -1142,7 +1180,10 @@ let rec type_statement opt env s =
                       Option.iter (fun (t', _var_name) ->
                           if not (Solidity_type_conv.implicitly_convertible
                                     ~from:t ~to_:t' ()) then
-                            error pos "Incompatible types in assignment"
+                            error pos
+                              "Incompatible types in assignment: %S expected, got %S"
+                              ( Solidity_type_printer.string_of_type t')
+                              ( Solidity_type_printer.string_of_type t )
                         ) var_decl_opt
                     ) var_decl_list tl
               ) exp_opt;
@@ -1629,13 +1670,15 @@ let preprocess_contract_definitions cd =
                 error pos "Constructor must be implemented if declared";
               if fd.fun_virtual then
                 error pos "Constructors cannot be virtual";
-              if is_private || is_external then
+              if not !for_freeton &&
+                 ( is_private || is_external ) then
                 error pos "Constructor cannot have visibility";
               if is_internal && not contract_abstract then
                 error pos "Non-abstract contracts cannot have internal \
                            constructors. Remove the \"internal\" keyword \
                            and make the contract abstract to fix this";
-              if not (is_payable fd.fun_mutability ||
+              if not !for_freeton &&
+                 not (is_payable fd.fun_mutability ||
                       is_nonpayable fd.fun_mutability) then
                 error pos "Constructor must be payable or \
                            non-payable, but is \"%s\""
@@ -1645,7 +1688,9 @@ let preprocess_contract_definitions cd =
             begin
               if not is_external then
                 error pos "Fallback function must be defined as \"external\"";
-              if not (is_payable fd.fun_mutability ||
+              if
+                not !for_freeton &&
+                not (is_payable fd.fun_mutability ||
                       is_nonpayable fd.fun_mutability) then
                 error pos "Fallback function must be payable or \
                            non-payable, but is \"%s\""
@@ -1656,7 +1701,9 @@ let preprocess_contract_definitions cd =
               if not is_external then
                 error pos "Receive ether function must be \
                            defined as \"external\"";
-              if is_receive && not (is_payable fd.fun_mutability) then
+              if
+                not !for_freeton &&
+                is_receive && not (is_payable fd.fun_mutability) then
                 error pos "Receive ether function must be \
                            payable, but is \"%s\""
                   (Solidity_printer.string_of_fun_mutability fd.fun_mutability)
