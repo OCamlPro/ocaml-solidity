@@ -138,6 +138,11 @@ let elementary_type_to_type ~loc : Solidity_ast.elementary_type -> type_ =
       TBytes (loc)
   | TypeString ->
       TString (loc)
+  | TypeAbstract "TvmCell" -> TAbstract TvmCell
+  | TypeAbstract "TvmSlice" -> TAbstract TvmSlice
+  | TypeAbstract "TvmBuilder" -> TAbstract TvmBuilder
+  | TypeAbstract s ->
+      Printf.kprintf failwith "Unknown abstract type %S in Solidity_type_builder.elementary_type_to_type" s
 
 let rec ast_type_to_type pos ~loc env = function
   | ElementaryType (et) ->
@@ -152,15 +157,22 @@ let rec ast_type_to_type pos ~loc env = function
       in
       set_annot lid (AType t);
       t
-  | Optional _tk -> assert false (* freeton TODO *)
+  | Optional tk ->
+      TOptional (
+        match tk with
+          [ t ] -> ast_type_to_type pos ~loc env t
+        | _ ->
+            TTuple ( List.map (fun t ->
+                Some (ast_type_to_type pos ~loc env t )) tk )
+      )
   | Mapping (tk, tv) ->
       begin
         match loc with
-        | LMemory | LCalldata ->
+        | ( LMemory | LCalldata ) when not !for_freeton ->
             error pos "Mapping types can only have a data location of \
                        \"storage\" and thus only be parameters or return \
                        variables for internal or library functions"
-        | LStorage (_ptr) ->
+        | _ ->
             (* Mapping keys are always in memory
                Mapping values are always in storage *)
             TMapping (ast_type_to_type pos ~loc:LMemory env tk,
@@ -182,7 +194,7 @@ and var_type_to_type pos env ~arg ~ext loc_opt t =
   let loc =
     storage_location_to_location (Option.value ~default:Memory loc_opt) in
   let t = ast_type_to_type pos ~loc env t in
-  begin
+  if not !for_freeton then begin
     if Solidity_type.is_reference_type t then
       begin
         let valid =
@@ -208,7 +220,7 @@ and var_type_to_type pos env ~arg ~ext loc_opt t =
           error pos "Data location must be %s for %s, \
                      but %s was given" expected context given
         else if Solidity_type.has_mapping t &&
-                  not (Solidity_type.is_storage_type t) then
+                not (Solidity_type.is_storage_type t) then
           error pos "Type %s is only valid in storage because \
                      it contains a (nested) mapping"
             (Solidity_type_printer.string_of_type t)

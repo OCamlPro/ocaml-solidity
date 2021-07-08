@@ -2,7 +2,7 @@
 
 # hash of toml configuration files
 # used for generation of all files
-6129e6083e0aa1e9580e4eff16bdb4a7:.
+d705786393394d3357aebc9d0cc4e389:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
@@ -37,7 +37,7 @@ a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
 
 # begin context for CHANGES.md
 # file CHANGES.md
-cfc1e764d3bea8481775bb5aea656548:CHANGES.md
+913c99f89bd93241d8526e4663264b34:CHANGES.md
 # end context for CHANGES.md
 
 # begin context for LICENSE.md
@@ -97,7 +97,7 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-42b0e4e73dbee143dea2707e76ef49db:dune-project
+8ee8427924fdf39cf419b56c5a189411:dune-project
 # end context for dune-project
 
 # begin context for ez_hash.opam
@@ -127,7 +127,7 @@ bb3a9d286f0dc64021db4194427263ee:scripts/copy-bin.sh
 
 # begin context for solidity-common.opam
 # file solidity-common.opam
-d67e8d0c3e4eed63819bf8e6ae3d3f47:solidity-common.opam
+8aad4acf8e9550faf99ebc56ddfebd3b:solidity-common.opam
 # end context for solidity-common.opam
 
 # begin context for solidity-parser.opam
@@ -202,7 +202,7 @@ a0e4c5048a57372e17c6538cce723047:src/solidity-alcotest/version.mlt
 
 # begin context for src/solidity-common/dune
 # file src/solidity-common/dune
-b8bd14a852475c8f4d8d7c5e9da2bab3:src/solidity-common/dune
+879ab16373594b6c1d79de3a446f86de:src/solidity-common/dune
 # end context for src/solidity-common/dune
 
 # begin context for src/solidity-common/index.mld

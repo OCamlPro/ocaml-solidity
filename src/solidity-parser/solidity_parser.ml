@@ -25,9 +25,16 @@ let get_imported_files m =
       | _ -> fileset
     ) StringSet.empty m.module_units
 
+(* should be replaced by Lexing.set_filename after 4.10 is deprecated *)
+let set_filename lexbuf filename =
+  let open Lexing in
+  let lex_curr_p = lexbuf.lex_curr_p in
+  lexbuf.lex_curr_p <- { lex_curr_p with pos_fname = filename }
+
 let parse_module id file =
   let c = open_in file in
   let lb = Lexing.from_channel c in
+  set_filename lb file ;
   let module_units =
     try
       Solidity_raw_parser.module_units

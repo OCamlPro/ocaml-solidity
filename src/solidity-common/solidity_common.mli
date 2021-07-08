@@ -10,7 +10,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type pos = (int * int) * (int * int)
+type pos = string * (int * int) * (int * int)
 
 val dummy_pos : pos
 
@@ -209,3 +209,5 @@ val prim_of_ident : Ident.t -> (int * primitive) option
 val add_primitive : int -> primitive -> unit
 
 val for_freeton : bool ref
+
+val string_of_pos : pos -> string * string

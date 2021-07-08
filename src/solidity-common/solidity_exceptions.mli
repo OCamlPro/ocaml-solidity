@@ -137,3 +137,5 @@ val invariant_broken : string -> 'a
 
 val type_error :
   pos -> ('a, Format.formatter, unit, unit, unit, 'b) format6 -> 'a
+
+val string_of_exn : exn -> string

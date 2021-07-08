@@ -116,7 +116,7 @@ let string_of_elementary_type = function
       "bytes"
   | TypeBytes (Some size)->
       Format.sprintf "bytes%d" size
-
+  | TypeAbstract s -> s
 
 
 let string_of_ident id =

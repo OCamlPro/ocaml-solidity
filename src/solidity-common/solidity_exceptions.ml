@@ -52,3 +52,26 @@ let invariant_broken s =
 
 let type_error pos fmt =
   Format.kasprintf (fun s -> raise (TypecheckError (s, pos))) fmt
+
+let string_of_exn = function
+  | Solidity_common.GenericError (s) ->
+      Printf.sprintf "Generic error: %s" s
+  | SyntaxError (s, pos) ->
+      let loc, source = Solidity_common.string_of_pos pos in
+      Format.sprintf "%s:\nSyntax error: %s\n%s" loc s source
+  | TypecheckError (s, pos ) ->
+      let loc, source = Solidity_common.string_of_pos pos in
+      Printf.sprintf "%s:\nType error: %s\n%s" loc s source
+  | ForbiddenCall (id1, mut1,
+                   id2, mut2, pos ) ->
+      let loc, source = Solidity_common.string_of_pos pos in
+      Printf.sprintf
+        "%s:\nType error: Forbidden Call %S %s to %S %s\n%s"
+        loc
+        ( Ident.to_string id1 )
+        ( Solidity_printer.string_of_fun_mutability mut1 )
+        ( Ident.to_string id2 )
+        ( Solidity_printer.string_of_fun_mutability mut2 )
+        source
+  | exn ->
+      Printexc.to_string exn

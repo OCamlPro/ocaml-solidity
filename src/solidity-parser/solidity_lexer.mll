@@ -17,11 +17,11 @@
 
   let to_loc loc =
     let open Lexing in
-    let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; _ },
+    let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; pos_fname; _ },
          { pos_lnum = l2; pos_bol = b2; pos_cnum = c2; _ }) = loc in
     let c1 = c1 - b1 in
     let c2 = c2 - b2 in
-    ((l1, c1), (l2, c2))
+    pos_fname, (l1, c1), (l2, c2)
 
   let error lexbuf fmt =
     Format.kasprintf (fun s ->

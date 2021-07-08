@@ -20,14 +20,15 @@
 
   let to_pos pos =
     let open Lexing in
-    let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; _ },
+    let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; pos_fname; _ },
          { pos_lnum = l2; pos_bol = b2; pos_cnum = c2; _ }) = pos in
     let c1 = c1 - b1 in
     let c2 = c2 - b2 in
     let l1 = min l1 65535 in
     let l2 = min l2 65535 in
     let c1 = min c1 255 in
-    let c2 = min c2 255 in ((l1, c1), (l2, c2))
+    let c2 = min c2 255 in
+    pos_fname, (l1, c1), (l2, c2)
 
   let error pos fmt =
     Format.kasprintf (fun s -> raise (SyntaxError (s, to_pos pos))) fmt
@@ -173,7 +174,8 @@
     | x :: y ->
         let e = expression_of_identifiers y in
 	let pos = match x.pos, e.pos with
-          | ((l1, c1), _), (_, (l2, c2)) -> ((l1, c1), (l2, c2))
+          | (file, (l1, c1), _), (_, _, (l2, c2)) ->
+             file, (l1, c1), (l2, c2)
         in
         { contents = FieldExpression (e, x); annot = ANone; pos }
 
@@ -187,9 +189,20 @@
   let rec type_name_of_ambiguity a =
     match a.contents with
     | AmbiguousIdentifier l ->
-        let contents =
-          LongIdent.of_ident_list_rel (List.map (fun id -> id.contents) l) in
-        UserDefinedType { a with contents }
+       begin
+         match List.map (fun id -> id.contents) l with
+         | [ id ] when !for_freeton
+                       && ( match Ident.to_string id with
+                            | "TvmCell"
+                            | "TvmBuilder"
+                            | "TvmSlice"-> true
+                            | _ -> false ) ->
+            ElementaryType ( TypeAbstract ( Ident.to_string id ) )
+         | list ->
+            let contents =
+              LongIdent.of_ident_list_rel list in
+            UserDefinedType { a with contents }
+       end
     | AmbiguousArray (a, expo) ->
         Array (type_name_of_ambiguity a, expo)
 
@@ -215,6 +228,10 @@
 
   let is_placeholder { contents; _ } =
     String.equal (Ident.to_string contents) "_"
+
+  let make_ident_expr loc name =
+    mk loc @@ IdentifierExpression
+                 ( mk loc @@ Ident.of_string name )
 
   let ctxt_modifier = ref false
   let ctxt_interface = ref false
@@ -1030,8 +1047,8 @@ inc_dec_op:
   | MINUSMINUS { UDec }
 
 unop:
-  | BANG   { UNot }
-  | NOT    { ULNot }
+  | BANG   { ULNot }
+  | NOT    { UNot }
   | PLUS   { UPlus }
   | MINUS  { UMinus }
   | DELETE { UDelete }
@@ -1097,18 +1114,19 @@ name_value_nonempty_list:
   | separated_or_terminated_nonempty_list(COMMA, name_value) { $1 }
 ;;
 
+
 name_value:
   | identifier COLON expression { ($1, $3) }
   | identifier COLON LBRACE identifier COLON expression
       maybe_name_value_nonempty_list RBRACE
       { freeton() ;
-        ($1, mk $loc ( CallOptions ( mk $loc @@ StringLiteral "stateInit" ,
+        ($1, mk $loc ( CallOptions ( make_ident_expr $loc "@stateInit" ,
                                      ($4,$6) :: $7 )) )
       }
   | identifier COLON LBRACE expression_list RBRACE
       { freeton() ;
         ($1, mk $loc @@ CallOptions (
-                            mk $loc @@ StringLiteral "call" ,
+                            make_ident_expr $loc "@call",
                             [ mk $loc @@ Ident.of_string "args" ,
                               mk $loc @@ ImmediateArray $4 ] ))
       }

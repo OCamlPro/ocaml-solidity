@@ -64,7 +64,7 @@ let main () =
       exit 1
   | Some file ->
       let freeton = !freeton in
-      let program = try
+      let program : Solidity_ast.program = try
           Solidity_parser.parse ~freeton file
         with
         | Solidity_parser.Parser_error ( file, pos ) ->
@@ -76,7 +76,7 @@ let main () =
       Format.printf "Parsed code:\n%s@."
         (Solidity_printer.string_of_program program);
 
-      let program =
+      let program : Solidity_ast.program =
         if !typecheck then
           Solidity_typechecker.type_program program
         else
@@ -92,12 +92,6 @@ let () =
   try
     main ()
   with
-  | Solidity_common.GenericError (s) ->
-      Format.printf "Generic error: %s@." s;
-      exit 2
-  | Solidity_exceptions.SyntaxError (s, ((c1,l1),(c2,l2))) ->
-      Format.printf "Syntax error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s;
-      exit 2
-  | Solidity_exceptions.TypecheckError (s, ((c1,l1),(c2,l2))) ->
-      Format.printf "Typecheck error at ((%d,%d)-(%d,%d)): %s@." c1 l1 c2 l2 s;
+  | exn ->
+      Printf.eprintf "%s%!" ( Solidity_exceptions.string_of_exn exn );
       exit 2

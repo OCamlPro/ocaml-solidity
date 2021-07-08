@@ -132,6 +132,7 @@ and elementary_type =
   | TypeAddress of bool (* false = address, true = address payable *)
   | TypeBytes of int option (* None = bytes, Some (N) = bytesN *)
   | TypeString
+  | TypeAbstract of string
 
 and function_type = {
   fun_type_params : param list;

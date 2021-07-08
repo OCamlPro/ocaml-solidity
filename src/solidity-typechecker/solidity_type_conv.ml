@@ -70,6 +70,7 @@ let valid_utf8_string s =
 (* Check whether implicit conversion can occur between two types *)
 let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   match from, to_ with
+  | _, TAny -> true
   | TUint (size1), TInt (size2) ->
       size1 < size2
   | TUint (size1), TUint (size2)
@@ -104,6 +105,8 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
       (String.length s <= sz)
   | TAddress (true), TAddress (_payable) ->
       true
+  | TAddress (false), TAddress (_payable) when !for_freeton ->
+      true
   | TContract (_, derived, _), TContract (base, _, _) ->
       List.exists (fun (derived, _) ->
           LongIdent.equal derived base) derived.contract_hierarchy
@@ -117,11 +120,17 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
       (ignore_loc || convertible_location ~from:loc1 ~to_:loc2) &&
        implicitly_convertible ~ignore_loc ~from ~to_ ()
   | TMapping (tk1, tv1, loc1), TMapping (tk2, tv2, loc2) ->
-      (ignore_loc || is_storage loc1 && is_storage_ptr loc2) &&
+      (ignore_loc ||
+       ( !for_freeton ||
+         ( is_storage loc1 && is_storage_ptr loc2 ) )
+      ) &&
        implicitly_convertible ~ignore_loc ~from:tk1 ~to_:tk2 () &&
        implicitly_convertible ~ignore_loc ~from:tv1 ~to_:tv2 ()
   | TTuple (tl1), TTuple (tl2) ->
       implicitly_convertible_ol ~ignore_loc ~from:tl1 ~to_:tl2 ()
+  | TOptional t1, TOptional t2 ->
+      implicitly_convertible ~ignore_loc ~from:t1 ~to_:t2 ()
+  | TUint _, TBytes _ -> true
   | _ ->
       Solidity_type.same_type from to_
 

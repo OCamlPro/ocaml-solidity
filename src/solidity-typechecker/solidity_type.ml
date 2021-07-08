@@ -103,6 +103,8 @@ let rec same_type ?(ignore_loc=false) t1 t2 =
       String.equal s1 s2
   | TTuple (tl1), TTuple (tl2) ->
       same_type_ol ~ignore_loc tl1 tl2
+  | TAbstract t1, TAbstract t2 -> t1 = t2
+  | TOptional t1, TOptional t2 -> same_type t1 t2
   | _ ->
       false
 
@@ -164,12 +166,17 @@ let rec has_mapping = function
           | None -> false
           | Some (t) -> has_mapping t
         ) tl
-
-
+  (* freeton specials *)
+  | TAbstract TvmCell -> true
+  | TAbstract TvmSlice -> true
+  | TAbstract TvmBuilder -> true
+  | TOptional t -> has_mapping t
+  | TAny -> assert false
+  | TDots -> assert false
 
 (* ----- Determine if a type is valid for comparison ----- *)
 
-let is_comparable op t =
+let rec is_comparable op t =
   let open Solidity_ast in
   match t with
   | TFunction (_, { kind = (KNewContract | KExtContractFun); _ })
@@ -190,8 +197,13 @@ let is_comparable op t =
   | TArray _ | TArraySlice _ | TMapping _ | TStruct _
   | TType _ | TModule _ | TMagic _ | TModifier _ | TEvent _ ->
       false
-
-
+  (* freeton specials *)
+  | TAbstract TvmCell -> true
+  | TAbstract TvmSlice -> true
+  | TAbstract TvmBuilder -> true
+  | TOptional t -> is_comparable op t
+  | TAny -> assert false
+  | TDots -> assert false
 
 (* ---------- Check if type is a reference type ---------- *)
 
@@ -215,8 +227,13 @@ let rec is_reference_type = function
           | None -> false
           | Some (t) -> is_reference_type t
         ) tl
-
-
+  (* freeton specials *)
+  | TAbstract TvmCell -> true
+  | TAbstract TvmSlice -> true
+  | TAbstract TvmBuilder -> true
+  | TOptional _ -> true
+  | TAny -> assert false
+  | TDots -> assert false
 
 (* ---------- Check if type has storage location ---------- *)
 
@@ -252,7 +269,13 @@ let rec is_storage_type = function
           | None -> false
           | Some (t) -> is_storage_type t
         ) tl
-
+  (* freeton specials *)
+  | TAbstract TvmCell -> false
+  | TAbstract TvmSlice -> false
+  | TAbstract TvmBuilder -> false
+  | TOptional _ -> false
+  | TAny -> assert false
+  | TDots -> assert false
 
 (* Turn storage pointer to storage ref *)
 let promote_loc : location -> location = function
