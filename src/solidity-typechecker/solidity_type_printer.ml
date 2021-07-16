@@ -33,6 +33,7 @@ let rec string_of_magic_type = function
   | TTx ->    "tx"
   | TAbi ->   "msg"
   | TTvm ->   "tvm"
+  | TStatic _ -> assert false
 
 and string_of_type = function
   | TBool ->

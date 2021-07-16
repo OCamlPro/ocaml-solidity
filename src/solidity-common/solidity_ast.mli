@@ -126,6 +126,7 @@ and function_definition = {
   fun_mutability : fun_mutability;
   fun_override : longident list option;
   fun_virtual : bool;
+  fun_inline : bool; (* freeton *)
   fun_body : block option;
 }
 

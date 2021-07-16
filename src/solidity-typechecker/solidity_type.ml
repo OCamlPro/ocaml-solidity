@@ -192,8 +192,8 @@ let rec is_comparable op t =
   | TFixed _ | TUfixed _ | TFixBytes _
   | TAddress _ | TEnum _ | TContract _ ->
       true
+  | TBytes _ | TString _ | TLiteralString _ -> !for_freeton
   | TTuple _ (* may become comparable in the future *)
-  | TBytes _ | TString _ | TLiteralString _
   | TArray _ | TArraySlice _ | TMapping _ | TStruct _
   | TType _ | TModule _ | TMagic _ | TModifier _ | TEvent _ ->
       false

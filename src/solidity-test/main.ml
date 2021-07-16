@@ -83,7 +83,7 @@ let main () =
           program
       in
       let () =
-        if !typecheck && !postcheck then
+        if !typecheck && !postcheck && not !Solidity_common.for_freeton then
           Solidity_postprocess.checkProgram program
       in
       ()

@@ -31,6 +31,7 @@ let is_storage_ptr = function
   | LCalldata -> false
 
 let convertible_location ~from ~to_ =
+  !for_freeton ||
   match from, to_ with
   | LCalldata, LCalldata -> true
   | _, (LMemory | LStorage (false)) -> true
@@ -131,6 +132,9 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   | TOptional t1, TOptional t2 ->
       implicitly_convertible ~ignore_loc ~from:t1 ~to_:t2 ()
   | TUint _, TBytes _ -> true
+  | TBytes _, TString _ when !for_freeton -> true
+  | TString _, TBytes _ when !for_freeton -> true
+  | _, TDots when !for_freeton -> true
   | _ ->
       Solidity_type.same_type from to_
 

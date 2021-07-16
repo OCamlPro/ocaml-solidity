@@ -572,7 +572,8 @@ let rec type_expression opt env exp : type_ =
   let t, _lv = type_expression_lv opt env exp in
   t
 
-and type_expression_lv opt env exp : type_ * bool =
+and type_expression_lv opt env exp
+  : type_ * bool (* is left value ? *) =
   let pos = exp.pos in
   let t, lv = match strip exp with
 
@@ -881,6 +882,16 @@ and type_expression_lv opt env exp : type_ * bool =
             error pos "Type is not callable"
       end
 
+  | CallOptions ( { contents =
+                      IdentifierExpression { contents = id ; _ } ;
+                  _ }, opts)
+      when Ident.to_string id = "@stateInit"
+      ->
+        TMagic ( TStatic
+                   (List.map (fun ({ contents = id ; _ }, e) ->
+                        let type_ = type_expression opt env e in
+                        id, type_
+                      ) opts )), false (* TODO *)
   | CallOptions (e, opts) ->
       begin
         match type_expression opt env e with
@@ -915,6 +926,14 @@ and type_expression_lv opt env exp : type_ * bool =
                       error pos "Function call option \"%s\" can \
                                  only be used with \"new\""
                         (Ident.to_string id);
+                      (* FREETON *)
+                      (* TODO: check that mandatory fields are provided *)
+                  | "pubkey", KNewContract when !for_freeton ->
+                      expect_expression_type opt env e (TUint 256);
+                      fo, false (* TODO *)
+                  | "code", KNewContract when !for_freeton ->
+                      expect_expression_type opt env e (TAbstract TvmCell);
+                      fo, false (* TODO *)
                   | "flag", KExtContractFun when !for_freeton ->
                       expect_expression_type opt env e (TUint 8);
                       fo, false (* TODO *)
@@ -1021,14 +1040,16 @@ let rec type_statement opt env s =
   | ForRangeStatement _ -> assert false (* freeton TODO *)
 
   | DoWhileStatement (s, e) ->
-      type_statement { opt with in_loop = true } env s;
-      expect_expression_type opt env e TBool
+      let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
+      type_statement { opt with in_loop = true } env' s;
+      expect_expression_type opt env' e TBool
 
   | ForStatement (s1_opt, e1_opt, e2_opt, s2) ->
-      Option.iter (type_statement opt env) s1_opt;
-      Option.iter (fun e -> expect_expression_type opt env e TBool) e1_opt;
-      Option.iter (fun e -> ignore (type_expression opt env e)) e2_opt;
-      type_statement { opt with in_loop = true } env s2;
+      let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
+      Option.iter (type_statement opt env') s1_opt;
+      Option.iter (fun e -> expect_expression_type opt env' e TBool) e1_opt;
+      Option.iter (fun e -> ignore (type_expression opt env' e)) e2_opt;
+      type_statement { opt with in_loop = true } env' s2;
 
   | TryStatement (e, returns, body, catch_clauses) ->
 

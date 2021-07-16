@@ -272,7 +272,7 @@ and variable_definition b indent {
 
 and function_definition b indent {
     fun_name; fun_params; fun_returns; fun_modifiers; fun_visibility;
-    fun_mutability; fun_override; fun_virtual; fun_body } =
+    fun_mutability; fun_override; fun_virtual; fun_inline ; fun_body } =
   let name =
     match strip fun_name with
     | id when Ident.equal id Ident.fallback  -> "fallback"
@@ -281,7 +281,7 @@ and function_definition b indent {
     | id -> "function " ^ (Ident.to_string id)
   in
   bprint b indent
-    (Format.sprintf "%s(%s) %s%s%s%s%s%s%s"
+    (Format.sprintf "%s(%s) %s%s%s%s%s%s%s%s"
        (name)
        (String.concat ", " (List.map string_of_function_param fun_params))
        (string_of_visibility fun_visibility)
@@ -289,6 +289,7 @@ and function_definition b indent {
         | MNonPayable -> ""
         | m -> " " ^ (string_of_fun_mutability m))
        (if fun_virtual then " virtual" else "")
+       (if fun_inline then " inline" else "")
        (match fun_override with
         | None -> ""
         | Some [] -> " override"

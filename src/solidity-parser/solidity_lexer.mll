@@ -289,6 +289,7 @@ if freeton then
     List.iter (fun (kwd, token) ->
         add_keyword kwd token
       ) [
+        "inline", INLINE;
         "static", STATIC;
         "optional", OPTIONAL;
         "onBounce", ONBOUNCE;
