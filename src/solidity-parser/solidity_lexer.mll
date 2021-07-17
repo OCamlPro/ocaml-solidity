@@ -46,6 +46,20 @@
     Hashtbl.add token_of_keyword kwd token;
     Hashtbl.add keyword_of_token token kwd;
     ()
+
+  let update_loc lexbuf file line absolute chars =
+    let pos = lexbuf.Lexing.lex_curr_p in
+    let new_file = match file with
+      | None -> pos.pos_fname
+      | Some s -> s
+    in
+    lexbuf.lex_curr_p <-
+      { pos with
+        pos_fname = new_file;
+        pos_lnum = if absolute then line else pos.pos_lnum + line;
+        pos_bol = pos.pos_cnum - chars;
+      }
+
 }
 
 let eol_comment =
@@ -85,6 +99,12 @@ rule token = parse
   | eol_comment { token lexbuf }
   | space+      { token lexbuf }
   | newline     { newline lexbuf; token lexbuf }
+  | "#" [' ' '\t']* (['0'-'9']+ as num) [' ' '\t']*
+        ("\"" ([^ '\010' '\013' '"' ] * as name) "\"")?
+        [^ '\010' '\013'] * newline
+      { update_loc lexbuf name (int_of_string num) true 0;
+      token lexbuf }
+
   | "/*"        { multiline_comment lexbuf }
   | "pragma"    { Buffer.clear buf; begin_pragma lexbuf }
 

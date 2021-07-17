@@ -362,21 +362,21 @@ module ExtZ = struct
     done;
     !res
 
-  let to_binary sz z =
-    (* Invariant: a buffer of sz bytes should be large enough to store Z *)
-    let res = Bytes.create sz in
-    let z = ref z in
-    for i = sz-1 downto 0 do
-      Bytes.set_int8 res i (Z.to_int (Z.logand !z _255));
-      z := Z.shift_right !z 8;
-    done;
-    Bytes.to_string res
-
-  let print_hex fmt z =
-    let s = to_binary (numbits_mod8 z) z in
-    for i = 0 to (String.length s - 1) do
-      Format.fprintf fmt "%02x" (Char.code (s.[i]))
-    done
+  let print_hex z =
+    if z = Z.zero then "0"
+    else
+      let b = Buffer.create 100 in
+      let rec iter z =
+        if z = Z.zero then
+          Buffer.add_string b "0x"
+        else
+          let modulo = Z.logand z _255 in
+          let z = Z.shift_right z 8 in
+          iter z;
+          Printf.bprintf b "%02x" (Z.to_int modulo)
+      in
+      iter z;
+      Buffer.contents b
 
   include Z
 
@@ -534,3 +534,16 @@ let add_primitive id p =
     max_prim_id := id
 
 let for_freeton = ref false
+
+
+let to_pos pos =
+  let open Lexing in
+  let ({ pos_lnum = l1; pos_bol = b1; pos_cnum = c1; pos_fname; _ },
+       { pos_lnum = l2; pos_bol = b2; pos_cnum = c2; _ }) = pos in
+  let c1 = c1 - b1 in
+  let c2 = c2 - b2 in
+  let l1 = min l1 65535 in
+  let l2 = min l2 65535 in
+  let c1 = min c1 255 in
+  let c2 = min c2 255 in
+  pos_fname, (l1, c1), (l2, c2)
