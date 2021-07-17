@@ -852,7 +852,7 @@ let register_primitives () =
        match t_opt with
        | Some ( TString _ ) when !for_freeton ->
            Some (make_fun [] [ TAbstract TvmSlice ] MNonPayable)
-       | Some (TAbstract TvmBuilder) when !for_freeton ->
+       | Some (TAbstract ( TvmBuilder | TvmCell )) when !for_freeton ->
            Some (make_fun [] [TAbstract TvmSlice] MNonPayable)
        | _ -> None);
 
@@ -961,6 +961,43 @@ let register_primitives () =
        match t_opt with
        | Some ( TMagic TTvm ) when !for_freeton ->
            Some (make_fun [] [] MNonPayable)
+       | _ -> None);
+
+  register 77
+    { prim_name = "makeAddrStd";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TType (TAddress _ ) ) when !for_freeton ->
+           Some (make_fun [ TInt 8 ; TUint 256 ] [ TAddress true ] MNonPayable)
+       | _ ->
+           None);
+
+  register 78
+    { prim_name = "loadRef";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TAbstract TvmSlice) when !for_freeton ->
+           Some (make_fun [] [TAbstract TvmCell] MNonPayable)
+       | _ -> None);
+
+  register 79
+    { prim_name = "format";
+      prim_kind = PrimFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | None when !for_freeton ->
+           Some (make_fun [ TString LMemory ; TDots ] [TString LMemory ] MNonPayable)
+       | _ -> None);
+
+  register 80
+    { prim_name = "byteLength";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TString _) when !for_freeton ->
+           Some (make_fun [] [TUint 256] MNonPayable)
        | _ -> None);
 
   ()

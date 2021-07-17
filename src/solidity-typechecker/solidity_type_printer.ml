@@ -27,7 +27,7 @@ let string_of_abstract_type = function
   | TvmBuilder -> "TvmBuilder"
 
 let rec string_of_magic_type = function
-  | TMetaType (t) -> Format.sprintf "type(%s)" (string_of_type t)
+  | TMetaType (t) -> Format.sprintf "metatype(%s)" (string_of_type t)
   | TMsg ->   "msg"
   | TBlock -> "block"
   | TTx ->    "tx"

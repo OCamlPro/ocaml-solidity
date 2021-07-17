@@ -60,7 +60,7 @@ let binop_type pos op t1 t2 : type_ =
       let t = Solidity_type_conv.common_type mt1 mt2 in
       begin
         match t with
-        | Some (TInt _ | TUint _ | TFixed _ | TUfixed _ as t) -> t
+        | Some (TInt _ | TUint _ | TFixed _ | TUfixed _ | TString _ as t) -> t
         | _ -> error_incompat ()
       end
   | (BLAnd | BLOr), TBool, TBool ->
@@ -700,11 +700,19 @@ and type_expression_lv opt env exp
       let t1 = type_expression opt env e1 in
       let t2 = type_expression opt env e2 in
       let valid =
-        match Solidity_type_conv.common_type
-                (Solidity_type_conv.mobile_type pos t1)
-                (Solidity_type_conv.mobile_type pos t2) with
+        match
+          let t1 = Solidity_type_conv.mobile_type pos t1 in
+          let t2 = Solidity_type_conv.mobile_type pos t2 in
+          (*
+          Printf.eprintf "common_type %s %s\n%!"
+            ( Solidity_type_printer.string_of_type t1)
+            ( Solidity_type_printer.string_of_type t2); *)
+          Solidity_type_conv.common_type t1 t2
+        with
         | Some (t) -> Solidity_type.is_comparable op t
-        | None -> false
+        | None ->
+            Printf.eprintf "No common type\n%!";
+            false
       in
       if not valid then
         error pos "Operator %s not compatible with types %s and %s"
@@ -720,7 +728,16 @@ and type_expression_lv opt env exp
         error pos "Assignment operator requires lvalue as left-hand side";
       (* Note: (true ? tuple : tuple) = tuple
          may become allowed in the future *)
-      expect_type pos ~expected:t1 ~provided:t2;
+      if not ( match t1 with
+          | TOptional t1 ->
+              let t2 = Solidity_type_conv.mobile_type pos t2 in
+(*              Printf.eprintf "convert %s <- %s\n%!"
+                ( Solidity_type_printer.string_of_type t1)
+                ( Solidity_type_printer.string_of_type t2); *)
+              Solidity_type_conv.implicitly_convertible
+                ~from:t2 ~to_:t1 ()
+          | _ -> false ) then
+        expect_type pos ~expected:t1 ~provided:t2;
       t1, false
 
   | AssignBinaryExpression (e1, op, e2) ->
@@ -928,8 +945,10 @@ and type_expression_lv opt env exp
                         (Ident.to_string id);
                       (* FREETON *)
                       (* TODO: check that mandatory fields are provided *)
-                  | "pubkey", KNewContract when !for_freeton ->
-                      expect_expression_type opt env e (TUint 256);
+                  | "pubkey", ( KNewContract | KExtContractFun )
+                    when !for_freeton ->
+                      expect_expression_type opt env e
+                        ( TOptional (TUint 256));
                       fo, false (* TODO *)
                   | "code", KNewContract when !for_freeton ->
                       expect_expression_type opt env e (TAbstract TvmCell);
@@ -938,6 +957,27 @@ and type_expression_lv opt env exp
                       expect_expression_type opt env e (TUint 8);
                       fo, false (* TODO *)
                   | "varInit", KNewContract when !for_freeton ->
+                      fo, false (* TODO *)
+                  | "abiVer", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 8);
+                      fo, false (* TODO *)
+                  | "extMsg", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e TBool ;
+                      fo, false (* TODO *)
+                  | "sign", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e TBool ;
+                      fo, false (* TODO *)
+                  | "time", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
+                      fo, false (* TODO *)
+                  | "expire", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
+                      fo, false (* TODO *)
+                  | "callbackId", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
+                      fo, false (* TODO *)
+                  | "onErrorId", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
                       fo, false (* TODO *)
                   | _, KOther ->
                       error pos "Function call options can only be set on \
