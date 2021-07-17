@@ -1309,7 +1309,10 @@ let modifier_or_constructor_params ~constructor env lid =
   | _ :: _ :: _ ->
       error lid.pos "Multiple definitions found for contract/modifier !"
   | [] ->
-      error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
+      if !for_freeton && LongIdent.to_string lid.contents = "functionID" then
+        [ TUint 16, None ], false
+      else
+        error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
 
 let typecheck_function_body pos opt cenv
       id params returns modifiers block =
