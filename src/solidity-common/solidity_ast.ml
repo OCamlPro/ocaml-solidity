@@ -94,6 +94,7 @@ and function_definition = {
   fun_mutability : fun_mutability; (* ctor: public/forbidden ? *)
   fun_override : longident list option; (* fallback/receive: external *)
   fun_virtual : bool;                   (* but public if missing...  *)
+  fun_inline : bool; (* freeton *)
   fun_body : block option;        (* mutability : nonpayable by default *)
 }
 

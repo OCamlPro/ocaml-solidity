@@ -10,6 +10,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val parse : ?freeton:bool -> string -> Solidity_ast.program
-
-exception Parser_error of string * int
+val parse_file :
+  ?freeton:bool ->
+  ?preprocess:( string -> string ) ->
+  string -> Solidity_ast.program

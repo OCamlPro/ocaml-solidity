@@ -60,7 +60,7 @@ let binop_type pos op t1 t2 : type_ =
       let t = Solidity_type_conv.common_type mt1 mt2 in
       begin
         match t with
-        | Some (TInt _ | TUint _ | TFixed _ | TUfixed _ as t) -> t
+        | Some (TInt _ | TUint _ | TFixed _ | TUfixed _ | TString _ as t) -> t
         | _ -> error_incompat ()
       end
   | (BLAnd | BLOr), TBool, TBool ->
@@ -572,7 +572,8 @@ let rec type_expression opt env exp : type_ =
   let t, _lv = type_expression_lv opt env exp in
   t
 
-and type_expression_lv opt env exp : type_ * bool =
+and type_expression_lv opt env exp
+  : type_ * bool (* is left value ? *) =
   let pos = exp.pos in
   let t, lv = match strip exp with
 
@@ -699,11 +700,19 @@ and type_expression_lv opt env exp : type_ * bool =
       let t1 = type_expression opt env e1 in
       let t2 = type_expression opt env e2 in
       let valid =
-        match Solidity_type_conv.common_type
-                (Solidity_type_conv.mobile_type pos t1)
-                (Solidity_type_conv.mobile_type pos t2) with
+        match
+          let t1 = Solidity_type_conv.mobile_type pos t1 in
+          let t2 = Solidity_type_conv.mobile_type pos t2 in
+          (*
+          Printf.eprintf "common_type %s %s\n%!"
+            ( Solidity_type_printer.string_of_type t1)
+            ( Solidity_type_printer.string_of_type t2); *)
+          Solidity_type_conv.common_type t1 t2
+        with
         | Some (t) -> Solidity_type.is_comparable op t
-        | None -> false
+        | None ->
+            Printf.eprintf "No common type\n%!";
+            false
       in
       if not valid then
         error pos "Operator %s not compatible with types %s and %s"
@@ -719,7 +728,16 @@ and type_expression_lv opt env exp : type_ * bool =
         error pos "Assignment operator requires lvalue as left-hand side";
       (* Note: (true ? tuple : tuple) = tuple
          may become allowed in the future *)
-      expect_type pos ~expected:t1 ~provided:t2;
+      if not ( match t1 with
+          | TOptional t1 ->
+              let t2 = Solidity_type_conv.mobile_type pos t2 in
+(*              Printf.eprintf "convert %s <- %s\n%!"
+                ( Solidity_type_printer.string_of_type t1)
+                ( Solidity_type_printer.string_of_type t2); *)
+              Solidity_type_conv.implicitly_convertible
+                ~from:t2 ~to_:t1 ()
+          | _ -> false ) then
+        expect_type pos ~expected:t1 ~provided:t2;
       t1, false
 
   | AssignBinaryExpression (e1, op, e2) ->
@@ -881,6 +899,16 @@ and type_expression_lv opt env exp : type_ * bool =
             error pos "Type is not callable"
       end
 
+  | CallOptions ( { contents =
+                      IdentifierExpression { contents = id ; _ } ;
+                  _ }, opts)
+      when Ident.to_string id = "@stateInit"
+      ->
+        TMagic ( TStatic
+                   (List.map (fun ({ contents = id ; _ }, e) ->
+                        let type_ = type_expression opt env e in
+                        id, type_
+                      ) opts )), false (* TODO *)
   | CallOptions (e, opts) ->
       begin
         match type_expression opt env e with
@@ -915,10 +943,41 @@ and type_expression_lv opt env exp : type_ * bool =
                       error pos "Function call option \"%s\" can \
                                  only be used with \"new\""
                         (Ident.to_string id);
+                      (* FREETON *)
+                      (* TODO: check that mandatory fields are provided *)
+                  | "pubkey", ( KNewContract | KExtContractFun )
+                    when !for_freeton ->
+                      expect_expression_type opt env e
+                        ( TOptional (TUint 256));
+                      fo, false (* TODO *)
+                  | "code", KNewContract when !for_freeton ->
+                      expect_expression_type opt env e (TAbstract TvmCell);
+                      fo, false (* TODO *)
                   | "flag", KExtContractFun when !for_freeton ->
                       expect_expression_type opt env e (TUint 8);
                       fo, false (* TODO *)
                   | "varInit", KNewContract when !for_freeton ->
+                      fo, false (* TODO *)
+                  | "abiVer", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 8);
+                      fo, false (* TODO *)
+                  | "extMsg", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e TBool ;
+                      fo, false (* TODO *)
+                  | "sign", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e TBool ;
+                      fo, false (* TODO *)
+                  | "time", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
+                      fo, false (* TODO *)
+                  | "expire", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
+                      fo, false (* TODO *)
+                  | "callbackId", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
+                      fo, false (* TODO *)
+                  | "onErrorId", KExtContractFun when !for_freeton ->
+                      expect_expression_type opt env e (TUint 64) ;
                       fo, false (* TODO *)
                   | _, KOther ->
                       error pos "Function call options can only be set on \
@@ -1021,14 +1080,16 @@ let rec type_statement opt env s =
   | ForRangeStatement _ -> assert false (* freeton TODO *)
 
   | DoWhileStatement (s, e) ->
-      type_statement { opt with in_loop = true } env s;
-      expect_expression_type opt env e TBool
+      let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
+      type_statement { opt with in_loop = true } env' s;
+      expect_expression_type opt env' e TBool
 
   | ForStatement (s1_opt, e1_opt, e2_opt, s2) ->
-      Option.iter (type_statement opt env) s1_opt;
-      Option.iter (fun e -> expect_expression_type opt env e TBool) e1_opt;
-      Option.iter (fun e -> ignore (type_expression opt env e)) e2_opt;
-      type_statement { opt with in_loop = true } env s2;
+      let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
+      Option.iter (type_statement opt env') s1_opt;
+      Option.iter (fun e -> expect_expression_type opt env' e TBool) e1_opt;
+      Option.iter (fun e -> ignore (type_expression opt env' e)) e2_opt;
+      type_statement { opt with in_loop = true } env' s2;
 
   | TryStatement (e, returns, body, catch_clauses) ->
 
@@ -1248,7 +1309,10 @@ let modifier_or_constructor_params ~constructor env lid =
   | _ :: _ :: _ ->
       error lid.pos "Multiple definitions found for contract/modifier !"
   | [] ->
-      error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
+      if !for_freeton && LongIdent.to_string lid.contents = "functionID" then
+        [ TUint 16, None ], false
+      else
+        error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
 
 let typecheck_function_body pos opt cenv
       id params returns modifiers block =

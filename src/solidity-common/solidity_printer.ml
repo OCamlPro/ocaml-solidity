@@ -66,8 +66,8 @@ let string_of_number_unit = function
 let string_of_unop = function
   | UPlus ->   "+"
   | UMinus ->  "-"
-  | UNot ->    "!"
-  | ULNot ->   "~"
+  | UNot ->    "~"
+  | ULNot ->   "!"
   | UInc ->    "++"
   | UDec ->    "--"
   | UDelete -> "delete"
@@ -88,7 +88,7 @@ let string_of_binop = function
   | BLOr ->    "||"
 
 let string_of_cmpop = function
-  | CEq ->  "="
+  | CEq ->  "=="
   | CNeq -> "!="
   | CLt ->  "<"
   | CGt ->  ">"
@@ -125,16 +125,18 @@ let string_of_ident id =
 let string_of_longident lid =
   LongIdent.to_string (strip lid)
 
-let rec bprint_contract b indent c =
-  List.iter (bprint_source_unit b indent) c
+let rec bprint_contract b ~freeton indent c =
+  List.iter (bprint_source_unit b ~freeton indent) c
 
-and bprint_source_unit b indent su =
+and bprint_source_unit b ~freeton indent  su =
   match strip su with
   | Pragma (id, s) ->
-      bprint b indent (Format.asprintf "pragma %a %s;" Ident.printf id s)
+      if not freeton then
+        bprint b indent (Format.asprintf "pragma %a %s;" Ident.printf id s)
   | Import { import_from; import_symbols = ImportAll (None) } ->
-      bprint b indent
-        (Format.sprintf "import %s;" import_from)
+      if not freeton then
+        bprint b indent
+          (Format.sprintf "import %S;" import_from)
   | Import { import_from; import_symbols = ImportAll (Some id) } ->
       bprint b indent
         (Format.sprintf "import * as %s from %s;"
@@ -152,7 +154,7 @@ and bprint_source_unit b indent su =
   | GlobalFunctionDefinition (fd) ->
       function_definition b indent fd
   | GlobalVariableDefinition (vd) ->
-      variable_definition b indent vd
+      variable_definition b ~freeton indent vd
   | ContractDefinition (cd) ->
       bprint b indent
         (Format.sprintf "%s%s %s %s {"
@@ -165,7 +167,7 @@ and bprint_source_unit b indent su =
                 Format.sprintf "is %s"
                   (String.concat ", "
                      (List.map string_of_inheritance_specifier list))));
-      List.iter (contract_part b (indent + 2)) cd.contract_parts ;
+      List.iter (contract_part b (indent + 2) ~freeton) cd.contract_parts ;
       bprint b indent "}"
 
 and string_of_maybe_as_identifier = function
@@ -173,20 +175,25 @@ and string_of_maybe_as_identifier = function
   | Some id -> Format.sprintf "as %s" (string_of_ident id)
 
 and string_of_inheritance_specifier (lid, e_list) =
-  Format.sprintf "%s(%s)"
-    (string_of_longident lid)
-    (String.concat ", " (List.map string_of_expression e_list))
+  match e_list with
+  | [] ->
+      string_of_longident lid
+  | _ ->
+      Format.sprintf "%s(%s)"
+        (string_of_longident lid)
+        (String.concat ", " (List.map
+                               (fun s -> string_of_expression s)  e_list))
 
-and contract_part b indent cp =
+and contract_part b indent ~freeton cp =
   match strip cp with
   | TypeDefinition td ->
       type_definition b indent td
   | StateVariableDeclaration (vd) ->
-      variable_definition b indent vd
+      variable_definition b indent ~freeton vd
   | FunctionDefinition (fd) ->
       function_definition b indent fd
   | ModifierDefinition {
-        mod_name; mod_params; mod_virtual; mod_override; mod_body } ->
+      mod_name; mod_params; mod_virtual; mod_override; mod_body } ->
       bprint b indent
         (Format.sprintf "modifier %s(%s)%s%s%s"
            (string_of_ident mod_name)
@@ -196,8 +203,8 @@ and contract_part b indent cp =
             | None -> ""
             | Some [] -> " override"
             | Some ol -> " override(" ^
-                           (String.concat ","
-                              (List.map string_of_longident ol)) ^ ")")
+                         (String.concat ","
+                            (List.map string_of_longident ol)) ^ ")")
            (match mod_body with
             | None -> ";"
             | Some _ -> " {"));
@@ -220,7 +227,7 @@ and contract_part b indent cp =
                      (match id_opt with
                       | None -> ""
                       | Some id -> " " ^ string_of_ident id))
-                 event_params))
+                  event_params))
            (if event_anonymous then " anonymous" else ""))
   | UsingForDeclaration (lid, t_opt) ->
       bprint b indent
@@ -243,36 +250,44 @@ and type_definition b indent = function
       bprint b indent "}"
 
 and string_of_field_declaration (t, id) =
-  Format.sprintf "%s %s" (string_of_type t) (string_of_ident id)
+  Format.sprintf "%s %s;" (string_of_type t) (string_of_ident id)
 
-and variable_definition b indent {
+and variable_definition b indent ~freeton {
     var_name; var_type; var_visibility;
     var_mutability; var_override; var_init;
     var_static } =
   bprint b indent
-    (Format.sprintf "%s%s %s%s%s%s%s"
+    (Format.sprintf "%s%s%s %s%s%s%s%s"
        (string_of_type var_type)
-       (if var_static then "static " else "")
+       (if var_static then " static" else "")
+       (if freeton then
+          match var_mutability with
+          | MMutable -> ""
+          | m -> " " ^ (string_of_var_mutability m)
+        else ""
+       )
        (string_of_ident var_name)
        (match var_visibility with
         | VInternal -> ""
         | v -> " " ^ (string_of_visibility v))
-       (match var_mutability with
-        | MMutable -> ""
-        | m -> " " ^ (string_of_var_mutability m))
+       (if freeton then ""
+        else
+          match var_mutability with
+          | MMutable -> ""
+          | m -> " " ^ (string_of_var_mutability m))
        (match var_override with
         | None -> ""
         | Some [] -> " override"
         | Some ol -> " override(" ^
-                       (String.concat ","
-                          (List.map string_of_longident ol)) ^ ")")
+                     (String.concat ","
+                        (List.map string_of_longident ol)) ^ ")")
        (match var_init with
         | None -> ";"
         | Some e -> Format.sprintf " = %s;" (string_of_expression e)))
 
 and function_definition b indent {
     fun_name; fun_params; fun_returns; fun_modifiers; fun_visibility;
-    fun_mutability; fun_override; fun_virtual; fun_body } =
+    fun_mutability; fun_override; fun_virtual; fun_inline ; fun_body } =
   let name =
     match strip fun_name with
     | id when Ident.equal id Ident.fallback  -> "fallback"
@@ -281,7 +296,7 @@ and function_definition b indent {
     | id -> "function " ^ (Ident.to_string id)
   in
   bprint b indent
-    (Format.sprintf "%s(%s) %s%s%s%s%s%s%s"
+    (Format.sprintf "%s(%s) %s%s%s%s%s%s%s%s"
        (name)
        (String.concat ", " (List.map string_of_function_param fun_params))
        (string_of_visibility fun_visibility)
@@ -289,22 +304,23 @@ and function_definition b indent {
         | MNonPayable -> ""
         | m -> " " ^ (string_of_fun_mutability m))
        (if fun_virtual then " virtual" else "")
+       (if fun_inline then " inline" else "")
        (match fun_override with
         | None -> ""
         | Some [] -> " override"
         | Some ol -> " override(" ^
-                       (String.concat ","
-                          (List.map string_of_longident ol)) ^ ")")
+                     (String.concat ","
+                        (List.map string_of_longident ol)) ^ ")")
        (match fun_modifiers with
         | [] -> ""
         | _ -> " " ^
-                 (String.concat " "
-                    (List.map string_of_modifier fun_modifiers)))
+               (String.concat " "
+                  (List.map string_of_modifier fun_modifiers)))
        (match fun_returns with
         | [] -> ""
         | returns ->
             Format.sprintf " returns (%s)"
-              (String.concat " * "
+              (String.concat ", "
                  (List.map string_of_function_return returns)))
        (match fun_body with
         | None -> ";"
@@ -394,7 +410,7 @@ and statement b indent s =
       bprint b indent "break;"
   | Emit (e, args) ->
       bprint b indent
-        (Format.sprintf "emit %s(%s)"
+        (Format.sprintf "emit %s(%s);"
            (string_of_expression e)
            (string_of_function_call_arguments args))
   | PlaceholderStatement ->
@@ -407,14 +423,14 @@ and statement b indent s =
       block b (indent + 2) statement_list;
       bprint b indent "}"
   | IfStatement (e, s1, s2_opt) -> (
-    bprint b indent
-      (Format.sprintf "if (%s)" (string_of_expression e));
-    statement b (indent + 2) s1;
-    match s2_opt with
-    | None -> ()
-    | Some s2 ->
-        bprint b indent "else" ;
-        statement b (indent + 2) s2 )
+      bprint b indent
+        (Format.sprintf "if (%s)" (string_of_expression e));
+      statement b (indent + 2) s1;
+      match s2_opt with
+      | None -> ()
+      | Some s2 ->
+          bprint b indent "else" ;
+          statement b (indent + 2) s2 )
   | TryStatement (e, returns, body, catch_clause_list) ->
       bprint b indent
         (Format.sprintf "try %s %s{"
@@ -447,7 +463,7 @@ and statement b indent s =
       bprint b indent "for (" ;
       (match s1_opt with None -> () | Some s -> statement b (indent + 2) s);
       bprint b (indent + 2)
-        (Format.sprintf "; %s; %s)"
+        (Format.sprintf " %s; %s)"
            (string_of_expression_option e1_opt)
            (string_of_expression_option e2_opt));
       statement b (indent + 2) s2
@@ -459,7 +475,7 @@ and statement b indent s =
       bprint b indent
         (Format.sprintf "%s;" (string_of_variable_definition vardef))
   | ExpressionStatement e ->
-      bprint b indent (Format.sprintf "%s;" (string_of_expression e))
+      bprint b indent (Format.sprintf "%s;" (string_of_expression ~paren:false e))
   | RepeatStatement (e, body) ->
       bprint b indent (Format.sprintf "repeat (%s)" (string_of_expression e));
       statement b (indent + 2) body
@@ -473,16 +489,24 @@ and string_of_expression_option = function
   | None -> ""
   | Some e -> string_of_expression e
 
-and string_of_expression e =
+and string_of_decimal q =
+  let s = string_of_float ( Q.to_float q ) in
+  let len = String.length s in
+  if s.[len-1] = '.' then
+    String.sub s 0 (len-1)
+  else
+    s
+
+and string_of_expression ?(paren=true) e =
   match strip e with
   | BooleanLiteral bool ->
       string_of_bool bool
   | NumberLiteral (q, number_unit, None) ->
-      Format.sprintf "%s%s"
-        (Q.to_string q)
+      Format.sprintf "%s %s"
+        (string_of_decimal q)
         (string_of_number_unit number_unit)
   | NumberLiteral (q, _number_unit, Some _size) ->
-      Format.asprintf "0x%a" ExtZ.print_hex (Q.num q)
+      ExtZ.print_hex (Q.num q)
   | StringLiteral s ->
       Format.sprintf "%S" s
   | AddressLiteral s ->
@@ -503,37 +527,76 @@ and string_of_expression e =
         (string_of_expression tab)
         (match e1_opt with None -> "" | Some e -> string_of_expression e)
         (match e2_opt with None -> "" | Some e -> string_of_expression e)
+  | PrefixExpression ( UDelete, e2) ->
+      Format.sprintf "delete %s" (string_of_expression e2)
   | PrefixExpression (op, e2) ->
-      Format.sprintf "(%s %s)" (string_of_unop op) (string_of_expression e2)
+      if paren then
+        Format.sprintf "(%s %s)" (string_of_unop op) (string_of_expression e2)
+      else
+        Format.sprintf "%s %s" (string_of_unop op) (string_of_expression e2)
   | SuffixExpression (e1, op) ->
-      Format.sprintf "(%s %s)" (string_of_expression e1) (string_of_unop op)
+      if paren then
+        Format.sprintf "(%s %s)" (string_of_expression e1) (string_of_unop op)
+      else
+        Format.sprintf "%s %s" (string_of_expression e1) (string_of_unop op)
   | BinaryExpression (e1, op, e2) ->
-      Format.sprintf "(%s %s %s)"
-        (string_of_expression e1)
-        (string_of_binop op)
-        (string_of_expression e2)
+      if paren then
+        Format.sprintf "(%s %s %s)"
+          (string_of_expression e1)
+          (string_of_binop op)
+          (string_of_expression e2)
+      else
+        Format.sprintf "%s %s %s"
+          (string_of_expression e1)
+          (string_of_binop op)
+          (string_of_expression e2)
   | CompareExpression (e1, op, e2) ->
-      Format.sprintf "(%s %s %s)"
-        (string_of_expression e1)
-        (string_of_cmpop op)
-        (string_of_expression e2)
+      if paren then
+        Format.sprintf "(%s %s %s)"
+          (string_of_expression e1)
+          (string_of_cmpop op)
+          (string_of_expression e2)
+      else
+        Format.sprintf "%s %s %s"
+          (string_of_expression e1)
+          (string_of_cmpop op)
+          (string_of_expression e2)
   | AssignExpression (e1, e2) ->
-      Format.sprintf "(%s = %s)"
-        (string_of_expression e1)
-        (string_of_expression e2)
+      if paren then
+        Format.sprintf "(%s = %s)"
+          (string_of_expression e1)
+          (string_of_expression e2)
+      else
+        Format.sprintf "%s = %s"
+          (string_of_expression e1)
+          (string_of_expression e2)
   | AssignBinaryExpression (e1, op, e2) ->
-      Format.sprintf "(%s %s= %s)"
-        (string_of_expression e1)
-        (string_of_binop op)
-        (string_of_expression e2)
+      if paren then
+        Format.sprintf "(%s %s= %s)"
+          (string_of_expression e1)
+          (string_of_binop op)
+          (string_of_expression e2)
+      else
+        Format.sprintf "%s %s= %s"
+          (string_of_expression e1)
+          (string_of_binop op)
+          (string_of_expression e2)
   | FunctionCallExpression (e, args) ->
       Format.sprintf "%s(%s)"
         (string_of_expression e) (string_of_function_call_arguments args)
   | TupleExpression e_opt_list ->
       Format.sprintf "(%s)"
         (String.concat ", " (List.map string_of_expression_option e_opt_list))
+        (*
+  | FieldExpression ({ contents =
+                         IdentifierExpression _
+                       | FunctionCallExpression _
+                     ; _ } as e, ident) ->
+      Format.sprintf "%s.%s"
+        (string_of_expression e)
+        (string_of_ident ident) *)
   | FieldExpression (e, ident) ->
-      Format.sprintf "(%s).%s"
+      Format.sprintf "%s.%s"
         (string_of_expression e)
         (string_of_ident ident)
   | IfExpression (e1, e2, e3) ->
@@ -542,8 +605,12 @@ and string_of_expression e =
         (string_of_expression e2)
         (string_of_expression e3)
   | CallOptions (e, idel) ->
-      Format.sprintf "%s{%s}"
-        (string_of_expression e)
+      Format.sprintf "%s {%s}"
+        (match e with
+         | { contents =
+               IdentifierExpression { contents = id ; _ } ;
+             _ } when Ident.to_string id = "@stateInit" -> ""
+         | _ -> string_of_expression e)
         (String.concat ","
            (List.map (fun (id, e) ->
                 Format.sprintf "%s: %s"
@@ -604,17 +671,19 @@ and string_of_function_call_arguments = function
                   (string_of_ident id) (string_of_expression e)
               ) id_exp_list))
 
-let string_of_module_units module_units =
+let string_of_module_units ?(freeton=false) module_units =
   let b = Buffer.create 1000 in
   let indent = 0 in
-  bprint_contract b indent module_units;
+  bprint_contract b indent ~freeton module_units;
   Buffer.contents b
 
-let string_of_program p =
+(* With ~freeton:true: don't print module names, no pragma, no import *)
+let string_of_program ?(freeton=false) p =
   let b = Buffer.create 1000 in
   List.iter (fun m ->
-      bprint b 0 (Format.sprintf "%s: %s" (
-                      Ident.to_string m.module_id) m.module_file);
-      bprint b 0 (string_of_module_units m.module_units)
+      if not freeton then
+        bprint b 0 (Format.sprintf "%s: %s" (
+            Ident.to_string m.module_id) m.module_file);
+      bprint b 0 (string_of_module_units ~freeton m.module_units)
     ) p.program_modules;
   Buffer.contents b

@@ -31,6 +31,7 @@ let is_storage_ptr = function
   | LCalldata -> false
 
 let convertible_location ~from ~to_ =
+  !for_freeton ||
   match from, to_ with
   | LCalldata, LCalldata -> true
   | _, (LMemory | LStorage (false)) -> true
@@ -130,7 +131,12 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
       implicitly_convertible_ol ~ignore_loc ~from:tl1 ~to_:tl2 ()
   | TOptional t1, TOptional t2 ->
       implicitly_convertible ~ignore_loc ~from:t1 ~to_:t2 ()
+  | t1, TOptional t2 ->
+      implicitly_convertible ~ignore_loc ~from:t1 ~to_:t2 ()
   | TUint _, TBytes _ -> true
+  | TBytes _, TString _ when !for_freeton -> true
+  | TString _, TBytes _ when !for_freeton -> true
+  | _, TDots when !for_freeton -> true
   | _ ->
       Solidity_type.same_type from to_
 
@@ -285,7 +291,8 @@ let rec mobile_type pos t =
   match t with
   | TRationalConst (q, _sz_opt) ->
       if ExtQ.is_int q then
-        let sz = ExtZ.numbits_mod8 (Q.num q) in
+        (*         let sz = ExtZ.numbits_mod8 (Q.num q) in *)
+        let sz = Z.numbits ( Q.num q ) in
         if sz > 256 then
           error pos "Invalid rational number";
         if ExtQ.is_neg q then TInt (sz)

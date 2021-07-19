@@ -156,8 +156,7 @@ module ExtZ : sig
   val fold : (t -> 'a -> 'a) -> t -> t -> 'a -> 'a
   val numbits_mod8 : t -> int
   val of_binary : string -> Z.t
-  val to_binary : int -> Z.t -> string
-  val print_hex : Format.formatter -> Z.t -> unit
+  val print_hex : Z.t -> string
 end
 
 module ExtQ : sig
@@ -211,3 +210,5 @@ val add_primitive : int -> primitive -> unit
 val for_freeton : bool ref
 
 val string_of_pos : pos -> string * string
+
+val to_pos : Lexing.position * Lexing.position -> pos

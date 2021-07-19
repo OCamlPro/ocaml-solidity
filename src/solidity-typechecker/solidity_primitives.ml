@@ -69,7 +69,7 @@ let rec list_sub n list =
     | x :: tail ->
         x :: ( list_sub (n-1) tail )
 
-let make_surcharged_fun ~nreq expected_args opt result =
+let make_surcharged_fun ~nreq pos expected_args opt result =
   match opt.call_args with
   | None -> assert false (* TODO *)
   | Some (AList list) ->
@@ -78,33 +78,41 @@ let make_surcharged_fun ~nreq expected_args opt result =
         None (* TODO *)
       else
         Some
-          ( make_fun (List.map snd ( list_sub len expected_args )) result
+          ( make_fun (List.map (fun (_, type_, _optiona) ->
+                type_) ( list_sub len expected_args )) result
               MNonPayable )
   | Some (ANamed list) ->
       let expected_args =
-        List.mapi (fun i (name, type_) -> name, (i, type_, ref false) )
+        List.mapi (fun i (name, type_, optional) ->
+            name, (i, type_, optional, ref false) )
           expected_args
       in
+      let nargs = List.length list in
       let map = EzCompat.StringMap.of_list expected_args in
       List.iter (fun (name, _) ->
           match EzCompat.StringMap.find (Ident.to_string name) map with
-          | exception Not_found -> assert false (* TODO *)
-          | (_pos, _expected_type, found) ->
+          | exception Not_found ->
+              error pos "Unknown field %S" (Ident.to_string name)
+          | (_pos, _expected_type, _optional, found) ->
               found := true
         ) list ;
-      let rec iter args =
-        match args with
-        | [] -> []
-        | ( name, (_i, type_, found) ) :: args ->
-            if !found then
-              ( type_, Some ( Ident.of_string name ) ) :: iter args
-            else
-              begin
-                (* TODO: check no other args found *)
-                []
-              end
+      let rec iter args n =
+        if n = 0 then
+          []
+        else
+          match args with
+          | [] -> assert false
+          | ( name, (_i, type_, optional, found) ) :: args ->
+              if !found then
+                ( type_, Some ( Ident.of_string name ) ) ::
+                iter args (n-1)
+              else
+                if optional then
+                  iter args n
+                else
+                  assert false (* TODO: error non-optional argument missing *)
       in
-      let expected_args = iter expected_args in
+      let expected_args = iter expected_args nargs in
       Some ( primitive_fun_named expected_args result MNonPayable )
 
 
@@ -130,7 +138,7 @@ let register_primitives () =
            Some (make_fun [TBool] [] MPure)
        | None, Some ((AList [_;_] | ANamed [_;_])) ->
            if !for_freeton then
-             Some (make_fun [TBool; TUint 8] [] MPure)
+             Some (make_fun [TBool; TUint 256] [] MPure)
            else
              Some (make_fun [TBool; TString LMemory] [] MPure)
        | _ -> None);
@@ -256,6 +264,8 @@ let register_primitives () =
        | Some (TFunction (fd, _fo)) when is_external fd.function_visibility ->
            error pos "Using \".value(...)\" is deprecated. \
                       Use \"{value: ...}\" instead"
+       | Some (TAddress _) when !for_freeton ->
+           Some (make_var (TUint 256))
        | _ -> None);
 
   register 17
@@ -510,11 +520,11 @@ let register_primitives () =
     (fun pos opt t_opt ->
        match t_opt with
        | Some (TAddress _) when !for_freeton ->
-             make_surcharged_fun ~nreq:1
-             [ "value", TUint 256 ;
-               "bounce", TBool ;
-               "flag", TUint 16 ;
-               "body", TAbstract TvmCell ;
+             make_surcharged_fun ~nreq:1 pos
+             [ "value", TUint 256, false ;
+               "bounce", TBool, true ;
+               "flag", TUint 16, true ;
+               "body", TAbstract TvmCell, true ;
                (* not yet: "currencies", ExtraCurrencyCollection *)
              ] opt []
        | Some (TAddress (true)) ->
@@ -673,7 +683,7 @@ let register_primitives () =
            let t =
              Solidity_type.change_type_location (LStorage false) t in
            Some (make_fun [t] [] MNonPayable)
-       | Some (TArray (t, None, _)), _ when !for_freeton ->
+       | Some (TArray (t, _, _)), _ when !for_freeton ->
            Some (make_fun [t] [] MNonPayable)
        | Some (TBytes (LStorage _)),
          (None | Some (AList [] | ANamed [])) ->
@@ -842,6 +852,8 @@ let register_primitives () =
        match t_opt with
        | Some ( TString _ ) when !for_freeton ->
            Some (make_fun [] [ TAbstract TvmSlice ] MNonPayable)
+       | Some (TAbstract ( TvmBuilder | TvmCell )) when !for_freeton ->
+           Some (make_fun [] [TAbstract TvmSlice] MNonPayable)
        | _ -> None);
 
   register 66
@@ -870,6 +882,122 @@ let register_primitives () =
        match t_opt with
        | Some ( TOptional _ ) when !for_freeton ->
            Some (make_fun [] [] MNonPayable)
+       | _ -> None);
+
+  register 69
+    { prim_name = "storeRef";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TAbstract TvmBuilder) when !for_freeton ->
+           Some (make_fun [TDots] [] MNonPayable)
+       | _ -> None);
+
+  register 70
+    { prim_name = "append";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TString loc | TBytes loc) when !for_freeton ->
+           Some (make_fun [TString loc] [] MNonPayable)
+       | _ -> None);
+
+  register 71
+    { prim_name = "vergrth16";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TMagic TTvm ) when !for_freeton ->
+           Some (make_fun [ TString LMemory ] [ TBool ] MNonPayable)
+       | _ -> None);
+
+  register 72
+    { prim_name = "buildStateInit";
+      prim_kind = PrimMemberFunction }
+    (fun pos opt t_opt ->
+       match t_opt with
+       | Some ( TMagic TTvm ) when !for_freeton ->
+             make_surcharged_fun ~nreq:1 pos
+               [
+                 "pubkey", TUint 256, false ;
+                 "code", TAbstract TvmCell, false ;
+                 "contr", TDots, false ; (* TODO do better *)
+                 "varInit", TDots, false ; (* TODO do better *)
+             ] opt
+             [ TAbstract TvmCell ]
+       | _ -> None);
+
+  register 73
+    { prim_name = "commit";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TMagic TTvm ) when !for_freeton ->
+           Some (make_fun [] [] MNonPayable)
+       | _ -> None);
+
+  register 74
+    { prim_name = "setcode";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TMagic TTvm ) when !for_freeton ->
+           Some (make_fun [TAbstract TvmCell] [] MNonPayable)
+       | _ -> None);
+
+  register 75
+    { prim_name = "setCurrentCode";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TMagic TTvm ) when !for_freeton ->
+           Some (make_fun [TAbstract TvmCell] [] MNonPayable)
+       | _ -> None);
+
+  register 76
+    { prim_name = "resetStorage";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TMagic TTvm ) when !for_freeton ->
+           Some (make_fun [] [] MNonPayable)
+       | _ -> None);
+
+  register 77
+    { prim_name = "makeAddrStd";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some ( TType (TAddress _ ) ) when !for_freeton ->
+           Some (make_fun [ TInt 8 ; TUint 256 ] [ TAddress true ] MNonPayable)
+       | _ ->
+           None);
+
+  register 78
+    { prim_name = "loadRef";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TAbstract TvmSlice) when !for_freeton ->
+           Some (make_fun [] [TAbstract TvmCell] MNonPayable)
+       | _ -> None);
+
+  register 79
+    { prim_name = "format";
+      prim_kind = PrimFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | None when !for_freeton ->
+           Some (make_fun [ TString LMemory ; TDots ] [TString LMemory ] MNonPayable)
+       | _ -> None);
+
+  register 80
+    { prim_name = "byteLength";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TString _) when !for_freeton ->
+           Some (make_fun [] [TUint 256] MNonPayable)
        | _ -> None);
 
   ()

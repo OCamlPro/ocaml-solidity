@@ -287,7 +287,7 @@ and visitStateVariableDef (v : #ast_visitor) (svd : state_variable_definition) :
         var_mutability;
         var_override;
         var_init;
-        var_static = _;
+        var_static = _; (* TODO *)
        } : state_variable_definition) : unit =
     visitNode visitIdent v var_name;
     visitType v var_type;
@@ -310,6 +310,7 @@ and visitFunctionDef (v : #ast_visitor) (fd : function_definition) : unit =
         fun_mutability;
         fun_override;
         fun_virtual;
+        fun_inline = _;
         fun_body
        } : function_definition) : unit =
     visitNode visitIdent v fun_name;

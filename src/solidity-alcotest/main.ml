@@ -7,10 +7,10 @@ let success_dir = test_dir ^ "/successes"
 
 let spf = Format.sprintf
 
-let check_file file () =
+let check_file filename () =
   let () =
     try
-      let program = Solidity_parser.parse file in
+      let program = Solidity_parser.parse_file filename in
       let program = Solidity_typechecker.type_program program in
       Solidity_postprocess.checkProgram program
     with

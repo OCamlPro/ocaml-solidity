@@ -192,6 +192,7 @@ and magic_type =
   | TTx (* type of the 'tx' object *)
   | TAbi (* type of the 'abi' object *)
   | TTvm (* type of the 'tvm' object *)
+  | TStatic of ( Ident.t * type_ ) list
 
 
 (* source_unit (Import) *)

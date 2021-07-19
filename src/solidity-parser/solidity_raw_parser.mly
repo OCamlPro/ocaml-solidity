@@ -41,6 +41,7 @@
     | Override of longident list
     | Invocation of longident * expression list option
     | Static
+    | Inline
 
   let add_free_var_modifiers pos var ml =
     let has_mut = ref false in
@@ -109,6 +110,10 @@
             if fct.fun_virtual then
               error pos "Virtual already specified";
             { fct with fun_virtual = true }
+        | Inline ->
+            if fct.fun_inline then
+              error pos "Inline already specified";
+            { fct with fun_inline = true }
         | Invocation (lid, exp_list_opt) ->
             { fct with fun_modifiers =
                          (lid, exp_list_opt) :: fct.fun_modifiers }
@@ -249,6 +254,7 @@
 %token IS
 %token USING
 %token PUBLIC
+%token INLINE (* freeton *)
 %token STATIC (* freeton *)
 %token OPTIONAL (* freeton *)
 %token ONBOUNCE (* freeton *)
@@ -449,6 +455,7 @@ source_unit:
             fun_mutability = MNonPayable;
             fun_override = None;
             fun_virtual = false;
+            fun_inline = false;
             fun_body = $5; } $3)) }
 ;;
 
@@ -537,6 +544,7 @@ contract_part:
             fun_mutability = MNonPayable;
             fun_override = None;
             fun_virtual = false;
+            fun_inline = false;
             fun_body = $5; } $3)) }
   | function_descriptor parameters function_modifier*
         returns_opt function_body_opt
@@ -549,6 +557,7 @@ contract_part:
             fun_mutability = MNonPayable;
             fun_override = None;
             fun_virtual = false;
+            fun_inline = false;
             fun_body = $5; } $3)) }
   | EVENT identifier event_parameters boption(ANONYMOUS) SEMI
       { mk $loc (EventDefinition {
@@ -609,6 +618,7 @@ function_modifier:
   | fun_mutability      { $1 }
   | internal_external   { $1 }
   | public_private      { $1 }
+  | INLINE              { freeton() ; Inline }
   | VIRTUAL             { Virtual }
   | override_specifier  { $1 }
 ;;

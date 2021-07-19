@@ -28,8 +28,11 @@ val string_of_elementary_type : Solidity_ast.elementary_type -> string
 
 val string_of_type : Solidity_ast.type_ -> string
 
-val string_of_expression : Solidity_ast.expression -> string
+val string_of_expression :
+  ?paren:bool -> Solidity_ast.expression -> string
 
-val string_of_module_units : Solidity_ast.module_units -> string
+val string_of_module_units :
+  ?freeton:bool -> Solidity_ast.module_units -> string
 
-val string_of_program : Solidity_ast.program -> string
+val string_of_program :
+  ?freeton:bool -> Solidity_ast.program -> string

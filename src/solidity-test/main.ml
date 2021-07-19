@@ -64,13 +64,8 @@ let main () =
       exit 1
   | Some file ->
       let freeton = !freeton in
-      let program : Solidity_ast.program = try
-          Solidity_parser.parse ~freeton file
-        with
-        | Solidity_parser.Parser_error ( file, pos ) ->
-          Printf.eprintf "Error while parsing file in %s at pos %d\n%!"
-            file pos;
-          exit 2
+      let program : Solidity_ast.program =
+          Solidity_parser.parse_file ~freeton file
       in
 
       Format.printf "Parsed code:\n%s@."
@@ -83,7 +78,7 @@ let main () =
           program
       in
       let () =
-        if !typecheck && !postcheck then
+        if !typecheck && !postcheck && not !Solidity_common.for_freeton then
           Solidity_postprocess.checkProgram program
       in
       ()

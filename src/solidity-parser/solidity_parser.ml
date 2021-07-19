@@ -13,8 +13,6 @@
 open Solidity_common
 open Solidity_ast
 
-exception Parser_error of string * int
-
 let get_imported_files m =
   let base = Filename.dirname m.module_file in
   List.fold_left (fun fileset unit_node ->
@@ -31,18 +29,24 @@ let set_filename lexbuf filename =
   let lex_curr_p = lexbuf.lex_curr_p in
   lexbuf.lex_curr_p <- { lex_curr_p with pos_fname = filename }
 
-let parse_module id file =
-  let c = open_in file in
-  let lb = Lexing.from_channel c in
+let parse_module id ?preprocess file =
+  let content = EzFile.read_file file in
+  let content = match preprocess with
+    | None -> content
+    | Some f -> f content
+  in
+  let lb = Lexing.from_string content in
   set_filename lb file ;
   let module_units =
     try
       Solidity_raw_parser.module_units
         Solidity_lexer.token lb
     with Solidity_raw_parser.Error ->
-      raise ( Parser_error ( file , Lexing.lexeme_start lb ) )
+      raise ( Solidity_exceptions.SyntaxError ("Parse error",
+                            Solidity_common.to_pos
+                              ( lb.Lexing.lex_start_p ,
+                                lb.Lexing.lex_curr_p )))
   in
-  close_in c;
   { module_file = file; module_id = Ident.root id; module_units }
 
 (* Parse a Solidity file and all its imported files.
@@ -50,12 +54,12 @@ let parse_module id file =
    imported files are added at the end of the input file queue.
    The imports of a file are ordered lexicographically
    before being added to the queue. *)
-let parse ?(freeton=false) file =
+let parse_file ?(freeton=false) ?preprocess filename =
 
   Solidity_lexer.init ~freeton;
   Solidity_common.for_freeton := freeton ;
 
-  let file = make_absolute_path (Sys.getcwd ()) file in
+  let file = make_absolute_path (Sys.getcwd ()) filename in
 
   let files = ref (StringSet.singleton file) in
 
@@ -67,7 +71,7 @@ let parse ?(freeton=false) file =
 
   while not (Queue.is_empty to_parse) do
     let file = Queue.pop to_parse in
-    let m = parse_module (id := !id + 1; !id) file in
+    let m = parse_module (id := !id + 1; !id) ?preprocess file in
     modules := m :: !modules;
     let imported_files = get_imported_files m in
     let new_files = StringSet.diff imported_files !files in
