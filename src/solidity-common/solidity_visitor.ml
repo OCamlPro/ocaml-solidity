@@ -311,6 +311,7 @@ and visitFunctionDef (v : #ast_visitor) (fd : function_definition) : unit =
         fun_override;
         fun_virtual;
         fun_inline = _;
+        fun_responsible = _;
         fun_body
        } : function_definition) : unit =
     visitNode visitIdent v fun_name;
@@ -405,8 +406,9 @@ and visitStatement (v : #ast_visitor) (s : statement) : unit =
     | Emit (e, fca) ->
         visitExpression v e;
         visitFunctionCallArguments v fca
-    | Return eo ->
-        visitOpt visitExpression v eo
+    | Return (eo, l) ->
+        visitOpt visitExpression v eo;
+        visitList (visitXY (visitNode visitIdent) visitExpression) v l
     | Continue | Break | PlaceholderStatement -> ()
     | RepeatStatement (e, s) ->
         visitExpression v e;

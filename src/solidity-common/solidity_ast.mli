@@ -127,6 +127,7 @@ and function_definition = {
   fun_override : longident list option;
   fun_virtual : bool;
   fun_inline : bool; (* freeton *)
+  fun_responsible : bool; (* freeton *)
   fun_body : block option;
 }
 
@@ -224,8 +225,8 @@ and raw_statement =
   | Emit of expression * function_call_arguments
   (** Event emission *)
 
-  | Return of expression option
-  (** Return statement *)
+  | Return of expression option * (ident * expression) list
+  (** Return statement (second part only on FreeToN) *)
 
   | Continue
   (** Continue (loop statement) *)

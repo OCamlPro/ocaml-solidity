@@ -1112,4 +1112,3 @@ let inheritFrom
     | None -> invariant_broken ("Cannot find inherited contract " ^ LongIdent.to_string id)
     | Some e -> e in
   {env with env_inherited = env.env_inherited @ [id, inherit_env]}
-
