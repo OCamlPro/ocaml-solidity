@@ -42,6 +42,7 @@
     | Invocation of longident * expression list option
     | Static
     | Inline
+    | Responsible
 
   let add_free_var_modifiers pos var ml =
     let has_mut = ref false in
@@ -114,6 +115,10 @@
             if fct.fun_inline then
               error pos "Inline already specified";
             { fct with fun_inline = true }
+        | Responsible ->
+            if fct.fun_responsible then
+              error pos "responsible already specified";
+            { fct with fun_responsible = true }
         | Invocation (lid, exp_list_opt) ->
             { fct with fun_modifiers =
                          (lid, exp_list_opt) :: fct.fun_modifiers }
@@ -255,6 +260,7 @@
 %token USING
 %token PUBLIC
 %token INLINE (* freeton *)
+%token RESPONSIBLE (* freeton *)
 %token STATIC (* freeton *)
 %token OPTIONAL (* freeton *)
 %token ONBOUNCE (* freeton *)
@@ -456,6 +462,7 @@ source_unit:
             fun_override = None;
             fun_virtual = false;
             fun_inline = false;
+            fun_responsible = false;
             fun_body = $5; } $3)) }
 ;;
 
@@ -545,6 +552,7 @@ contract_part:
             fun_override = None;
             fun_virtual = false;
             fun_inline = false;
+            fun_responsible = false;
             fun_body = $5; } $3)) }
   | function_descriptor parameters function_modifier*
         returns_opt function_body_opt
@@ -558,6 +566,7 @@ contract_part:
             fun_override = None;
             fun_virtual = false;
             fun_inline = false;
+            fun_responsible = false;
             fun_body = $5; } $3)) }
   | EVENT identifier event_parameters boption(ANONYMOUS) SEMI
       { mk $loc (EventDefinition {
@@ -591,7 +600,7 @@ struct_fields:
 function_descriptor:
   | FUNCTION identifier { $2 }
   | CONSTRUCTOR         { mk $loc Ident.constructor }
-  | ONBOUNCE            { freeton() ; mk $loc Ident.constructor }
+  | ONBOUNCE            { freeton() ; mk $loc Ident.onBounce }
   | RECEIVE             { mk $loc Ident.receive }
   | FALLBACK            { mk $loc Ident.fallback }
 ;;
@@ -619,6 +628,7 @@ function_modifier:
   | internal_external   { $1 }
   | public_private      { $1 }
   | INLINE              { freeton() ; Inline }
+  | RESPONSIBLE         { freeton() ; Responsible }
   | VIRTUAL             { Virtual }
   | override_specifier  { $1 }
 ;;
@@ -861,7 +871,9 @@ statement_no_semi:
 statement_before_semi:
   | simple_statement   { $1 }
   | do_while_statement { mk $loc ($1) }
-  | RETURN expression? { mk $loc (Return ($2)) }
+  | RETURN LBRACE name_value_nonempty_list RBRACE expression?
+      { freeton() ; mk $loc (Return ($5, $3)) }
+  | RETURN expression? { mk $loc (Return ($2, [])) }
   | CONTINUE           { mk $loc (Continue) }
   | BREAK              { mk $loc (Break) }
   | EMIT function_call { let (f, a) = $2 in mk $loc (Emit (f, a)) }

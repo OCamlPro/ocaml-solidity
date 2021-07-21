@@ -111,6 +111,7 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   | TContract (_, derived, _), TContract (base, _, _) ->
       List.exists (fun (derived, _) ->
           LongIdent.equal derived base) derived.contract_hierarchy
+  | TContract _, TAddress _ -> !for_freeton
   | TString (loc1), TString (loc2)
   | TBytes (loc1), TBytes (loc2) ->
       (ignore_loc || convertible_location ~from:loc1 ~to_:loc2)

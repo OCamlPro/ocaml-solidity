@@ -60,7 +60,7 @@ let is_visible lookup visibility ~origin ~variable =
   | LExternal ->
       is_externally_visible visibility
   | LStatic (Interface, _) ->
-      false
+      !for_freeton
   | LStatic (Contract, false) ->
       false
   | LStatic (Contract, true) ->
@@ -136,7 +136,8 @@ let rec lookup_lident
     (lident : relative LongIdent.t) : ident_desc list =
   match LongIdent.to_ident_list lident with
   | [] -> assert false
-  | [ident] -> lookup_ident env ~upper ~lookup ident
+  | [ident] ->
+      lookup_ident env ~upper ~lookup ident
   | ident :: lident ->
       match lookup_ident env ~upper ~lookup:LAny ident with
       | [] -> []

@@ -454,7 +454,6 @@ let get_primitive opt base_t_opt id_node =
   | None ->
       []
 
-
 let type_ident opt env base_t_opt id_node =
 
   let id = strip id_node in
@@ -577,331 +576,331 @@ and type_expression_lv opt env exp
   let pos = exp.pos in
   let t, lv = match strip exp with
 
-  (* Literals *)
+    (* Literals *)
 
-  | BooleanLiteral (_b) ->
-      TBool, false
+    | BooleanLiteral (_b) ->
+        TBool, false
 
-  | NumberLiteral (q, unit, sz_opt) ->
-      (* Note: size set only if hex *)
-      let q = apply_unit q unit in
-      let sz_opt =
-        match sz_opt with
-        | Some (i) ->
-            if (i mod 2 = 0) then
-              Some (i / 2)
-            else
-              None (* Note: if not even, size info is no longer relevant *)
-        | None ->
-            None
-      in
-      TRationalConst (q, sz_opt), false
+    | NumberLiteral (q, unit, sz_opt) ->
+        (* Note: size set only if hex *)
+        let q = apply_unit q unit in
+        let sz_opt =
+          match sz_opt with
+          | Some (i) ->
+              if (i mod 2 = 0) then
+                Some (i / 2)
+              else
+                None (* Note: if not even, size info is no longer relevant *)
+          | None ->
+              None
+        in
+        TRationalConst (q, sz_opt), false
 
-  | StringLiteral (s) ->
-      TLiteralString (s), false
+    | StringLiteral (s) ->
+        TLiteralString (s), false
 
-  | AddressLiteral (_a) ->
-      (* Note: Valid address literals are of type address payable *)
-      TAddress (true), false
+    | AddressLiteral (_a) ->
+        (* Note: Valid address literals are of type address payable *)
+        TAddress (true), false
 
-  (* Array expressions *)
+    (* Array expressions *)
 
-  | ImmediateArray (el) ->
-      let tl = List.map (type_expression opt env) el in
-      let t = immediate_array_element_type pos tl in
-      let sz = Z.of_int (List.length tl) in
-      (* Note: not an lvalue, but index access to such array is an lvalue *)
-      TArray (t, Some (sz), LMemory), false
+    | ImmediateArray (el) ->
+        let tl = List.map (type_expression opt env) el in
+        let t = immediate_array_element_type pos tl in
+        let sz = Z.of_int (List.length tl) in
+        (* Note: not an lvalue, but index access to such array is an lvalue *)
+        TArray (t, Some (sz), LMemory), false
 
-  | ArrayAccess (e, None) ->
-      begin
-        match type_expression opt env e with
-        | TType (t) ->
-            let t = Solidity_type.change_type_location LMemory t in
-            replace_annot e (AType (TType t));
-            TType (TArray (t, None, LMemory)), false
-        | _ ->
-            error pos "Index expression cannot be omitted"
-      end
+    | ArrayAccess (e, None) ->
+        begin
+          match type_expression opt env e with
+          | TType (t) ->
+              let t = Solidity_type.change_type_location LMemory t in
+              replace_annot e (AType (TType t));
+              TType (TArray (t, None, LMemory)), false
+          | _ ->
+              error pos "Index expression cannot be omitted"
+        end
 
-  | ArrayAccess (e1, Some (e2)) ->
-      begin
-        match type_expression opt env e1 with
-        | TType (t) ->
-            begin
-              match expect_array_index_type opt env None e2 with
-              | Some (sz) ->
-                  let t = Solidity_type.change_type_location LMemory t in
-                  replace_annot e1 (AType (TType t));
-                  TType (TArray (t, Some (sz), LMemory)), false
-              | None ->
-                  error pos "Integer constant expected"
-            end
-        | TArray (t, sz_opt, _loc) ->
-            ignore (expect_array_index_type opt env sz_opt e2);
-            t, true
-        | TArraySlice (t, _loc) ->
-            ignore (expect_array_index_type opt env None e2);
-            (* Note: array access into a slice is NOT an lvalue *)
-            t, false
-        | TMapping (tk, tv, _loc) ->
-            expect_expression_type opt env e2 tk;
-            tv, true
-        | TFixBytes (sz) ->
-            ignore (expect_array_index_type opt env (Some (Z.of_int sz)) e2);
-            TFixBytes (1), false
-        | TBytes (_loc) ->
-            ignore (expect_array_index_type opt env None e2);
-            TFixBytes (1), true
-        | TString (_loc) ->
-            error pos "Index access for string is not possible"
-        | t ->
-            error pos "Indexed expression has to be a type, \
-                       mapping or array (is %s)"
-                      (Solidity_type_printer.string_of_type t)
-      end
+    | ArrayAccess (e1, Some (e2)) ->
+        begin
+          match type_expression opt env e1 with
+          | TType (t) ->
+              begin
+                match expect_array_index_type opt env None e2 with
+                | Some (sz) ->
+                    let t = Solidity_type.change_type_location LMemory t in
+                    replace_annot e1 (AType (TType t));
+                    TType (TArray (t, Some (sz), LMemory)), false
+                | None ->
+                    error pos "Integer constant expected"
+              end
+          | TArray (t, sz_opt, _loc) ->
+              ignore (expect_array_index_type opt env sz_opt e2);
+              t, true
+          | TArraySlice (t, _loc) ->
+              ignore (expect_array_index_type opt env None e2);
+              (* Note: array access into a slice is NOT an lvalue *)
+              t, false
+          | TMapping (tk, tv, _loc) ->
+              expect_expression_type opt env e2 tk;
+              tv, true
+          | TFixBytes (sz) ->
+              ignore (expect_array_index_type opt env (Some (Z.of_int sz)) e2);
+              TFixBytes (1), false
+          | TBytes (_loc) ->
+              ignore (expect_array_index_type opt env None e2);
+              TFixBytes (1), true
+          | TString (_loc) ->
+              error pos "Index access for string is not possible"
+          | t ->
+              error pos "Indexed expression has to be a type, \
+                         mapping or array (is %s)"
+                (Solidity_type_printer.string_of_type t)
+        end
 
-  | ArraySlice (e1, e1_opt, e2_opt) ->
-      begin
-        match type_expression opt env e1 with
-        | TArray (t, None, (LCalldata as loc))
-        | TArraySlice (t, loc) ->
-            Option.iter (fun e ->
-                ignore (expect_array_index_type opt env None e)) e1_opt;
-            Option.iter (fun e ->
-                ignore (expect_array_index_type opt env None e)) e2_opt;
-            TArraySlice (t, loc), false
-        | TArray (_t, _sz_opt, _loc) ->
-            error pos "Index range access is only supported \
-                       for dynamic calldata arrays"
-        | _ ->
-            error pos "Index range access is only possible \
-                       for arrays and array slices"
-      end
+    | ArraySlice (e1, e1_opt, e2_opt) ->
+        begin
+          match type_expression opt env e1 with
+          | TArray (t, None, (LCalldata as loc))
+          | TArraySlice (t, loc) ->
+              Option.iter (fun e ->
+                  ignore (expect_array_index_type opt env None e)) e1_opt;
+              Option.iter (fun e ->
+                  ignore (expect_array_index_type opt env None e)) e2_opt;
+              TArraySlice (t, loc), false
+          | TArray (_t, _sz_opt, _loc) ->
+              error pos "Index range access is only supported \
+                         for dynamic calldata arrays"
+          | _ ->
+              error pos "Index range access is only possible \
+                         for arrays and array slices"
+        end
 
-  (* Simple expressions *)
+    (* Simple expressions *)
 
-  | PrefixExpression ((UInc | UDec | UDelete as op), e)
-  | SuffixExpression (e, (UInc | UDec as op)) ->
-      let t, lv = type_expression_lv { opt with allow_empty = true } env e in
-      if not lv then error pos "Expression has to be an lvalue";
-      unop_type pos op t, false
+    | PrefixExpression ((UInc | UDec | UDelete as op), e)
+    | SuffixExpression (e, (UInc | UDec as op)) ->
+        let t, lv = type_expression_lv { opt with allow_empty = true } env e in
+        if not lv then error pos "Expression has to be an lvalue";
+        unop_type pos op t, false
 
-  | PrefixExpression (op, e)
-  | SuffixExpression (e, op) ->
-      unop_type pos op (type_expression opt env e), false
+    | PrefixExpression (op, e)
+    | SuffixExpression (e, op) ->
+        unop_type pos op (type_expression opt env e), false
 
-  | BinaryExpression (e1, op, e2) ->
-      let t1 = type_expression opt env e1 in
-      let t2 = type_expression opt env e2 in
-      binop_type pos op t1 t2, false
+    | BinaryExpression (e1, op, e2) ->
+        let t1 = type_expression opt env e1 in
+        let t2 = type_expression opt env e2 in
+        binop_type pos op t1 t2, false
 
-  | CompareExpression (e1, op, e2) ->
-      let t1 = type_expression opt env e1 in
-      let t2 = type_expression opt env e2 in
-      let valid =
-        match
-          let t1 = Solidity_type_conv.mobile_type pos t1 in
-          let t2 = Solidity_type_conv.mobile_type pos t2 in
+    | CompareExpression (e1, op, e2) ->
+        let t1 = type_expression opt env e1 in
+        let t2 = type_expression opt env e2 in
+        let valid =
+          match
+            let t1 = Solidity_type_conv.mobile_type pos t1 in
+            let t2 = Solidity_type_conv.mobile_type pos t2 in
           (*
           Printf.eprintf "common_type %s %s\n%!"
             ( Solidity_type_printer.string_of_type t1)
             ( Solidity_type_printer.string_of_type t2); *)
-          Solidity_type_conv.common_type t1 t2
-        with
-        | Some (t) -> Solidity_type.is_comparable op t
-        | None ->
-            Printf.eprintf "No common type\n%!";
-            false
-      in
-      if not valid then
-        error pos "Operator %s not compatible with types %s and %s"
-          (Solidity_printer.string_of_cmpop op)
-          (Solidity_type_printer.string_of_type t1)
-          (Solidity_type_printer.string_of_type t2);
-      TBool, false
+            Solidity_type_conv.common_type t1 t2
+          with
+          | Some (t) -> Solidity_type.is_comparable op t
+          | None ->
+              Printf.eprintf "No common type\n%!";
+              false
+        in
+        if not valid then
+          error pos "Operator %s not compatible with types %s and %s"
+            (Solidity_printer.string_of_cmpop op)
+            (Solidity_type_printer.string_of_type t1)
+            (Solidity_type_printer.string_of_type t2);
+        TBool, false
 
-  | AssignExpression (e1, e2) ->
-      let t1, lv = type_expression_lv { opt with allow_empty = true } env e1 in
-      let t2 = type_expression opt env e2 in
-      if not lv then
-        error pos "Assignment operator requires lvalue as left-hand side";
-      (* Note: (true ? tuple : tuple) = tuple
-         may become allowed in the future *)
-      if not ( match t1 with
-          | TOptional t1 ->
-              let t2 = Solidity_type_conv.mobile_type pos t2 in
-(*              Printf.eprintf "convert %s <- %s\n%!"
-                ( Solidity_type_printer.string_of_type t1)
-                ( Solidity_type_printer.string_of_type t2); *)
-              Solidity_type_conv.implicitly_convertible
-                ~from:t2 ~to_:t1 ()
-          | _ -> false ) then
-        expect_type pos ~expected:t1 ~provided:t2;
-      t1, false
-
-  | AssignBinaryExpression (e1, op, e2) ->
-      let t1, lv = type_expression_lv { opt with allow_empty = true } env e1 in
-      let t2 = type_expression opt env e2 in
-      if not lv then
-        error pos "Assignment operator requires lvalue as left-hand side";
-      if Solidity_type.is_tuple t1 then
-        error pos "Compound assignment is not allowed for tuple types"
-      else
-        let t = binop_type pos op t1 t2 in
-        expect_type pos ~expected:t1 ~provided:t;
+    | AssignExpression (e1, e2) ->
+        let t1, lv = type_expression_lv { opt with allow_empty = true } env e1 in
+        let t2 = type_expression opt env e2 in
+        if not lv then
+          error pos "Assignment operator requires lvalue as left-hand side";
+        (* Note: (true ? tuple : tuple) = tuple
+           may become allowed in the future *)
+        if not ( match t1 with
+            | TOptional t1 ->
+                let t2 = Solidity_type_conv.mobile_type pos t2 in
+                (*              Printf.eprintf "convert %s <- %s\n%!"
+                                ( Solidity_type_printer.string_of_type t1)
+                                ( Solidity_type_printer.string_of_type t2); *)
+                Solidity_type_conv.implicitly_convertible
+                  ~from:t2 ~to_:t1 ()
+            | _ -> false ) then
+          expect_type pos ~expected:t1 ~provided:t2;
         t1, false
 
-  | TupleExpression (eol) ->
-      let tl, lv =
-        List.fold_left (fun (tl, lv) e_opt ->
-            match e_opt with
-            | Some (e) ->
-                let t, elv = type_expression_lv opt env e in
-                Some (t) :: tl, lv && elv
-            | None when opt.allow_empty ->
-                None :: tl, lv
-            | None ->
-                error pos "Tuple component cannot be empty"
-          ) ([], true) eol
-      in
-      TTuple (List.rev tl), lv
+    | AssignBinaryExpression (e1, op, e2) ->
+        let t1, lv = type_expression_lv { opt with allow_empty = true } env e1 in
+        let t2 = type_expression opt env e2 in
+        if not lv then
+          error pos "Assignment operator requires lvalue as left-hand side";
+        if Solidity_type.is_tuple t1 then
+          error pos "Compound assignment is not allowed for tuple types"
+        else
+          let t = binop_type pos op t1 t2 in
+          expect_type pos ~expected:t1 ~provided:t;
+          t1, false
 
-  | IfExpression (e_if, e_then, e_else) ->
-      (* Note: may become an lvalue in the future *)
-      expect_expression_type opt env e_if TBool;
-      let t1 = type_expression opt env e_then in
-      let t2 = type_expression opt env e_else in
-      begin
-        match Solidity_type_conv.common_type
-                (Solidity_type_conv.mobile_type pos t1)
-                (Solidity_type_conv.mobile_type pos t2) with
-        | Some (t) ->
-            t, false
-        | None ->
-            error pos "True expression's type %s does not \
-                       match false expression's type %s"
-              (Solidity_type_printer.string_of_type t1)
-              (Solidity_type_printer.string_of_type t2)
-      end
-
-  | NewExpression (t) ->
-      (* Note: this produces a function that takes the
-         constructor arguments or array size as parameter *)
-      (* Note: for arrays, only one parameter, even if multidimensional *)
-      let t = Solidity_type_builder.ast_type_to_type pos ~loc:LMemory env t in
-      begin
-        match t with
-        | TArray (_, None, _) | TBytes (_) | TString (_) ->
-            let t = Solidity_type_builder.primitive_fun_type
-                      [TUint 256] [t] MPure in
-            (t, false)
-        | TContract (_lid, cd, false (* super *)) ->
-            if cd.contract_def.contract_abstract then
-              error pos "Cannot instantiate an abstract contract";
-            if is_interface cd.contract_def.contract_kind then
-              error pos "Cannot instantiate an interface";
-            if is_library cd.contract_def.contract_kind then
-              error pos "Instantiating libraries is not supported yet";
-            let ctor = Solidity_tenv.find_constructor pos cd in
-            let atl = List.map fst ctor.function_params in
-            let t = Solidity_type_builder.primitive_fun_type
-                      ~kind:KNewContract atl [t] MPayable in
-            (t, false)
-        | TArray (_, Some (_), _) ->
-            error pos "Length has to be placed in parentheses \
-                       after the array type for new expression"
-        | TStruct (_) | TEnum _ ->
-            error pos "Identifier is not a contract"
-        | _ ->
-            error pos "Contract or array type expected"
-      end
-
-  | TypeExpression (t) ->
-      TType (Solidity_type_builder.ast_type_to_type pos ~loc:LMemory env t),
-      false
-
-  | IdentifierExpression (id_node) ->
-      type_ident opt env None id_node
-
-  | FieldExpression (e, id_node) ->
-      let t = type_expression opt env e in
-      type_ident opt env (Some t) id_node
-
-  | FunctionCallExpression (e, args) ->
-      let args = type_function_args opt env args in
-      let t = type_expression { opt with call_args = Some (args) } env e in
-      begin
-        match t, args with
-
-        (* Function call *)
-        | TFunction (fd, _fo), args ->
-            check_function_application pos "function call"
-              fd.function_params args;
-            begin
-              match fd.function_returns with
-              | [t, _id_opt] -> t, fd.function_returns_lvalue
-              | tl -> TTuple (List.map (fun (t, _id_opt) -> Some (t)) tl),
-                      fd.function_returns_lvalue
-            end
-
-        (* Event invocation *)
-        | TEvent (ed), args ->
-            check_function_application pos "function call"
-              ed.event_params args;
-            TTuple [], false
-
-        (* Struct constructor *)
-        | TType (TStruct (_lid, sd, _loc) as t), args ->
-            let t = Solidity_type.change_type_location LMemory t in
-            replace_annot e (AType (TType t));
-            let fp =
-              List.map (fun (fid, ft) ->
-                  (Solidity_type.change_type_location LMemory ft, Some (fid))
-                ) sd.struct_fields
-            in
-            check_function_application pos "struct constructor" fp args;
-            t, false
-
-        (* Type conversion *)
-        | TType (t), AList ([at]) ->
-            begin
-              let loc = Solidity_type.get_type_location e.pos at in
-              let t = Solidity_type.change_type_location loc t in
-              replace_annot e (AType (TType t));
-              match Solidity_type_conv.explicitly_convertible
-                      ~from:at ~to_:t with
-              | Some (t) -> t, false
+    | TupleExpression (eol) ->
+        let tl, lv =
+          List.fold_left (fun (tl, lv) e_opt ->
+              match e_opt with
+              | Some (e) ->
+                  let t, elv = type_expression_lv opt env e in
+                  Some (t) :: tl, lv && elv
+              | None when opt.allow_empty ->
+                  None :: tl, lv
               | None ->
-                  error pos "Explicit type conversion not \
-                             allowed from \"%s\" to \"%s\""
-                    (Solidity_type_printer.string_of_type at)
-                    (Solidity_type_printer.string_of_type t)
-            end
+                  error pos "Tuple component cannot be empty"
+            ) ([], true) eol
+        in
+        TTuple (List.rev tl), lv
 
-        | TType (_), AList (_) ->
-            error pos "Exactly one argument expected \
-                       for explicit type conversion"
+    | IfExpression (e_if, e_then, e_else) ->
+        (* Note: may become an lvalue in the future *)
+        expect_expression_type opt env e_if TBool;
+        let t1 = type_expression opt env e_then in
+        let t2 = type_expression opt env e_else in
+        begin
+          match Solidity_type_conv.common_type
+                  (Solidity_type_conv.mobile_type pos t1)
+                  (Solidity_type_conv.mobile_type pos t2) with
+          | Some (t) ->
+              t, false
+          | None ->
+              error pos "True expression's type %s does not \
+                         match false expression's type %s"
+                (Solidity_type_printer.string_of_type t1)
+                (Solidity_type_printer.string_of_type t2)
+        end
 
-        | TType (_), ANamed (_) ->
-            error pos "Type conversion cannot allow named arguments"
+    | NewExpression (t) ->
+        (* Note: this produces a function that takes the
+           constructor arguments or array size as parameter *)
+        (* Note: for arrays, only one parameter, even if multidimensional *)
+        let t = Solidity_type_builder.ast_type_to_type pos ~loc:LMemory env t in
+        begin
+          match t with
+          | TArray (_, None, _) | TBytes (_) | TString (_) ->
+              let t = Solidity_type_builder.primitive_fun_type
+                  [TUint 256] [t] MPure in
+              (t, false)
+          | TContract (_lid, cd, false (* super *)) ->
+              if cd.contract_def.contract_abstract then
+                error pos "Cannot instantiate an abstract contract";
+              if is_interface cd.contract_def.contract_kind then
+                error pos "Cannot instantiate an interface";
+              if is_library cd.contract_def.contract_kind then
+                error pos "Instantiating libraries is not supported yet";
+              let ctor = Solidity_tenv.find_constructor pos cd in
+              let atl = List.map fst ctor.function_params in
+              let t = Solidity_type_builder.primitive_fun_type
+                  ~kind:KNewContract atl [t] MPayable in
+              (t, false)
+          | TArray (_, Some (_), _) ->
+              error pos "Length has to be placed in parentheses \
+                         after the array type for new expression"
+          | TStruct (_) | TEnum _ ->
+              error pos "Identifier is not a contract"
+          | _ ->
+              error pos "Contract or array type expected"
+        end
 
-        | (TRationalConst _ | TLiteralString _ |
-           TBool | TInt _ | TUint _ | TFixed _ | TUfixed _ |
-           TAddress _ | TFixBytes _ | TBytes _ | TString _ |
-           TEnum _ | TStruct _ | TContract _ | TArray _ | TMapping _ |
-           TTuple _ | TModifier _ | TArraySlice _ | TMagic _ | TModule _
+    | TypeExpression (t) ->
+        TType (Solidity_type_builder.ast_type_to_type pos ~loc:LMemory env t),
+        false
 
-          | TAbstract _
-          | TOptional _
-          | TAny | TDots
-          ), _ ->
-            error pos "Type is not callable"
-      end
+    | IdentifierExpression (id_node) ->
+        type_ident opt env None id_node
 
-  | CallOptions ( { contents =
-                      IdentifierExpression { contents = id ; _ } ;
-                  _ }, opts)
+    | FieldExpression (e, id_node) ->
+        let t = type_expression opt env e in
+        type_ident opt env (Some t) id_node
+
+    | FunctionCallExpression (e, args) ->
+        let args = type_function_args opt env args in
+        let t = type_expression { opt with call_args = Some (args) } env e in
+        begin
+          match t, args with
+
+          (* Function call *)
+          | TFunction (fd, _fo), args ->
+              check_function_application pos "function call"
+                fd.function_params args;
+              begin
+                match fd.function_returns with
+                | [t, _id_opt] -> t, fd.function_returns_lvalue
+                | tl -> TTuple (List.map (fun (t, _id_opt) -> Some (t)) tl),
+                        fd.function_returns_lvalue
+              end
+
+          (* Event invocation *)
+          | TEvent (ed), args ->
+              check_function_application pos "function call"
+                ed.event_params args;
+              TTuple [], false
+
+          (* Struct constructor *)
+          | TType (TStruct (_lid, sd, _loc) as t), args ->
+              let t = Solidity_type.change_type_location LMemory t in
+              replace_annot e (AType (TType t));
+              let fp =
+                List.map (fun (fid, ft) ->
+                    (Solidity_type.change_type_location LMemory ft, Some (fid))
+                  ) sd.struct_fields
+              in
+              check_function_application pos "struct constructor" fp args;
+              t, false
+
+          (* Type conversion *)
+          | TType (t), AList ([at]) ->
+              begin
+                let loc = Solidity_type.get_type_location e.pos at in
+                let t = Solidity_type.change_type_location loc t in
+                replace_annot e (AType (TType t));
+                match Solidity_type_conv.explicitly_convertible
+                        ~from:at ~to_:t with
+                | Some (t) -> t, false
+                | None ->
+                    error pos "Explicit type conversion not \
+                               allowed from \"%s\" to \"%s\""
+                      (Solidity_type_printer.string_of_type at)
+                      (Solidity_type_printer.string_of_type t)
+              end
+
+          | TType (_), AList (_) ->
+              error pos "Exactly one argument expected \
+                         for explicit type conversion"
+
+          | TType (_), ANamed (_) ->
+              error pos "Type conversion cannot allow named arguments"
+
+          | (TRationalConst _ | TLiteralString _ |
+             TBool | TInt _ | TUint _ | TFixed _ | TUfixed _ |
+             TAddress _ | TFixBytes _ | TBytes _ | TString _ |
+             TEnum _ | TStruct _ | TContract _ | TArray _ | TMapping _ |
+             TTuple _ | TModifier _ | TArraySlice _ | TMagic _ | TModule _
+
+            | TAbstract _
+            | TOptional _
+            | TAny | TDots
+            ), _ ->
+              error pos "Type is not callable"
+        end
+
+    | CallOptions ( { contents =
+                        IdentifierExpression { contents = id ; _ } ;
+                      _ }, opts)
       when Ident.to_string id = "@stateInit"
       ->
         TMagic ( TStatic
@@ -909,95 +908,16 @@ and type_expression_lv opt env exp
                         let type_ = type_expression opt env e in
                         id, type_
                       ) opts )), false (* TODO *)
-  | CallOptions (e, opts) ->
-      begin
-        match type_expression opt env e with
-        | TFunction (fd, fo) ->
-            let is_payable = is_payable fd.function_mutability in
-            let fo = List.fold_left (fun fo (id, e) ->
-                let id = strip id in
-                let fo, already_set =
-                  match Ident.to_string id, fo.kind with
-                  | "value", KExtContractFun when
-                      not !for_freeton && not is_payable ->
-                      error pos "Cannot set option \"value\" \
-                                 on a non-payable function type"
-                  | "value", KNewContract when
-                      not !for_freeton && not is_payable ->
-                      error pos "Cannot set option \"value\", since the \
-                                 constructor of contract is non-payable"
-                  | "value", (KExtContractFun | KNewContract) ->
-                      expect_expression_type opt env e (TUint 256);
-                      { fo with value = true }, fo.value
-                  | "gas", KExtContractFun ->
-                      expect_expression_type opt env e (TUint 256);
-                      { fo with gas = true }, fo.gas
-                  | "salt", KNewContract ->
-                      expect_expression_type opt env e (TFixBytes 32);
-                      { fo with salt = true }, fo.salt
-                  | "gas", KNewContract ->
-                      error pos "Function call option \"%s\" cannot \
-                                 be used with \"new\""
-                        (Ident.to_string id);
-                  | "salt", KExtContractFun ->
-                      error pos "Function call option \"%s\" can \
-                                 only be used with \"new\""
-                        (Ident.to_string id);
-                      (* FREETON *)
-                      (* TODO: check that mandatory fields are provided *)
-                  | "pubkey", ( KNewContract | KExtContractFun )
-                    when !for_freeton ->
-                      expect_expression_type opt env e
-                        ( TOptional (TUint 256));
-                      fo, false (* TODO *)
-                  | "code", KNewContract when !for_freeton ->
-                      expect_expression_type opt env e (TAbstract TvmCell);
-                      fo, false (* TODO *)
-                  | "flag", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e (TUint 8);
-                      fo, false (* TODO *)
-                  | "varInit", KNewContract when !for_freeton ->
-                      fo, false (* TODO *)
-                  | "abiVer", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e (TUint 8);
-                      fo, false (* TODO *)
-                  | "extMsg", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e TBool ;
-                      fo, false (* TODO *)
-                  | "sign", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e TBool ;
-                      fo, false (* TODO *)
-                  | "time", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e (TUint 64) ;
-                      fo, false (* TODO *)
-                  | "expire", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e (TUint 64) ;
-                      fo, false (* TODO *)
-                  | "callbackId", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e (TUint 64) ;
-                      fo, false (* TODO *)
-                  | "onErrorId", KExtContractFun when !for_freeton ->
-                      expect_expression_type opt env e (TUint 64) ;
-                      fo, false (* TODO *)
-                  | _, KOther ->
-                      error pos "Function call options can only be set on \
-                                 external function calls or contract creations"
-                        (Ident.to_string id);
-                  | _ ->
-                      error pos "Unknown option \"%s\". Valid options are \
-                                 \"salt\", \"value\" and \"gas\""
-                        (Ident.to_string id);
-                in
-                if already_set then
-                  error pos "Option \"%s\" has already been set"
-                    (Ident.to_string id);
-                fo
-              ) fo opts
-            in
-            TFunction (fd, fo), false
-        | _ ->
-            error pos "Expected callable expression before call options"
-      end
+    | CallOptions (e, opts) ->
+        begin
+          match type_expression opt env e with
+          | TFunction (fd, fo) ->
+              let is_payable = is_payable fd.function_mutability in
+              let fo = type_options opt env pos is_payable fo opts in
+                TFunction (fd, fo), false
+          | _ ->
+              error pos "Expected callable expression before call options"
+        end
 
   in
   set_annot exp (AType t);
@@ -1042,6 +962,98 @@ and expect_type pos ~expected ~provided =
     error pos "Type %s is not implicitly convertible to expected type %s"
       (Solidity_type_printer.string_of_type provided)
       (Solidity_type_printer.string_of_type expected)
+
+and type_options opt env pos is_payable fo opts =
+  List.fold_left (fun fo (id, e) ->
+      let id = strip id in
+      let fo, already_set =
+        match Ident.to_string id, fo.kind with
+        | "value", KExtContractFun when
+            not !for_freeton && not is_payable ->
+            error pos "Cannot set option \"value\" \
+                       on a non-payable function type"
+        | "value", KNewContract when
+            not !for_freeton && not is_payable ->
+            error pos "Cannot set option \"value\", since the \
+                       constructor of contract is non-payable"
+        | "value", (KExtContractFun | KNewContract) ->
+            expect_expression_type opt env e (TUint 256);
+            { fo with value = true }, fo.value
+        | "gas", KExtContractFun ->
+            expect_expression_type opt env e (TUint 256);
+            { fo with gas = true }, fo.gas
+        | "salt", KNewContract ->
+            expect_expression_type opt env e (TFixBytes 32);
+            { fo with salt = true }, fo.salt
+        | "gas", KNewContract ->
+            error pos "Function call option \"%s\" cannot \
+                       be used with \"new\""
+              (Ident.to_string id);
+        | "salt", KExtContractFun ->
+            error pos "Function call option \"%s\" can \
+                       only be used with \"new\""
+              (Ident.to_string id);
+            (* FREETON *)
+            (* TODO: check that mandatory fields are provided *)
+        | "pubkey", ( KNewContract | KExtContractFun )
+          when !for_freeton ->
+            expect_expression_type opt env e
+              ( TOptional (TUint 256));
+            fo, false (* TODO *)
+        | "code", KNewContract when !for_freeton ->
+            expect_expression_type opt env e (TAbstract TvmCell);
+            fo, false (* TODO *)
+        | "flag", ( KExtContractFun | KNewContract ) when !for_freeton ->
+            expect_expression_type opt env e (TUint 8);
+            fo, false (* TODO *)
+        | "varInit", KNewContract when !for_freeton ->
+            fo, false (* TODO *)
+        | "abiVer", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e (TUint 8);
+            fo, false (* TODO *)
+        | "extMsg", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e TBool ;
+            fo, false (* TODO *)
+        | "sign", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e TBool ;
+            fo, false (* TODO *)
+        | "bounce", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e TBool ;
+            fo, false (* TODO *)
+        | "stateInit", KNewContract when !for_freeton ->
+            expect_expression_type opt env e (TAbstract TvmCell) ;
+            fo, false (* TODO *)
+        | "wid", KNewContract when !for_freeton ->
+            expect_expression_type opt env e (TUint 8) ;
+            fo, false (* TODO *)
+        | "time", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e (TUint 64) ;
+            fo, false (* TODO *)
+        | "expire", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e (TUint 64) ;
+            fo, false (* TODO *)
+        | "callbackId", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e (TUint 64) ;
+            fo, false (* TODO *)
+        | "onErrorId", KExtContractFun when !for_freeton ->
+            expect_expression_type opt env e (TUint 64) ;
+            fo, false (* TODO *)
+        | _, KOther ->
+            error pos "Function call options can only be set on \
+                       external function calls or contract creations"
+              (Ident.to_string id);
+        | _ ->
+            error pos "Unknown option \"%s\". Valid options are \
+                       \"salt\", \"value\" and \"gas\""
+              (Ident.to_string id);
+      in
+      if already_set then
+        error pos "Option \"%s\" has already been set"
+          (Ident.to_string id);
+      fo
+    ) fo opts
+
+
 
 (* Check statements *)
 
@@ -1157,12 +1169,16 @@ let rec type_statement opt env s =
           List.iter (type_statement opt env') body
         ) catch_clauses
 
-  | Return (e) ->
+  | Return (e, opts ) ->
       let annot =
         match opt.fun_returns with
         | [t] -> t
         | tl -> TTuple (List.map Option.some tl)
       in
+      let is_payable = true in
+      let fo = { Solidity_type_builder.new_fun_options
+                 with kind = KExtContractFun } in
+      let _fo = type_options opt env pos is_payable fo opts in
       set_annot s (AType annot);
       begin
         match (e, opt.fun_returns, opt.in_modifier) with
@@ -1183,7 +1199,11 @@ let rec type_statement opt env s =
                     (TTuple (List.map Option.some rtl))
               with Failure (s) -> error pos "%s in return" s
             end
-      end
+      end;
+
+
+
+
 
   | VariableDefinition (def) ->
       let var_decl_list =
@@ -2054,7 +2074,14 @@ let resolve_program_imports p =
   in
   List.rev ordered_rev
 
-let type_program p =
+let initialized = ref false
+
+let type_program ?(init = Solidity_primitives.init) p =
+
+  if not !initialized then begin
+    init ();
+    initialized := true
+  end;
 
   let ordered_modules = resolve_program_imports p in
 
@@ -2141,7 +2168,3 @@ let type_program p =
     ) ordered_modules;
 
   {p with program_modules = ordered_modules}
-
-
-let () =
-  Solidity_primitives.init ()

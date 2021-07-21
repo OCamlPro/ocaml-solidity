@@ -287,16 +287,18 @@ and variable_definition b indent ~freeton {
 
 and function_definition b indent {
     fun_name; fun_params; fun_returns; fun_modifiers; fun_visibility;
-    fun_mutability; fun_override; fun_virtual; fun_inline ; fun_body } =
+    fun_mutability; fun_override; fun_virtual;
+    fun_inline ; fun_responsible ; fun_body } =
   let name =
     match strip fun_name with
     | id when Ident.equal id Ident.fallback  -> "fallback"
     | id when Ident.equal id Ident.receive -> "receive"
     | id when Ident.equal id Ident.constructor -> "constructor"
+    | id when Ident.equal id Ident.onBounce -> "onBounce"
     | id -> "function " ^ (Ident.to_string id)
   in
   bprint b indent
-    (Format.sprintf "%s(%s) %s%s%s%s%s%s%s%s"
+    (Format.sprintf "%s(%s) %s%s%s%s%s%s%s%s%s"
        (name)
        (String.concat ", " (List.map string_of_function_param fun_params))
        (string_of_visibility fun_visibility)
@@ -305,6 +307,7 @@ and function_definition b indent {
         | m -> " " ^ (string_of_fun_mutability m))
        (if fun_virtual then " virtual" else "")
        (if fun_inline then " inline" else "")
+       (if fun_responsible then " responsible" else "")
        (match fun_override with
         | None -> ""
         | Some [] -> " override"
@@ -415,9 +418,20 @@ and statement b indent s =
            (string_of_function_call_arguments args))
   | PlaceholderStatement ->
       bprint b indent "_;"
-  | Return e_opt ->
+  | Return ( e_opt , options ) ->
       bprint b indent
-        (Format.sprintf "return %s;" (string_of_expression_option e_opt))
+        (Format.sprintf "return %s %s;"
+           ( match options with
+             | [] -> ""
+             | _ ->
+                 Format.sprintf "{%s}"
+                   (String.concat ","
+                      (List.map (fun (id, e) ->
+                           Format.sprintf "%s: %s"
+                             (string_of_ident id) (string_of_expression e)
+                         ) options))
+           )
+           (string_of_expression_option e_opt))
   | Block statement_list ->
       bprint b indent "{" ;
       block b (indent + 2) statement_list;

@@ -34,6 +34,8 @@ let rec string_of_magic_type = function
   | TAbi ->   "msg"
   | TTvm ->   "tvm"
   | TStatic _ -> assert false
+  | TMath -> "math"
+  | TRnd -> "rnd"
 
 and string_of_type = function
   | TBool ->

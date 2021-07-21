@@ -193,7 +193,8 @@ and magic_type =
   | TAbi (* type of the 'abi' object *)
   | TTvm (* type of the 'tvm' object *)
   | TStatic of ( Ident.t * type_ ) list
-
+  | TMath
+  | TRnd
 
 (* source_unit (Import) *)
 type annot += AImport of Ident.t

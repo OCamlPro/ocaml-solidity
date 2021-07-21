@@ -314,6 +314,7 @@ if freeton then
         "optional", OPTIONAL;
         "onBounce", ONBOUNCE;
         "repeat", REPEAT;
+        "responsible", RESPONSIBLE;
       ];
       ()
   end

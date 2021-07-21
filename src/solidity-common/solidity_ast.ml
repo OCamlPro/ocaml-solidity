@@ -95,6 +95,7 @@ and function_definition = {
   fun_override : longident list option; (* fallback/receive: external *)
   fun_virtual : bool;                   (* but public if missing...  *)
   fun_inline : bool; (* freeton *)
+  fun_responsible : bool; (* freeton *)
   fun_body : block option;        (* mutability : nonpayable by default *)
 }
 
@@ -155,7 +156,7 @@ and raw_statement =
                     expression option * statement
   | TryStatement of expression * return list * block * catch_clause list
   | Emit of expression * function_call_arguments
-  | Return of expression option
+  | Return of expression option * (ident * expression) list
   | Continue
   | Break
   | PlaceholderStatement
