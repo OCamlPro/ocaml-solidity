@@ -135,12 +135,14 @@ and fun_kind =
   | KOther
   | KNewContract
   | KExtContractFun
+  | KReturn
 
 and function_options = {
   kind : fun_kind;
   value : bool;
   gas : bool;
   salt : bool;
+  fields : StringSet.t ;
 }
 
 and location =
