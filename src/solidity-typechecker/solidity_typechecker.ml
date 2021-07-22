@@ -567,6 +567,12 @@ let type_ident opt env base_t_opt id_node =
   set_annot id_node a;
   t, lv
 
+
+let type_options_ref = ref ( fun _ -> assert false )
+
+let type_options opt env pos is_payable fo opts =
+  !type_options_ref opt env pos is_payable fo opts
+
 let rec type_expression opt env exp : type_ =
   let t, _lv = type_expression_lv opt env exp in
   t
@@ -963,7 +969,7 @@ and expect_type pos ~expected ~provided =
       (Solidity_type_printer.string_of_type provided)
       (Solidity_type_printer.string_of_type expected)
 
-and type_options opt env pos is_payable fo opts =
+and type_options_fun opt env pos is_payable fo opts =
   List.fold_left (fun fo (id, e) ->
       let id = strip id in
       let fo, already_set =
@@ -993,51 +999,6 @@ and type_options opt env pos is_payable fo opts =
             error pos "Function call option \"%s\" can \
                        only be used with \"new\""
               (Ident.to_string id);
-            (* FREETON *)
-            (* TODO: check that mandatory fields are provided *)
-        | "pubkey", ( KNewContract | KExtContractFun )
-          when !for_freeton ->
-            expect_expression_type opt env e
-              ( TOptional (TUint 256));
-            fo, false (* TODO *)
-        | "code", KNewContract when !for_freeton ->
-            expect_expression_type opt env e (TAbstract TvmCell);
-            fo, false (* TODO *)
-        | "flag", ( KExtContractFun | KNewContract ) when !for_freeton ->
-            expect_expression_type opt env e (TUint 8);
-            fo, false (* TODO *)
-        | "varInit", KNewContract when !for_freeton ->
-            fo, false (* TODO *)
-        | "abiVer", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e (TUint 8);
-            fo, false (* TODO *)
-        | "extMsg", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e TBool ;
-            fo, false (* TODO *)
-        | "sign", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e TBool ;
-            fo, false (* TODO *)
-        | "bounce", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e TBool ;
-            fo, false (* TODO *)
-        | "stateInit", KNewContract when !for_freeton ->
-            expect_expression_type opt env e (TAbstract TvmCell) ;
-            fo, false (* TODO *)
-        | "wid", KNewContract when !for_freeton ->
-            expect_expression_type opt env e (TUint 8) ;
-            fo, false (* TODO *)
-        | "time", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e (TUint 64) ;
-            fo, false (* TODO *)
-        | "expire", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e (TUint 64) ;
-            fo, false (* TODO *)
-        | "callbackId", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e (TUint 64) ;
-            fo, false (* TODO *)
-        | "onErrorId", KExtContractFun when !for_freeton ->
-            expect_expression_type opt env e (TUint 64) ;
-            fo, false (* TODO *)
         | _, KOther ->
             error pos "Function call options can only be set on \
                        external function calls or contract creations"
@@ -1177,7 +1138,7 @@ let rec type_statement opt env s =
       in
       let is_payable = true in
       let fo = { Solidity_type_builder.new_fun_options
-                 with kind = KExtContractFun } in
+                 with kind = KReturn } in
       let _fo = type_options opt env pos is_payable fo opts in
       set_annot s (AType annot);
       begin
@@ -2168,3 +2129,6 @@ let type_program ?(init = Solidity_primitives.init) p =
     ) ordered_modules;
 
   {p with program_modules = ordered_modules}
+
+let () =
+  type_options_ref := type_options_fun

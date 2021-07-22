@@ -257,7 +257,7 @@ and variable_definition b indent ~freeton {
     var_mutability; var_override; var_init;
     var_static } =
   bprint b indent
-    (Format.sprintf "%s%s%s %s%s%s%s%s"
+    (Format.sprintf "%s%s%s%s %s%s%s%s"
        (string_of_type var_type)
        (if var_static then " static" else "")
        (if freeton then
@@ -266,10 +266,10 @@ and variable_definition b indent ~freeton {
           | m -> " " ^ (string_of_var_mutability m)
         else ""
        )
-       (string_of_ident var_name)
        (match var_visibility with
         | VInternal -> ""
         | v -> " " ^ (string_of_visibility v))
+       (string_of_ident var_name)
        (if freeton then ""
         else
           match var_mutability with

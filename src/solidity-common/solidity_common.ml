@@ -449,10 +449,10 @@ let string_of_pos (file, pos1, pos2)  =
       Buffer.contents b
     with _ -> ""
   in
-  Printf.sprintf "%s:%d-%d:%d-%d"
+  Printf.sprintf "%s:%d.%d-%d.%d"
     file
-    (fst pos1) (snd pos1)
-    (fst pos2) (snd pos2),
+    (fst pos1) (snd pos1+1)
+    (fst pos2) (snd pos2+1),
   source
 
 let set_annot n annot =
