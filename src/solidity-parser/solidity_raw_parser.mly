@@ -216,8 +216,9 @@
     | AmbiguousArray (a, expo) ->
         Array (type_name_of_ambiguity a, expo)
 
-  let import import_from import_symbols =
-    { import_from; import_symbols }
+  let import import_pos import_from import_symbols =
+    let import_pos = to_pos import_pos in
+    { import_pos; import_from; import_symbols }
 
   let rec put_in_none_list l n =
     if n <= 0 then l
@@ -468,11 +469,11 @@ source_unit:
 
 import_directive:
   | STRINGLITERAL as_identifier?
-      { import $1 (ImportAll ($2)) }
+      { import $loc $1 (ImportAll ($2)) }
   | STAR as_identifier FROM STRINGLITERAL
-      { import $4 (ImportAll (Some $2)) }
+      { import $loc $4 (ImportAll (Some $2)) }
   | LBRACE import_declarations RBRACE FROM STRINGLITERAL
-      { import $5 (ImportIdents $2) }
+      { import $loc $5 (ImportIdents $2) }
 ;;
 
 import_declarations:

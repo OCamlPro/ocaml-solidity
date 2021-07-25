@@ -56,6 +56,7 @@ and source_unit =
   (** Definition of a contract *)
 
 and import_directive = {
+  import_pos : Solidity_common.pos ;
   import_from : string;
   import_symbols : import_symbols;
 }

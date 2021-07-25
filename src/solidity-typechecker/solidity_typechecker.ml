@@ -1934,7 +1934,7 @@ let preprocess_module p menvs m =
       match strip unit_node with
       | Pragma (_) ->
           ()
-      | Import { import_from; import_symbols } ->
+      | Import { import_from; import_symbols ; import_pos=_ } ->
           let file = make_absolute_path base import_from in
           let im = StringMap.find file p.program_modules_by_file in
           let imenv = IdentMap.find im.module_id menvs in
@@ -2000,7 +2000,7 @@ let rec resolve_imports_internal ~only_anonymous
       let seen, ordered =
         List.fold_left (fun (seen, ordered) unit_node ->
             match strip unit_node with
-            | Import { import_from; import_symbols } ->
+            | Import { import_from; import_symbols; import_pos=_ } ->
                 let do_imports =
                   match import_symbols with
                   | ImportAll (None) -> true
