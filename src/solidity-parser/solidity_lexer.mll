@@ -60,6 +60,8 @@
         pos_bol = pos.pos_cnum - chars;
       }
 
+  let recursive_comments = ref false
+
 }
 
 let eol_comment =
@@ -105,7 +107,7 @@ rule token = parse
       { update_loc lexbuf name (int_of_string num) true 0;
       token lexbuf }
 
-  | "/*"        { multiline_comment lexbuf }
+  | "/*"        { multiline_comment lexbuf ; token lexbuf }
   | "pragma"    { Buffer.clear buf; begin_pragma lexbuf }
 
   | "["   { LBRACKET }
@@ -204,8 +206,15 @@ rule token = parse
       { error lexbuf "Unrecognized lexeme: \"%s\"" (Lexing.lexeme lexbuf) }
 
 and multiline_comment = parse
-  | "*/"         { token lexbuf }
+  | "*/"         { () }
   | newline_char { newline lexbuf; multiline_comment lexbuf }
+  | "hex"? '\'' ([^ '\'' '\r' '\n' '\\'] | "\\" _)* '\''
+  | "hex"? '"' ([^ '"' '\r' '\n' '\\'] | "\\" _)* '"'
+      { multiline_comment lexbuf }
+  | "/*"         {
+      if !recursive_comments then
+        multiline_comment lexbuf;
+      multiline_comment lexbuf }
   | eof          { failwith "unexpected end of file in comment" }
   | _            { multiline_comment lexbuf }
 

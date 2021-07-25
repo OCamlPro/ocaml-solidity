@@ -15,3 +15,5 @@ val init : freeton:bool -> unit
 val reset : unit -> unit
 
 val token : Lexing.lexbuf -> Solidity_raw_parser.token
+
+val recursive_comments : bool ref

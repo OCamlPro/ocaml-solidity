@@ -17,8 +17,12 @@ let get_imported_files m =
   let base = Filename.dirname m.module_file in
   List.fold_left (fun fileset unit_node ->
       match strip unit_node with
-      | Import { import_from; _ } ->
+      | Import { import_from; import_pos ; _ } ->
           let file = make_absolute_path base import_from in
+          if not ( Sys.file_exists file ) then
+            raise (
+              Solidity_exceptions.SyntaxError
+                ("File does not exist", import_pos ) );
           StringSet.add file fileset
       | _ -> fileset
     ) StringSet.empty m.module_units

@@ -133,15 +133,18 @@ and bprint_source_unit b ~freeton indent  su =
   | Pragma (id, s) ->
       if not freeton then
         bprint b indent (Format.asprintf "pragma %a %s;" Ident.printf id s)
-  | Import { import_from; import_symbols = ImportAll (None) } ->
+  | Import { import_from; import_symbols = ImportAll (None) ;
+           import_pos = _ } ->
       if not freeton then
         bprint b indent
           (Format.sprintf "import %S;" import_from)
-  | Import { import_from; import_symbols = ImportAll (Some id) } ->
+  | Import { import_from; import_symbols = ImportAll (Some id) ;
+           import_pos = _ } ->
       bprint b indent
         (Format.sprintf "import * as %s from %s;"
            (string_of_ident id) import_from)
-  | Import { import_from; import_symbols = ImportIdents import_list } ->
+  | Import { import_from; import_symbols = ImportIdents import_list ;
+             import_pos = _ } ->
       bprint b indent
         (Format.sprintf "import { %s } from %s;"
            (String.concat ", "

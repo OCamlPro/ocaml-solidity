@@ -511,7 +511,7 @@ and visitSourceUnit (v : #ast_visitor) (su : source_unit) : unit =
   handleAction v#visitSourceUnit continueVisit su
 
 and visitImportDirective (v : #ast_visitor) (id : import_directive) : unit =
-  let continueVisit ({import_from; import_symbols} : import_directive) : unit =
+  let continueVisit ({import_from; import_symbols; import_pos=_} : import_directive) : unit =
     visitString v import_from;
     visitImportSymbols v import_symbols in
   handleAction v#visitImportDirective continueVisit id
