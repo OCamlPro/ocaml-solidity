@@ -18,6 +18,17 @@ val string_of_var_mutability : Solidity_ast.var_mutability -> string
 
 val string_of_visibility : Solidity_ast.visibility -> string
 
+val string_of_inheritance_specifier :
+  Solidity_ast.inheritance_specifier -> string
+
+val string_of_contract_kind : Solidity_ast.contract_kind -> string
+
+val string_of_ident :
+  Solidity_common.IdentSet.elt Solidity_common.node -> string
+
+val string_of_longident :
+  'a Solidity_common.LongIdent.t Solidity_common.node -> string
+
 val string_of_unop : Solidity_ast.unary_operator -> string
 
 val string_of_binop : Solidity_ast.binary_operator -> string
