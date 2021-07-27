@@ -102,6 +102,7 @@ and variable_desc = {
   mutable variable_getter : function_desc option; (* when the variable has a getter*)
   variable_is_primitive : bool;
   variable_def : Solidity_ast.state_variable_definition option; (* module/contract*)
+  mutable variable_assigns : function_desc list ;
 }
 
 and function_desc = {
@@ -116,6 +117,7 @@ and function_desc = {
   function_is_method : bool;
   function_is_primitive : bool;
   function_def : Solidity_ast.function_definition option; (* Primitives have no definition *)
+  mutable function_assigns : variable_desc list ;
 }
 
 and modifier_desc = {
@@ -241,7 +243,7 @@ type options = {
   call_args: args option;   (* could just have an in_lvalue flag *)
   fun_returns : type_ list;
   in_loop: bool;
-  in_function: bool;
+  in_function: function_desc option;
   in_modifier: bool;
   current_hierarchy: absolute LongIdent.t list;
   current_contract: contract_desc option;
