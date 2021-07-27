@@ -575,7 +575,7 @@ contract_part:
             event_params = $3;
             event_anonymous = $4; }) }
   | USING long_ident FOR type_name_or_star SEMI
-      { mk $loc (UsingForDeclaration ($2, None)) }
+      { mk $loc (UsingForDeclaration ($2, $4)) }
 ;;
 
 type_name_or_star:
