@@ -2,7 +2,7 @@
 # Do not modify, or add to the `skip` field of `drom.toml`.
 opam-version: "2.0"
 name: "solidity-typechecker"
-version: "0.3.2"
+version: "0.3.3"
 license: "LGPL-2.1-only with OCaml-LGPL-linking-exception"
 synopsis: "The ocaml-solidity project"
 description: """
