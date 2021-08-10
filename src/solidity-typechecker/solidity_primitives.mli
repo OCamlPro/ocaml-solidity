@@ -23,6 +23,7 @@ module UTILS : sig
     unit
   val primitive_fun_named :
     ?returns_lvalue:bool ->
+    ?purity:Solidity_checker_TYPES.function_purity ->
     (Solidity_checker_TYPES.type_ *
      Solidity_common.IdentSet.elt option)
       list ->
@@ -33,6 +34,7 @@ module UTILS : sig
     Solidity_checker_TYPES.type_ -> Solidity_checker_TYPES.ident_desc
   val make_fun :
     ?returns_lvalue:bool ->
+    ?purity:Solidity_checker_TYPES.function_purity ->
     Solidity_checker_TYPES.type_ list ->
     Solidity_checker_TYPES.type_ list ->
     Solidity_ast.fun_mutability -> Solidity_checker_TYPES.ident_desc

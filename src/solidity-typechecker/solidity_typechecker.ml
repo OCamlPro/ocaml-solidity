@@ -41,6 +41,9 @@ let lv_of_bool = function
   | true -> LeftValue []
   | false -> RightValue
 
+(* Currently, FieldExpression does not fill the variable_desc correctly
+   in the LeftValue list *)
+
 let check_lv pos opt lv =
   match lv with
   | RightValue ->
@@ -51,8 +54,8 @@ let check_lv pos opt lv =
       | Some fd ->
           List.iter (function
               | AVariable (vd, _) ->
-                  vd.variable_assigns <- fd :: vd.variable_assigns;
-                  fd.function_assigns <- vd :: fd.function_assigns;
+                  vd.variable_ops <- ( fd, OpAssign ) :: vd.variable_ops;
+                  fd.function_ops <- ( vd, OpAssign ) :: fd.function_ops;
               | _ -> ()
             ) list
 
@@ -302,7 +305,7 @@ let get_variable_getter pos vd =
   | Some (fd) -> fd
   | None -> error pos "Variable is missing a getter !"
 
-let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
+let type_and_annot_of_id_desc pos opt base_t_opt idd is_uf =
   match idd with
   | Type (td) ->
       (* Note: user types have their storage location
@@ -331,6 +334,12 @@ let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
           LeftValue [annot]
         else RightValue
       in
+      (match opt.in_function with
+       | None -> ()
+       | Some in_fd ->
+           in_fd.function_ops <- (vd, OpAccess) :: in_fd.function_ops ;
+           vd.variable_ops <- (in_fd, OpAccess) :: vd.variable_ops
+      );
       vd.variable_type, lv, annot
   | Function (fd) when is_uf ->
       assert (using_for_allowed base_t_opt);
@@ -599,7 +608,7 @@ let type_ident opt env base_t_opt id_node =
   let idd, is_uf = resolve_overloads pos opt base_t_opt id iddl uf_iddl in
 
   (* Finally, retrieve the type and annotation for this ident *)
-  let t, lv, a = type_and_annot_of_id_desc id_node.pos base_t_opt idd is_uf in
+  let t, lv, a = type_and_annot_of_id_desc id_node.pos opt base_t_opt idd is_uf in
   set_annot id_node a;
   t, lv
 
@@ -868,12 +877,18 @@ and type_expression_lv opt env exp
         type_ident opt env None id_node
 
     | FieldExpression (e, id_node) ->
-        let t = type_expression opt env e in
-        type_ident opt env (Some t) id_node
+        let t, lv1 = type_expression_lv opt env e in
+        let t, lv2 = type_ident opt env (Some t) id_node in
+        let lv = match lv1, lv2 with
+          | LeftValue x, LeftValue y -> LeftValue ( x @ y )
+          | _, _ -> lv2
+        in
+        t, lv
 
     | FunctionCallExpression (e, args) ->
         let args = type_function_args opt env args in
-        let t = type_expression { opt with call_args = Some (args) } env e in
+        let t, lv = type_expression_lv
+            { opt with call_args = Some (args) } env e in
         begin
           match t, args with
 
@@ -881,6 +896,23 @@ and type_expression_lv opt env exp
           | TFunction (fd, _fo), args ->
               check_function_application pos "function call"
                 fd.function_params args;
+
+              begin
+                match lv with
+                | RightValue -> ()
+                | LeftValue list ->
+                    List.iter (function
+                        | AVariable ( vd, _ ) ->
+                            begin
+                              match opt.in_function with
+                              | None -> ()
+                              | Some in_fd ->
+                                  in_fd.function_ops <-
+                                    ( vd, OpCall fd ) :: in_fd.function_ops
+                            end
+                        | _ -> ()) list
+              end;
+
               begin
                 match fd.function_returns with
                 | [t, _id_opt] ->
@@ -1949,7 +1981,8 @@ let preprocess_free_function_definition menv (mlid : absolute LongIdent.t) fd =
       function_is_method = false;
       function_is_primitive = false;
       function_def = Some (fd);
-      function_assigns = [] ;
+      function_ops = [] ;
+      function_purity = PurityUnknown;
     }
   in
   Solidity_tenv_builder.add_module_ident menv id (Function (fd'));

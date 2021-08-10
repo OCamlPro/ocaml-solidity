@@ -102,7 +102,7 @@ and variable_desc = {
   mutable variable_getter : function_desc option; (* when the variable has a getter*)
   variable_is_primitive : bool;
   variable_def : Solidity_ast.state_variable_definition option; (* module/contract*)
-  mutable variable_assigns : function_desc list ;
+  mutable variable_ops : ( function_desc * variable_operation ) list ;
 }
 
 and function_desc = {
@@ -117,8 +117,20 @@ and function_desc = {
   function_is_method : bool;
   function_is_primitive : bool;
   function_def : Solidity_ast.function_definition option; (* Primitives have no definition *)
-  mutable function_assigns : variable_desc list ;
+  mutable function_ops : ( variable_desc * variable_operation ) list ;
+  mutable function_purity : function_purity ;
 }
+
+and function_purity = (* whether it modifies its contract *)
+  | PurityUnknown
+  | PurityPure
+  | PurityView
+  | PurityMute
+
+and variable_operation =
+  | OpAssign
+  | OpAccess
+  | OpCall of function_desc
 
 and modifier_desc = {
   modifier_abs_name : absolute LongIdent.t;

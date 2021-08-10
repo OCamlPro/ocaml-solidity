@@ -24,6 +24,7 @@ let register id p f_desc =
   Solidity_tenv.add_primitive_desc id f_desc
 
 let primitive_fun_named ?(returns_lvalue=false)
+    ?(purity=PurityPure)
     arg_types ret_types function_mutability =
   Function { function_abs_name = LongIdent.empty;
              function_params = arg_types;
@@ -36,7 +37,8 @@ let primitive_fun_named ?(returns_lvalue=false)
              function_is_method = false; (* can be true *)
              function_is_primitive = true;
              function_def = None;
-             function_assigns = [];
+             function_ops = [];
+             function_purity = purity;
            }
 
 let make_fun = Solidity_type_builder.primitive_fun

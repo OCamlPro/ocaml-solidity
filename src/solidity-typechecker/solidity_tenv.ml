@@ -195,7 +195,8 @@ let find_constructor pos { contract_abs_name; contract_env; _ } =
         function_is_method = true;
         function_is_primitive = false;
         function_def = None;
-        function_assigns = [];
+        function_ops = [];
+        function_purity = PurityUnknown;
       }
 
 let has_abstract_function cd =
