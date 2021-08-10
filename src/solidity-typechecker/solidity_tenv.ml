@@ -194,7 +194,10 @@ let find_constructor pos { contract_abs_name; contract_env; _ } =
         function_selector = None;
         function_is_method = true;
         function_is_primitive = false;
-        function_def = None; }
+        function_def = None;
+        function_ops = [];
+        function_purity = PurityUnknown;
+      }
 
 let has_abstract_function cd =
   let exception Found of Ident.t in

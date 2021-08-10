@@ -257,7 +257,10 @@ and function_type_to_desc pos env ft =
     function_selector = None;
     function_is_method = false;
     function_is_primitive = false;
-    function_def = None; }
+    function_def = None;
+    function_ops = [];
+    function_purity = PurityUnknown;
+  }
 
 and process_fun_params pos env ~ext params =
   List.map (fun (t, loc_opt, name_opt) ->
@@ -321,7 +324,10 @@ let variable_desc_to_function_desc pos vid variable_abs_name vt :
     function_selector;
     function_is_method = true;
     function_is_primitive = false;
-    function_def = None; }
+    function_def = None;
+    function_ops = [];
+    function_purity = PurityUnknown;
+  }
 
 (* Build the function corresponding to an event *)
 let event_desc_to_function_desc (ed : event_desc) : function_desc =
@@ -335,7 +341,10 @@ let event_desc_to_function_desc (ed : event_desc) : function_desc =
     function_selector = None;
     function_is_method = false;
     function_is_primitive = false;
-    function_def = None; }
+    function_def = None;
+    function_ops = [];
+    function_purity = PurityUnknown;
+  }
 
 (* Make a ident description for a local variable *)
 let local_variable_desc variable_type : variable_desc =
@@ -347,7 +356,9 @@ let local_variable_desc variable_type : variable_desc =
     variable_override = None;
     variable_getter = None;
     variable_is_primitive = false;
-    variable_def = None; }
+    variable_def = None;
+    variable_ops = [] ;
+  }
 
 
 
@@ -395,7 +406,9 @@ let make_variable_desc vlid vd =
     variable_override = None;
     variable_getter = None;
     variable_is_primitive = false;
-    variable_def = Some (vd); }
+    variable_def = Some (vd);
+    variable_ops = [] ;
+  }
 
 let update_variable_desc pos env vd kind_opt =
   let vd' =
@@ -428,7 +441,10 @@ let make_function_desc flid fd method_ =
     function_selector = None;
     function_is_method = method_;
     function_is_primitive = false;
-    function_def = Some (fd); }
+    function_def = Some (fd);
+    function_ops = [];
+    function_purity = PurityUnknown;
+  }
 
 let update_function_desc pos env fd kind_opt =
   let fd' =
@@ -468,6 +484,7 @@ let update_struct_fields sd fields =
 (* Functions to build primitive types/desc *)
 
 let primitive_fun_desc ?(returns_lvalue=false)
+    ?(purity=PurityPure)
     arg_types ret_types function_mutability =
   { function_abs_name = LongIdent.empty;
     function_params = List.map (fun t -> (t, None)) arg_types;
@@ -479,7 +496,10 @@ let primitive_fun_desc ?(returns_lvalue=false)
     function_selector = None;
     function_is_method = false; (* can be true *)
     function_is_primitive = true;
-    function_def = None; }
+    function_def = None;
+    function_ops = [];
+    function_purity = purity;
+  }
 
 let primitive_fun_type ?(kind=KOther) ?(returns_lvalue=false)
     arg_types ret_types function_mutability =
@@ -487,9 +507,9 @@ let primitive_fun_type ?(kind=KOther) ?(returns_lvalue=false)
              arg_types ret_types function_mutability in
   TFunction (fd, { new_fun_options with kind })
 
-let primitive_fun ?(returns_lvalue=false)
+let primitive_fun ?(returns_lvalue=false) ?purity
     arg_types ret_types function_mutability =
-  let fd = primitive_fun_desc ~returns_lvalue
+  let fd = primitive_fun_desc ~returns_lvalue ?purity
              arg_types ret_types function_mutability in
   Function (fd)
 
@@ -502,7 +522,9 @@ let primitive_var_desc (*?(is_lvalue=false)*) variable_type =
     variable_override = None;
     variable_getter = None;
     variable_is_primitive = true;
-    variable_def = None; }
+    variable_def = None;
+    variable_ops = [] ;
+  }
 
 let primitive_var (*?(is_lvalue=false)*) variable_type =
   let vd = primitive_var_desc variable_type in

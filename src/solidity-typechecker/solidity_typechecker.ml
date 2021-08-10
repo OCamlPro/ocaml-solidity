@@ -15,6 +15,7 @@ open Solidity_ast
 open Solidity_checker_TYPES
 open Solidity_exceptions
 
+
 let error = type_error
 
 let default_options = {
@@ -22,11 +23,41 @@ let default_options = {
   call_args = None;
   fun_returns = [];
   in_loop = false;
-  in_function = false;
+  in_function = None;
   in_modifier = false;
   current_hierarchy = [];
   current_contract = None;
 }
+
+
+type value_kind = LeftValue of annot list
+                | RightValue
+
+let inherit_left_value = function
+  | RightValue -> LeftValue []
+  | lv -> lv
+
+let lv_of_bool = function
+  | true -> LeftValue []
+  | false -> RightValue
+
+(* Currently, FieldExpression does not fill the variable_desc correctly
+   in the LeftValue list *)
+
+let check_lv pos opt lv =
+  match lv with
+  | RightValue ->
+      error pos "Assignment operator requires lvalue as left-hand side"
+  | LeftValue list ->
+      match opt.in_function with
+      | None -> ()
+      | Some fd ->
+          List.iter (function
+              | AVariable (vd, _) ->
+                  vd.variable_ops <- ( fd, OpAssign ) :: vd.variable_ops;
+                  fd.function_ops <- ( vd, OpAssign ) :: fd.function_ops;
+              | _ -> ()
+            ) list
 
 let binop_type pos op t1 t2 : type_ =
   let error_incompat () =
@@ -274,29 +305,42 @@ let get_variable_getter pos vd =
   | Some (fd) -> fd
   | None -> error pos "Variable is missing a getter !"
 
-let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
+let type_and_annot_of_id_desc pos opt base_t_opt idd is_uf =
   match idd with
   | Type (td) ->
       (* Note: user types have their storage location
          set to storage pointer by default *)
       let t =
         Solidity_type_builder.type_desc_to_base_type ~loc:(LStorage true) td in
-      TType (t), false, AType (t)
+      TType (t), RightValue, AType (t)
   | Contract (cd) ->
       let t = TContract (cd.contract_abs_name, cd, false (* super *)) in
-      TType (t), false, AContract (cd)
+      TType (t), RightValue, AContract (cd)
   | Modifier (md) ->
-      TModifier (md), false, AModifier (md)
+      TModifier (md), RightValue, AModifier (md)
   | Event (ed) ->
-      TEvent (ed), false, AEvent (ed)
+      TEvent (ed), RightValue, AEvent (ed)
   | Variable (vd) when is_contract_instance base_t_opt ->
       let fd = get_variable_getter pos vd in
-      TFunction (fd, fun_opt base_t_opt false fd), false, AVariable (vd, true)
+      TFunction (fd, fun_opt base_t_opt false fd), RightValue, AVariable (vd, true)
   | Variable (vd) when vd.variable_is_primitive ->
-      vd.variable_type, is_mutable vd.variable_mutability, APrimitive
+      vd.variable_type,
+      ( if is_mutable vd.variable_mutability then LeftValue []
+        else RightValue ),
+      APrimitive
   | Variable (vd) ->
-      let lv = not (is_constant vd.variable_mutability) in
-      vd.variable_type, lv, AVariable (vd, false)
+      let annot = AVariable (vd, false) in
+      let lv = if not (is_constant vd.variable_mutability) then
+          LeftValue [annot]
+        else RightValue
+      in
+      (match opt.in_function with
+       | None -> ()
+       | Some in_fd ->
+           in_fd.function_ops <- (vd, OpAccess) :: in_fd.function_ops ;
+           vd.variable_ops <- (in_fd, OpAccess) :: vd.variable_ops
+      );
+      vd.variable_type, lv, annot
   | Function (fd) when is_uf ->
       assert (using_for_allowed base_t_opt);
       assert (not fd.function_is_primitive); (* just a check *)
@@ -308,17 +352,18 @@ let type_and_annot_of_id_desc pos base_t_opt idd is_uf =
         | _ ->
             invariant_broken __LOC__
       in
-      TFunction (fd', fun_opt base_t_opt true fd'), false, AFunction (fd, true)
+      TFunction (fd', fun_opt base_t_opt true fd'), RightValue, AFunction (fd, true)
   | Function (fd) when fd.function_is_primitive ->
-      TFunction (fd, fun_opt base_t_opt false fd), false, APrimitive
+      TFunction (fd, fun_opt base_t_opt false fd), RightValue, APrimitive
   | Function (fd) ->
-      TFunction (fd, fun_opt base_t_opt false fd), false, AFunction (fd, false)
+      TFunction (fd, fun_opt base_t_opt false fd), RightValue, AFunction (fd, false)
   | Field (fd) ->
-      fd.field_type, true, AField (fd)
+      let annot = AField (fd) in
+      fd.field_type, LeftValue [annot], annot
   | Constr (cd) ->
-      cd.constr_type, false, AConstr (cd)
+      cd.constr_type, RightValue, AConstr (cd)
   | Module (md) ->
-      TModule (md.module_abs_name, md), false, AModule (md)
+      TModule (md.module_abs_name, md), RightValue, AModule (md)
   | Alias (_ad) ->
       error pos "Alias should no longer be present at this point"
 
@@ -562,8 +607,8 @@ let type_ident opt env base_t_opt id_node =
   (* Then, perform overload resolution (if needed) *)
   let idd, is_uf = resolve_overloads pos opt base_t_opt id iddl uf_iddl in
 
-  (* Finally, retrive the type and annotation for this ident *)
-  let t, lv, a = type_and_annot_of_id_desc id_node.pos base_t_opt idd is_uf in
+  (* Finally, retrieve the type and annotation for this ident *)
+  let t, lv, a = type_and_annot_of_id_desc id_node.pos opt base_t_opt idd is_uf in
   set_annot id_node a;
   t, lv
 
@@ -578,14 +623,14 @@ let rec type_expression opt env exp : type_ =
   t
 
 and type_expression_lv opt env exp
-  : type_ * bool (* is left value ? *) =
+  : type_ * value_kind =
   let pos = exp.pos in
   let t, lv = match strip exp with
 
     (* Literals *)
 
     | BooleanLiteral (_b) ->
-        TBool, false
+        TBool, RightValue
 
     | NumberLiteral (q, unit, sz_opt) ->
         (* Note: size set only if hex *)
@@ -600,14 +645,14 @@ and type_expression_lv opt env exp
           | None ->
               None
         in
-        TRationalConst (q, sz_opt), false
+        TRationalConst (q, sz_opt), RightValue
 
     | StringLiteral (s) ->
-        TLiteralString (s), false
+        TLiteralString (s), RightValue
 
     | AddressLiteral (_a) ->
         (* Note: Valid address literals are of type address payable *)
-        TAddress (true), false
+        TAddress (true), RightValue
 
     (* Array expressions *)
 
@@ -616,7 +661,7 @@ and type_expression_lv opt env exp
         let t = immediate_array_element_type pos tl in
         let sz = Z.of_int (List.length tl) in
         (* Note: not an lvalue, but index access to such array is an lvalue *)
-        TArray (t, Some (sz), LMemory), false
+        TArray (t, Some (sz), LMemory), RightValue
 
     | ArrayAccess (e, None) ->
         begin
@@ -624,40 +669,41 @@ and type_expression_lv opt env exp
           | TType (t) ->
               let t = Solidity_type.change_type_location LMemory t in
               replace_annot e (AType (TType t));
-              TType (TArray (t, None, LMemory)), false
+              TType (TArray (t, None, LMemory)), RightValue
           | _ ->
               error pos "Index expression cannot be omitted"
         end
 
     | ArrayAccess (e1, Some (e2)) ->
         begin
-          match type_expression opt env e1 with
+          let t1, lv = type_expression_lv opt env e1 in
+          match t1 with
           | TType (t) ->
               begin
                 match expect_array_index_type opt env None e2 with
                 | Some (sz) ->
                     let t = Solidity_type.change_type_location LMemory t in
                     replace_annot e1 (AType (TType t));
-                    TType (TArray (t, Some (sz), LMemory)), false
+                    TType (TArray (t, Some (sz), LMemory)), RightValue
                 | None ->
                     error pos "Integer constant expected"
               end
           | TArray (t, sz_opt, _loc) ->
               ignore (expect_array_index_type opt env sz_opt e2);
-              t, true
+              t, inherit_left_value lv
           | TArraySlice (t, _loc) ->
               ignore (expect_array_index_type opt env None e2);
               (* Note: array access into a slice is NOT an lvalue *)
-              t, false
+              t, RightValue
           | TMapping (tk, tv, _loc) ->
               expect_expression_type opt env e2 tk;
-              tv, true
+              tv, inherit_left_value lv
           | TFixBytes (sz) ->
               ignore (expect_array_index_type opt env (Some (Z.of_int sz)) e2);
-              TFixBytes (1), false
+              TFixBytes (1), RightValue
           | TBytes (_loc) ->
               ignore (expect_array_index_type opt env None e2);
-              TFixBytes (1), true
+              TFixBytes (1), inherit_left_value lv
           | TString (_loc) ->
               error pos "Index access for string is not possible"
           | t ->
@@ -675,7 +721,7 @@ and type_expression_lv opt env exp
                   ignore (expect_array_index_type opt env None e)) e1_opt;
               Option.iter (fun e ->
                   ignore (expect_array_index_type opt env None e)) e2_opt;
-              TArraySlice (t, loc), false
+              TArraySlice (t, loc), RightValue
           | TArray (_t, _sz_opt, _loc) ->
               error pos "Index range access is only supported \
                          for dynamic calldata arrays"
@@ -689,17 +735,17 @@ and type_expression_lv opt env exp
     | PrefixExpression ((UInc | UDec | UDelete as op), e)
     | SuffixExpression (e, (UInc | UDec as op)) ->
         let t, lv = type_expression_lv { opt with allow_empty = true } env e in
-        if not lv then error pos "Expression has to be an lvalue";
-        unop_type pos op t, false
+        check_lv pos opt lv ;
+        unop_type pos op t, RightValue
 
     | PrefixExpression (op, e)
     | SuffixExpression (e, op) ->
-        unop_type pos op (type_expression opt env e), false
+        unop_type pos op (type_expression opt env e), RightValue
 
     | BinaryExpression (e1, op, e2) ->
         let t1 = type_expression opt env e1 in
         let t2 = type_expression opt env e2 in
-        binop_type pos op t1 t2, false
+        binop_type pos op t1 t2, RightValue
 
     | CompareExpression (e1, op, e2) ->
         let t1 = type_expression opt env e1 in
@@ -724,13 +770,12 @@ and type_expression_lv opt env exp
             (Solidity_printer.string_of_cmpop op)
             (Solidity_type_printer.string_of_type t1)
             (Solidity_type_printer.string_of_type t2);
-        TBool, false
+        TBool, RightValue
 
     | AssignExpression (e1, e2) ->
         let t1, lv = type_expression_lv { opt with allow_empty = true } env e1 in
         let t2 = type_expression opt env e2 in
-        if not lv then
-          error pos "Assignment operator requires lvalue as left-hand side";
+        check_lv pos opt lv ;
         (* Note: (true ? tuple : tuple) = tuple
            may become allowed in the future *)
         if not ( match t1 with
@@ -743,19 +788,18 @@ and type_expression_lv opt env exp
                   ~from:t2 ~to_:t1 ()
             | _ -> false ) then
           expect_type pos ~expected:t1 ~provided:t2;
-        t1, false
+        t1, RightValue
 
     | AssignBinaryExpression (e1, op, e2) ->
         let t1, lv = type_expression_lv { opt with allow_empty = true } env e1 in
         let t2 = type_expression opt env e2 in
-        if not lv then
-          error pos "Assignment operator requires lvalue as left-hand side";
+        check_lv pos opt lv ;
         if Solidity_type.is_tuple t1 then
           error pos "Compound assignment is not allowed for tuple types"
         else
           let t = binop_type pos op t1 t2 in
           expect_type pos ~expected:t1 ~provided:t;
-          t1, false
+          t1, RightValue
 
     | TupleExpression (eol) ->
         let tl, lv =
@@ -763,12 +807,15 @@ and type_expression_lv opt env exp
               match e_opt with
               | Some (e) ->
                   let t, elv = type_expression_lv opt env e in
-                  Some (t) :: tl, lv && elv
+                  Some (t) :: tl,
+                  ( match lv, elv with
+                    | LeftValue x, LeftValue y -> LeftValue (x @ y )
+                    | _ -> RightValue )
               | None when opt.allow_empty ->
                   None :: tl, lv
               | None ->
                   error pos "Tuple component cannot be empty"
-            ) ([], true) eol
+            ) ([], LeftValue []) eol
         in
         TTuple (List.rev tl), lv
 
@@ -782,7 +829,7 @@ and type_expression_lv opt env exp
                   (Solidity_type_conv.mobile_type pos t1)
                   (Solidity_type_conv.mobile_type pos t2) with
           | Some (t) ->
-              t, false
+              t, RightValue
           | None ->
               error pos "True expression's type %s does not \
                          match false expression's type %s"
@@ -800,7 +847,7 @@ and type_expression_lv opt env exp
           | TArray (_, None, _) | TBytes (_) | TString (_) ->
               let t = Solidity_type_builder.primitive_fun_type
                   [TUint 256] [t] MPure in
-              (t, false)
+              (t, RightValue)
           | TContract (_lid, cd, false (* super *)) ->
               if cd.contract_def.contract_abstract then
                 error pos "Cannot instantiate an abstract contract";
@@ -812,7 +859,7 @@ and type_expression_lv opt env exp
               let atl = List.map fst ctor.function_params in
               let t = Solidity_type_builder.primitive_fun_type
                   ~kind:KNewContract atl [t] MPayable in
-              (t, false)
+              (t, RightValue)
           | TArray (_, Some (_), _) ->
               error pos "Length has to be placed in parentheses \
                          after the array type for new expression"
@@ -824,18 +871,24 @@ and type_expression_lv opt env exp
 
     | TypeExpression (t) ->
         TType (Solidity_type_builder.ast_type_to_type pos ~loc:LMemory env t),
-        false
+        RightValue
 
     | IdentifierExpression (id_node) ->
         type_ident opt env None id_node
 
     | FieldExpression (e, id_node) ->
-        let t = type_expression opt env e in
-        type_ident opt env (Some t) id_node
+        let t, lv1 = type_expression_lv opt env e in
+        let t, lv2 = type_ident opt env (Some t) id_node in
+        let lv = match lv1, lv2 with
+          | LeftValue x, LeftValue y -> LeftValue ( x @ y )
+          | _, _ -> lv2
+        in
+        t, lv
 
     | FunctionCallExpression (e, args) ->
         let args = type_function_args opt env args in
-        let t = type_expression { opt with call_args = Some (args) } env e in
+        let t, lv = type_expression_lv
+            { opt with call_args = Some (args) } env e in
         begin
           match t, args with
 
@@ -843,18 +896,36 @@ and type_expression_lv opt env exp
           | TFunction (fd, _fo), args ->
               check_function_application pos "function call"
                 fd.function_params args;
+
+              begin
+                match lv with
+                | RightValue -> ()
+                | LeftValue list ->
+                    List.iter (function
+                        | AVariable ( vd, _ ) ->
+                            begin
+                              match opt.in_function with
+                              | None -> ()
+                              | Some in_fd ->
+                                  in_fd.function_ops <-
+                                    ( vd, OpCall fd ) :: in_fd.function_ops
+                            end
+                        | _ -> ()) list
+              end;
+
               begin
                 match fd.function_returns with
-                | [t, _id_opt] -> t, fd.function_returns_lvalue
+                | [t, _id_opt] ->
+                    t, lv_of_bool fd.function_returns_lvalue
                 | tl -> TTuple (List.map (fun (t, _id_opt) -> Some (t)) tl),
-                        fd.function_returns_lvalue
+                        lv_of_bool fd.function_returns_lvalue
               end
 
           (* Event invocation *)
           | TEvent (ed), args ->
               check_function_application pos "function call"
                 ed.event_params args;
-              TTuple [], false
+              TTuple [], RightValue
 
           (* Struct constructor *)
           | TType (TStruct (_lid, sd, _loc) as t), args ->
@@ -866,7 +937,7 @@ and type_expression_lv opt env exp
                   ) sd.struct_fields
               in
               check_function_application pos "struct constructor" fp args;
-              t, false
+              t, RightValue
 
           (* Type conversion *)
           | TType (t), AList ([at]) ->
@@ -876,7 +947,7 @@ and type_expression_lv opt env exp
                 replace_annot e (AType (TType t));
                 match Solidity_type_conv.explicitly_convertible
                         ~from:at ~to_:t with
-                | Some (t) -> t, false
+                | Some (t) -> t, RightValue
                 | None ->
                     error pos "Explicit type conversion not \
                                allowed from \"%s\" to \"%s\""
@@ -913,14 +984,14 @@ and type_expression_lv opt env exp
                    (List.map (fun ({ contents = id ; _ }, e) ->
                         let type_ = type_expression opt env e in
                         id, type_
-                      ) opts )), false (* TODO *)
+                      ) opts )), RightValue (* TODO *)
     | CallOptions (e, opts) ->
         begin
           match type_expression opt env e with
           | TFunction (fd, fo) ->
               let is_payable = is_payable fd.function_mutability in
               let fo = type_options opt env pos is_payable fo opts in
-                TFunction (fd, fo), false
+                TFunction (fd, fo), RightValue
           | _ ->
               error pos "Expected callable expression before call options"
         end
@@ -1375,7 +1446,7 @@ let typecheck_contract_code pos (cd : contract_desc) =
                             Some { fun_body = Some (body);
                                    fun_modifiers; _ }; _ } as fd) ->
                 let opt = { opt with
-                            in_function = true;
+                            in_function = Some fd;
                             fun_returns = List.map fst fd.function_returns } in
                 typecheck_function_body pos opt cenv id
                   fd.function_params fd.function_returns fun_modifiers body
@@ -1401,7 +1472,7 @@ let typecheck_free_function_code pos menv (fd : function_desc) =
   match fd.function_def with
   | Some { fun_name; fun_body = Some (body); fun_modifiers; _ } ->
       let opt = { default_options with
-                  in_function = true;
+                  in_function = Some fd;
                   fun_returns = List.map fst fd.function_returns } in
       typecheck_function_body pos opt menv (strip fun_name)
         fd.function_params fd.function_returns fun_modifiers body
@@ -1909,7 +1980,10 @@ let preprocess_free_function_definition menv (mlid : absolute LongIdent.t) fd =
       function_selector = None;
       function_is_method = false;
       function_is_primitive = false;
-      function_def = Some (fd); }
+      function_def = Some (fd);
+      function_ops = [] ;
+      function_purity = PurityUnknown;
+    }
   in
   Solidity_tenv_builder.add_module_ident menv id (Function (fd'));
   fd'

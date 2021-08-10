@@ -87,10 +87,10 @@ module Ident = struct
   let to_string id = id
   let of_string id = id
   let printf fmt id = Format.fprintf fmt "%s" id
-  let constructor = "#"
-  let onBounce = "!"
-  let receive = "@"
-  let fallback = "*"
+  let constructor = ":constructor"
+  let onBounce = ":onBounce"
+  let receive = ":receive"
+  let fallback = ":fallback"
 end
 
 module LongIdent = struct
