@@ -162,7 +162,9 @@ and raw_statement =
   | Break
   | PlaceholderStatement
   | RepeatStatement of expression * statement (* freeton *)
-  | ForRangeStatement of variable_definition * statement (* freeton *)
+  | ForRangeStatement of
+      (type_ * storage_location option * ident) option list *
+      expression * statement (* freeton *)
 
 and expression = raw_expression node
 

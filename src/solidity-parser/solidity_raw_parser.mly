@@ -893,7 +893,7 @@ for_statement:
         { ForStatement ($3, $5, $7, $9) }
   | FOR LPAREN variable_declaration_opt_list COLON expression RPAREN
       statement
-        { ForRangeStatement ( VarType ($3, Some $5), $7) }
+        { ForRangeStatement ( $3, $5, $7) }
 ;;
 
 while_statement:

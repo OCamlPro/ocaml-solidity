@@ -496,10 +496,23 @@ and statement b indent s =
   | RepeatStatement (e, body) ->
       bprint b indent (Format.sprintf "repeat (%s)" (string_of_expression e));
       statement b (indent + 2) body
-  | ForRangeStatement (vd, s2) ->
+  | ForRangeStatement (var_decl_list, e , s2) ->
       bprint b indent
-        ( Printf.sprintf "for ( %s )"
-            (string_of_variable_definition vd)) ;
+        ( Printf.sprintf "for ( %s : %s )"
+            (
+              match var_decl_list with
+              | [Some variable_declaration] ->
+                  string_of_variable_declaration variable_declaration
+              | _ ->
+                  Format.sprintf "(%s)"
+                    (String.concat ", "
+                       (List.map (function
+                            | None -> ""
+                            | Some var_decl ->
+                          string_of_variable_declaration var_decl
+                          ) var_decl_list))
+            )
+            (string_of_expression e)) ;
       statement b (indent + 2) s2
 
 and string_of_expression_option = function

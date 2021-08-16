@@ -1120,8 +1120,59 @@ let rec type_statement opt env s =
       expect_expression_type opt env e TBool;
       type_statement { opt with in_loop = true } env s
 
-  | RepeatStatement (_e, _s) -> assert false (* freeton TODO *)
-  | ForRangeStatement _ -> assert false (* freeton TODO *)
+  | RepeatStatement (e, s) ->
+      expect_expression_type opt env e TBool;
+      type_statement opt env s
+
+  | ForRangeStatement ( var_decl_list, e, s) ->
+      let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
+
+      begin
+        let var_decl_list =
+          List.map (fun var_decl_opt ->
+              Option.map (fun (t, loc_opt, var_name) ->
+                  Solidity_type_builder.var_type_to_type
+                    pos env ~arg:false ~ext:false loc_opt t,
+                  var_name
+                ) var_decl_opt
+            ) var_decl_list
+        in
+        let tl =
+          match type_expression opt env e with
+          | TArray (t, _, _) -> [t]
+          | TMapping (tk, tv, _) -> [tk ; tv]
+          | _ ->
+              error pos "Type is not iterable"
+        in
+        if not (ExtList.same_lengths tl var_decl_list) then
+          error pos "Left hand side and right hand side \
+                     must have the same number of elements"
+        else
+          List.iter2 (fun var_decl_opt t ->
+              Option.iter (fun (t', _var_name) ->
+                  if not (Solidity_type_conv.implicitly_convertible
+                            ~from:t ~to_:t' ()) then
+                    error pos
+                      "Incompatible types in assignment: %S expected, got %S"
+                      ( Solidity_type_printer.string_of_type t')
+                      ( Solidity_type_printer.string_of_type t )
+                    ) var_decl_opt
+            ) var_decl_list tl;
+        let annot =
+          match var_decl_list with
+          | [Some (t, _id)] -> t
+          | tidol -> TTuple (List.map (Option.map fst) tidol)
+        in
+        set_annot s (AType annot);
+        List.iter (function
+            | None -> ()
+            | Some (t, var_name) ->
+                Solidity_tenv_builder.add_local_variable pos env
+                  (strip var_name) (Solidity_type_builder.local_variable_desc t)
+          ) var_decl_list
+
+      end;
+      type_statement { opt with in_loop = true } env' s
 
   | DoWhileStatement (s, e) ->
       let env' = Solidity_tenv_builder.new_env ~upper_env:env () in
@@ -1169,8 +1220,8 @@ let rec type_statement opt env s =
             List.iter2 (fun (rt, _id_opt1) (t, _id_opt2) ->
                 if not (Solidity_type.same_type rt t) then
                   error pos "Invalid type, expected %s but got %s"
-                (Solidity_type_printer.string_of_type rt)
-                (Solidity_type_printer.string_of_type t)
+                    (Solidity_type_printer.string_of_type rt)
+                    (Solidity_type_printer.string_of_type t)
               ) returns fd.function_returns;
             returns
       in
@@ -1193,7 +1244,7 @@ let rec type_statement opt env s =
           List.iter (fun (t, loc_opt, name_opt) ->
               Option.iter (fun name ->
                   let t = Solidity_type_builder.var_type_to_type
-                            pos env ~arg:true ~ext:false loc_opt t in
+                      pos env ~arg:true ~ext:false loc_opt t in
                   Solidity_tenv_builder.add_local_variable pos env'
                     (strip name) (Solidity_type_builder.local_variable_desc t)
                 ) name_opt
