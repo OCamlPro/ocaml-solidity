@@ -15,7 +15,7 @@ license = "LGPL2"
 min-edition = "4.08.0"
 name = "ocaml-solidity"
 synopsis = "The ocaml-solidity project"
-version = "0.3.3"
+version = "0.3.4"
 
 # keys that you could also define:
 # odoc-target = "...odoc-target..."
