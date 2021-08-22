@@ -18,6 +18,10 @@ let spaces = String.make 1000 ' '
 let bprint b indent s =
   Printf.bprintf b "%s%s\n" (String.sub spaces 0 indent) s
 
+let bprintf b indent fmt =
+  Printf.kprintf (fun s ->
+      Printf.bprintf b "%s%s\n" (String.sub spaces 0 indent) s )
+    fmt
 
 let string_of_contract_kind = function
   | Contract ->  "contract"
@@ -241,12 +245,14 @@ and contract_part b indent ~freeton cp =
 
 and type_definition b indent = function
   | EnumDefinition (id, id_list) ->
-      bprint b indent (Format.sprintf "enum %s {" (string_of_ident id));
-      List.iter (fun id ->
-          bprint b (indent + 2) (string_of_ident id)) id_list;
+      bprintf b indent "enum %s {" (string_of_ident id);
+      List.iteri (fun i id ->
+          bprintf b (indent + 2) "%s%s"
+            (if i > 0 then ", " else "")
+            (string_of_ident id)) id_list;
       bprint b indent "}"
   | StructDefinition (id, var_decl_list) ->
-      bprint b indent (Format.sprintf "struct %s {" (string_of_ident id));
+      bprintf b indent "struct %s {" (string_of_ident id);
       List.iter (fun s ->
           bprint b (indent + 2) (string_of_field_declaration s)
         ) var_decl_list;
@@ -259,8 +265,8 @@ and variable_definition b indent ~freeton {
     var_name; var_type; var_visibility;
     var_mutability; var_override; var_init;
     var_static } =
-  bprint b indent
-    (Format.sprintf "%s%s%s%s %s%s%s%s"
+  bprintf b indent
+    "%s%s%s%s %s%s%s%s"
        (string_of_type var_type)
        (if var_static then " static" else "")
        (if freeton then
@@ -286,7 +292,7 @@ and variable_definition b indent ~freeton {
                         (List.map string_of_longident ol)) ^ ")")
        (match var_init with
         | None -> ";"
-        | Some e -> Format.sprintf " = %s;" (string_of_expression e)))
+        | Some e -> Format.sprintf " = %s;" (string_of_expression e))
 
 and function_definition b indent {
     fun_name; fun_params; fun_returns; fun_modifiers; fun_visibility;
