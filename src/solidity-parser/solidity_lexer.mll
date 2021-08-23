@@ -104,7 +104,7 @@ rule token = parse
   | "#" [' ' '\t']* (['0'-'9']+ as num) [' ' '\t']*
         ("\"" ([^ '\010' '\013' '"' ] * as name) "\"")?
         [^ '\010' '\013'] * newline
-      { update_loc lexbuf name (int_of_string num) true 0;
+      { update_loc lexbuf name (int_of_string num - 1) true 0;
       token lexbuf }
 
   | "/*"        { multiline_comment lexbuf ; token lexbuf }

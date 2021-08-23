@@ -33,8 +33,25 @@ let set_filename lexbuf filename =
   let lex_curr_p = lexbuf.lex_curr_p in
   lexbuf.lex_curr_p <- { lex_curr_p with pos_fname = filename }
 
-let parse_module id ?preprocess file =
-  let content = EzFile.read_file file in
+let parse_module id ?(cpp=false) ?preprocess file =
+  let content =
+    let cpp = cpp ||
+              match Sys.getenv "SOLIDITY_CPP" with
+              | _ -> true
+              | exception _ -> false
+    in
+    if cpp then
+      let tmp_file = Filename.temp_file (Filename.basename file) ".cpp" in
+      let cmd = Printf.sprintf "cpp -E %s > %s" file tmp_file in
+      let res = Sys.command cmd in
+      if res = 0 then
+        EzFile.read_file tmp_file
+      else
+        Printf.kprintf
+          failwith "Warning: %s failed with error %d\n%!" cmd res
+    else
+      EzFile.read_file file
+  in
   let content = match preprocess with
     | None -> content
     | Some f -> f content
@@ -47,9 +64,9 @@ let parse_module id ?preprocess file =
         Solidity_lexer.token lb
     with Solidity_raw_parser.Error ->
       raise ( Solidity_exceptions.SyntaxError ("Parse error",
-                            Solidity_common.to_pos
-                              ( lb.Lexing.lex_start_p ,
-                                lb.Lexing.lex_curr_p )))
+                                               Solidity_common.to_pos
+                                                 ( lb.Lexing.lex_start_p ,
+                                                   lb.Lexing.lex_curr_p )))
   in
   { module_file = file; module_id = Ident.root id; module_units }
 
@@ -58,7 +75,7 @@ let parse_module id ?preprocess file =
    imported files are added at the end of the input file queue.
    The imports of a file are ordered lexicographically
    before being added to the queue. *)
-let parse_file ?(freeton=false) ?preprocess filename =
+let parse_file ?(freeton=false) ?preprocess ?cpp filename =
 
   Solidity_lexer.init ~freeton;
   Solidity_common.for_freeton := freeton ;
@@ -75,7 +92,7 @@ let parse_file ?(freeton=false) ?preprocess filename =
 
   while not (Queue.is_empty to_parse) do
     let file = Queue.pop to_parse in
-    let m = parse_module (id := !id + 1; !id) ?preprocess file in
+    let m = parse_module (id := !id + 1; !id) ?preprocess ?cpp file in
     modules := m :: !modules;
     let imported_files = get_imported_files m in
     let new_files = StringSet.diff imported_files !files in
