@@ -13,4 +13,5 @@
 val parse_file :
   ?freeton:bool ->
   ?preprocess:( string -> string ) ->
+  ?cpp:bool ->
   string -> Solidity_ast.program
