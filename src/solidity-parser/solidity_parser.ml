@@ -13,6 +13,17 @@
 open Solidity_common
 open Solidity_ast
 
+let tmp_files = ref []
+let remove_temporary_files = ref true
+let () =
+  at_exit (fun () ->
+      if !remove_temporary_files then
+        List.iter (fun file -> Sys.remove file) !tmp_files
+    )
+let keep_temporary_files () = remove_temporary_files := false
+let add_temporary_file file =
+  tmp_files := file :: !tmp_files
+
 let get_imported_files m =
   let base = Filename.dirname m.module_file in
   List.fold_left (fun fileset unit_node ->
@@ -41,12 +52,13 @@ let parse_module id ?(cpp=false) ?preprocess file =
               | exception _ -> false
     in
     if cpp then
-      let tmp_file = Filename.temp_file (Filename.basename file) ".cpp" in
+      let tmp_file = Filename.temp_file (Filename.basename file) "-cpp.sol" in
       let cmd = Printf.sprintf "cpp -E %s > %s" file tmp_file in
       let res = Sys.command cmd in
-      if res = 0 then
+      if res = 0 then begin
+        add_temporary_file tmp_file ;
         EzFile.read_file tmp_file
-      else
+      end else
         Printf.kprintf
           failwith "Warning: %s failed with error %d\n%!" cmd res
     else
