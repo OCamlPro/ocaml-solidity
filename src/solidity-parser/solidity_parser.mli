@@ -15,3 +15,6 @@ val parse_file :
   ?preprocess:( string -> string ) ->
   ?cpp:bool ->
   string -> Solidity_ast.program
+
+val add_temporary_file : string -> unit
+val keep_temporary_files : unit -> unit
