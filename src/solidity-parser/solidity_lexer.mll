@@ -80,7 +80,7 @@ let identifier =
   ['a'-'z' 'A'-'Z' '_' '$'] ['a'-'z' 'A'-'Z' '_' '$' '0'-'9']*
 
 let hex_digit =
-  ['0'-'9' 'a'-'f' 'A'-'F']
+  ['0'-'9' 'a'-'f' 'A'-'F' '_']
 
 let size_32 =
   '0'* ( "1" |  "2" |  "3" |  "4" |  "5" |  "6" |  "7" |  "8" |
@@ -301,7 +301,6 @@ let init ~freeton =
           "catch", CATCH;
           "true", BOOLEANLITERAL (true);
           "false", BOOLEANLITERAL (false);
-          "ton", NUMBERUNIT (Ton);
           "wei", NUMBERUNIT (Wei);
           "gwei", NUMBERUNIT (Gwei);
           "szabo", NUMBERUNIT (Twei);
@@ -324,6 +323,28 @@ if freeton then
         "onBounce", ONBOUNCE;
         "repeat", REPEAT;
         "responsible", RESPONSIBLE;
+
+        "nano", NUMBERUNIT (Nanoton);
+        "nanoton", NUMBERUNIT (Nanoton);
+        "nTon", NUMBERUNIT (Nanoton);
+
+        "micro", NUMBERUNIT (Microton);
+        "microton", NUMBERUNIT (Microton);
+
+        "milli", NUMBERUNIT (Milliton);
+        "milliton", NUMBERUNIT (Milliton);
+
+        "ton", NUMBERUNIT (Ton);
+        "Ton", NUMBERUNIT (Ton);
+
+        "kiloton", NUMBERUNIT (Kiloton);
+        "kTon", NUMBERUNIT (Kiloton);
+
+        "megaton", NUMBERUNIT (Megaton);
+        "MTon", NUMBERUNIT (Megaton);
+
+        "gigaton", NUMBERUNIT (Gigaton);
+        "GTon", NUMBERUNIT (Gigaton);
       ];
       ()
   end

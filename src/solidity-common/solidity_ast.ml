@@ -248,7 +248,13 @@ and number_unit =
   | Days
   | Weeks
   | Years
-  | Ton (* freeton *)
+  | Nanoton  (* freeton *)
+  | Microton (* freeton *)
+  | Milliton (* freeton *)
+  | Ton      (* freeton *)
+  | Kiloton  (* freeton *)
+  | Megaton  (* freeton *)
+  | Gigaton  (* freeton *)
 
 and unary_operator =
   | UPlus
@@ -401,7 +407,13 @@ let unit_factor unit =
     | Days     -> ExtZ._24x3600
     | Weeks    -> ExtZ._7x24x3600
     | Years    -> ExtZ._365x24x3600
+    | Nanoton  -> Z.one
+    | Microton -> ExtZ._10_3
+    | Milliton -> ExtZ._10_6
     | Ton      -> ExtZ._10_9
+    | Kiloton  -> ExtZ._10_12
+    | Megaton  -> ExtZ._10_15
+    | Gigaton  -> ExtZ._10_18
   in
   Q.of_bigint z
 

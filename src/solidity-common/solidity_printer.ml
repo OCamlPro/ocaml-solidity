@@ -65,7 +65,14 @@ let string_of_number_unit = function
   | Days ->     "days"
   | Weeks ->    "weeks"
   | Years ->    "years"
-  | Ton -> "ton"
+
+  | Nanoton   ->    "nanoton"
+  | Microton   ->    "microton"
+  | Milliton   ->    "milliton"
+  | Ton   ->    "ton"
+  | Kiloton   ->    "kiloton"
+  | Megaton   ->    "megaton"
+  | Gigaton   ->    "gigaton"
 
 let string_of_unop = function
   | UPlus ->   "+"
