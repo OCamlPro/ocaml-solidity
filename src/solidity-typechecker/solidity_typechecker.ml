@@ -932,9 +932,12 @@ and type_expression_lv opt env exp
               let t = Solidity_type.change_type_location LMemory t in
               replace_annot e (AType (TType t));
               let fp =
-                List.map (fun (fid, ft) ->
-                    (Solidity_type.change_type_location LMemory ft, Some (fid))
-                  ) sd.struct_fields
+                List.fold_right (fun (fid, ft) fs ->
+                    let ty = Solidity_type.change_type_location LMemory ft in
+                    match ty with
+                    | TMapping _ -> fs
+                    | _ -> ( ty, Some fid) :: fs
+                  ) sd.struct_fields []
               in
               check_function_application pos "struct constructor" fp args;
               t, RightValue

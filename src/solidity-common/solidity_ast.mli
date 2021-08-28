@@ -329,7 +329,13 @@ and number_unit =
   | Days
   | Weeks
   | Years
-  | Ton (* freeton *)
+  | Nanoton  (* freeton *)
+  | Microton (* freeton *)
+  | Milliton (* freeton *)
+  | Ton      (* freeton *)
+  | Kiloton  (* freeton *)
+  | Megaton  (* freeton *)
+  | Gigaton  (* freeton *)
 
 and unary_operator =
   | UPlus
