@@ -16,14 +16,14 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-        ocaml-version:
+        ocaml-compiler:
           - 4.10.0
         skip_test:
           - false
 
         include:
           - os: ubuntu-latest
-            ocaml-version: 4.08.0
+            ocaml-compiler: 4.08.0
             skip_test: true
 
 
@@ -38,14 +38,14 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: v1-${{ runner.os }}-ocaml-solidity-${{ matrix.ocaml-version }}-${{ hashFiles('*.opam') }}
+          key: v2-${{ runner.os }}-ocaml-solidity-${{ matrix.ocaml-compiler }}-${{ hashFiles('*.opam') }}
 #          restore-keys: |
-#            v1-${{ runner.os }}-opam-${{ matrix.ocaml-version }}-
+#            v2-${{ runner.os }}-opam-${{ matrix.ocaml-compiler }}-
 
-      - name: Use OCaml ${{ matrix.ocaml-version }}
-        uses: avsm/setup-ocaml@v1
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: avsm/setup-ocaml@v2
         with:
-          ocaml-version: ${{ matrix.ocaml-version }}
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Set git user
         run: |
@@ -80,4 +80,4 @@ jobs:
       - name: test source is well formatted
         run: make fmt
         continue-on-error: true
-        if: matrix.ocaml-version == '4.10.0' && matrix.os == 'ubuntu-latest'
+        if: matrix.ocaml-compiler == '4.10.0' && matrix.os == 'ubuntu-latest'
