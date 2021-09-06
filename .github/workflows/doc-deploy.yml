@@ -20,9 +20,9 @@ jobs:
           path: ~/.opam
           key: v1-Linux-ocaml-solidity-4.10.0-${{ hashFiles('*.opam') }}
       - name: setup-ocaml
-        uses: avsm/setup-ocaml@v1
+        uses: avsm/setup-ocaml@v2
         with:
-          ocaml-version: 4.10.0
+          ocaml-compiler: 4.10.0
       - name: setup-doc
         run: |
           sudo apt install -yqq python3-sphinx python3-sphinx-rtd-theme

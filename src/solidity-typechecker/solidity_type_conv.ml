@@ -250,6 +250,8 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
   | TEnum _, (TInt _ | TUint _) ->
       Some (to_)
 
+  | TFixBytes 1, TUint 8 when !for_freeton -> Some (to_)
+
   | _ ->
       if_true (Solidity_type.same_type from to_)
 
