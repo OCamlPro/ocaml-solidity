@@ -248,13 +248,20 @@ and number_unit =
   | Days
   | Weeks
   | Years
-  | Nanoton  (* freeton *)
-  | Microton (* freeton *)
-  | Milliton (* freeton *)
-  | Ton      (* freeton *)
-  | Kiloton  (* freeton *)
-  | Megaton  (* freeton *)
-  | Gigaton  (* freeton *)
+  | Nanoton   (* freeton / everscale *)
+  | Microton  (* freeton / everscale *)
+  | Milliton  (* freeton / everscale *)
+  | Ton       (* freeton / everscale *)
+  | Kiloton   (* freeton / everscale *)
+  | Megaton   (* freeton / everscale *)
+  | Gigaton   (* freeton / everscale *)
+  | Nanoever  (* freeton / everscale *)
+  | Microever (* freeton / everscale *)
+  | Milliever (* freeton / everscale *)
+  | Ever      (* freeton / everscale *)
+  | Kiloever  (* freeton / everscale *)
+  | Megaever  (* freeton / everscale *)
+  | Gigaever  (* freeton / everscale *)
 
 and unary_operator =
   | UPlus
@@ -393,27 +400,34 @@ let convertible_visibility ~from ~to_ =
 let unit_factor unit =
   let z =
     match unit with
-    | Unit     -> Z.one
-    | Wei      -> Z.one
-    | Kwei     -> ExtZ._10_3
-    | Mwei     -> ExtZ._10_6
-    | Gwei     -> ExtZ._10_9
-    | Twei     -> ExtZ._10_12
-    | Pwei     -> ExtZ._10_15
-    | Ether    -> ExtZ._10_18
-    | Hours    -> ExtZ._3600
-    | Minutes  -> ExtZ._60
-    | Seconds  -> Z.one
-    | Days     -> ExtZ._24x3600
-    | Weeks    -> ExtZ._7x24x3600
-    | Years    -> ExtZ._365x24x3600
-    | Nanoton  -> Z.one
-    | Microton -> ExtZ._10_3
-    | Milliton -> ExtZ._10_6
-    | Ton      -> ExtZ._10_9
-    | Kiloton  -> ExtZ._10_12
-    | Megaton  -> ExtZ._10_15
-    | Gigaton  -> ExtZ._10_18
+    | Unit      -> Z.one
+    | Wei       -> Z.one
+    | Kwei      -> ExtZ._10_3
+    | Mwei      -> ExtZ._10_6
+    | Gwei      -> ExtZ._10_9
+    | Twei      -> ExtZ._10_12
+    | Pwei      -> ExtZ._10_15
+    | Ether     -> ExtZ._10_18
+    | Hours     -> ExtZ._3600
+    | Minutes   -> ExtZ._60
+    | Seconds   -> Z.one
+    | Days      -> ExtZ._24x3600
+    | Weeks     -> ExtZ._7x24x3600
+    | Years     -> ExtZ._365x24x3600
+    | Nanoton   -> Z.one
+    | Microton  -> ExtZ._10_3
+    | Milliton  -> ExtZ._10_6
+    | Ton       -> ExtZ._10_9
+    | Kiloton   -> ExtZ._10_12
+    | Megaton   -> ExtZ._10_15
+    | Gigaton   -> ExtZ._10_18
+    | Nanoever  -> Z.one
+    | Microever -> ExtZ._10_3
+    | Milliever -> ExtZ._10_6
+    | Ever      -> ExtZ._10_9
+    | Kiloever  -> ExtZ._10_12
+    | Megaever  -> ExtZ._10_15
+    | Gigaever  -> ExtZ._10_18
   in
   Q.of_bigint z
 
@@ -449,7 +463,7 @@ let apply_binop q1 op q2 =
   | BDiv ->
       Some (Q.div q1 q2)
   | BMod ->
-(* TODO: Solidity allows this on fractions *)
+      (* TODO: Solidity allows this on fractions *)
       if ExtQ.is_int q1 && ExtQ.is_int q2 then
         Some (Q.of_bigint (snd (Z.ediv_rem (Q.num q1) (Q.num q2))))
       else
