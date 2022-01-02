@@ -345,6 +345,28 @@ if freeton then
 
         "gigaton", NUMBERUNIT (Gigaton);
         "GTon", NUMBERUNIT (Gigaton);
+
+        (* "nano", NUMBERUNIT (Ever); *)
+        "nanoever", NUMBERUNIT (Nanoever);
+        "nEver", NUMBERUNIT (Nanoever);
+
+        "micro", NUMBERUNIT (Microever);
+        "microever", NUMBERUNIT (Microever);
+
+        "milli", NUMBERUNIT (Milliever);
+        "milliever", NUMBERUNIT (Milliever);
+
+        "ever", NUMBERUNIT (Ever);
+        "Ever", NUMBERUNIT (Ever);
+
+        "kiloever", NUMBERUNIT (Kiloever);
+        "kEver", NUMBERUNIT (Kiloever);
+
+        "megaever", NUMBERUNIT (Megaever);
+        "MEver", NUMBERUNIT (Megaever);
+
+        "gigaever", NUMBERUNIT (Gigaever);
+        "GEver", NUMBERUNIT (Gigaever);
       ];
       ()
   end
