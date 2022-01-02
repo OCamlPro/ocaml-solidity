@@ -38,7 +38,7 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: v2-${{ runner.os }}-ocaml-solidity-${{ matrix.ocaml-compiler }}-${{ hashFiles('*.opam') }}
+          key: v2-${{ runner.os }}-ocaml-solidity-${{ matrix.ocaml-compiler }}-${{ hashFiles('opam/*.opam') }}
 #          restore-keys: |
 #            v2-${{ runner.os }}-opam-${{ matrix.ocaml-compiler }}-
 
@@ -46,6 +46,8 @@ jobs:
         uses: avsm/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          opam-pin: false
+          opam-depext: false
 
       - name: Set git user
         run: |
@@ -59,7 +61,7 @@ jobs:
       - run: opam depext -y ez_hash solidity-common solidity-parser solidity-typechecker solidity-test solidity-alcotest
 #        if: steps.cache-opam.outputs.cache-hit != 'true'
 
-      - run: opam install -y ./*.opam --deps-only --with-test
+      - run: opam install -y opam/*.opam --deps-only --with-test
 #        if: steps.cache-opam.outputs.cache-hit != 'true'
 
 #      - run: opam upgrade --fixup
@@ -81,3 +83,22 @@ jobs:
         run: make fmt
         continue-on-error: true
         if: matrix.ocaml-compiler == '4.10.0' && matrix.os == 'ubuntu-latest'
+
+      - name: build-doc
+        if: github.ref == 'refs/heads/master' && matrix.ocaml-compiler == '4.10.0' && matrix.os == 'ubuntu-latest'
+        run: |
+             sudo apt install -yqq python3-sphinx python3-sphinx-rtd-theme
+             opam install -y dune odoc
+             make doc
+             touch _drom/docs/.nojekyll
+             touch _drom/docs/sphinx/.nojekyll
+             touch _drom/docs/doc/.nojekyll
+
+      - name: deploy-doc
+        uses: JamesIves/github-pages-deploy-action@3.6.2
+        if: github.ref == 'refs/heads/master' && matrix.ocaml-compiler == '4.10.0' && matrix.os == 'ubuntu-latest'
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: gh-pages
+          FOLDER: _drom/docs/
+          CLEAN: true

@@ -119,6 +119,7 @@ let unop_type pos op t : type_ =
      TEnum _ | TStruct _ | TContract _ |
      TArray _ | TFunction _), UDelete ->
       TTuple []
+  | (TMapping _), UDelete when !for_freeton -> TTuple []
   | _, UDelete ->
       error_incompat ()
   | _, (UMinus | UNot | UInc | UDec) ->
@@ -1838,7 +1839,7 @@ let preprocess_contract_definitions cd =
             begin
               if is_none fd.fun_body then
                 error pos "Constructor must be implemented if declared";
-              if fd.fun_virtual then
+              if not !for_freeton && fd.fun_virtual then
                 error pos "Constructors cannot be virtual";
               if not !for_freeton &&
                  ( is_private || is_external ) then

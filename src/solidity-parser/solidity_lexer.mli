@@ -11,6 +11,7 @@
 (**************************************************************************)
 
 val init : freeton:bool -> unit
+val init2 : ?list:(string * Solidity_raw_parser.token) list -> unit -> unit
 
 val reset : unit -> unit
 

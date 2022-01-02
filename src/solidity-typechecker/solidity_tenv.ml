@@ -64,8 +64,11 @@ let is_visible lookup visibility ~origin ~variable =
   | LStatic (Contract, false) ->
       false
   | LStatic (Contract, true) ->
-      is_statically_visible visibility ~library:false &&
-        not (is_inherited origin)
+      (* Fabrice: I set ~library:true for a freeton contract in
+         tvm.functionId(D4Auct) *)
+      let a = is_statically_visible visibility ~library:true in
+      let b = not (is_inherited origin) in
+      a && b
   | LStatic (Library, false) ->
       is_statically_visible visibility ~library:true
   | LStatic (Library, true) -> (* i.e. call from the library itself *)

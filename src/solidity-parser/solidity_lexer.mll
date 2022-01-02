@@ -236,12 +236,12 @@ and end_pragma = parse
 
  {
    let initialized = ref false
-let init ~freeton =
+let init2 ?(list=[]) () =
   if not !initialized then begin
     initialized := true;
     List.iter (fun (kwd, token) ->
         add_keyword kwd token
-      ) [ "import", IMPORT;
+      ) ( [ "import", IMPORT;
           "as", AS;
           "from", FROM;
           "abstract", ABSTRACT;
@@ -312,17 +312,22 @@ let init ~freeton =
           "days", NUMBERUNIT (Days);
           "weeks", NUMBERUNIT (Weeks);
           "years", NUMBERUNIT (Years);
-        ];
-if freeton then
-    List.iter (fun (kwd, token) ->
-        add_keyword kwd token
-      ) [
+        ] @ list)
+  end
+
+let init ~freeton =
+  if freeton then
+    init2 () ~list:[
         "inline", INLINE;
         "static", STATIC;
         "optional", OPTIONAL;
         "onBounce", ONBOUNCE;
         "repeat", REPEAT;
         "responsible", RESPONSIBLE;
+
+        "TvmCell", TYPEABSTRACT "TvmCell";
+        "TvmSlice", TYPEABSTRACT "TvmSlice";
+        "TvmBuilder", TYPEABSTRACT "TvmBuilder";
 
         "nano", NUMBERUNIT (Nanoton);
         "nanoton", NUMBERUNIT (Nanoton);
@@ -367,7 +372,8 @@ if freeton then
 
         "gigaever", NUMBERUNIT (Gigaever);
         "GEver", NUMBERUNIT (Gigaever);
-      ];
-      ()
-  end
+      ]
+  else
+    init2 ()
+
 }
