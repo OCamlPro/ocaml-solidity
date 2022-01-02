@@ -1,8 +1,11 @@
 # Keep this file in your GIT repo to help drom track generated files
+# begin version
+version:0.6.0~dev
+# end version
 
 # hash of toml configuration files
 # used for generation of all files
-eaf0d0bd408cc31f56f28cae7aabc539:.
+ae28e31c9fe8ce8d81437bb2e96826c2:.
 # end context for .
 
 # begin context for .github/workflows/doc-deploy.yml
@@ -12,12 +15,12 @@ e5c654f9557b31aa070c7ef28060ae9e:.github/workflows/doc-deploy.yml
 
 # begin context for .github/workflows/workflow.yml
 # file .github/workflows/workflow.yml
-6d0739e985277a2c6ee4e7f98ea45b24:.github/workflows/workflow.yml
+0d7a51d88b68093c3ae0014a5cd3c540:.github/workflows/workflow.yml
 # end context for .github/workflows/workflow.yml
 
 # begin context for .gitignore
 # file .gitignore
-9f7fe49f7dbb5d9c06cc10fdaa541407:.gitignore
+9d9e43f189dd8bb68d7849dfc252354e:.gitignore
 # end context for .gitignore
 
 # begin context for .ocamlformat
@@ -37,7 +40,7 @@ a8d1bcd6f62c6b813b77d3ff8959d8d2:.ocamlformat-ignore
 
 # begin context for CHANGES.md
 # file CHANGES.md
-d15a796a0dc7cb31a6a917998e7f5f8e:CHANGES.md
+31f426ad92ce570099748051439b4c6e:CHANGES.md
 # end context for CHANGES.md
 
 # begin context for LICENSE.md
@@ -52,7 +55,7 @@ eebc5e7dc1ae2ca50e86ea1c09e012d7:Makefile
 
 # begin context for README.md
 # file README.md
-f662c89c15314ed1da4c79e3ae338df8:README.md
+2b3d496df8773ba4ae8d3b1e0d9f9b96:README.md
 # end context for README.md
 
 # begin context for docs/README.txt
@@ -97,13 +100,38 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 
 # begin context for dune-project
 # file dune-project
-99b59bc5699daeee756ea487634c9e65:dune-project
+a893bcbb140b49101d846bd4c9f1da4d:dune-project
 # end context for dune-project
 
-# begin context for ez_hash.opam
-# file ez_hash.opam
-ebb17ef384f5f507750f9dbf99bd4634:ez_hash.opam
-# end context for ez_hash.opam
+# begin context for opam/ez_hash.opam
+# file opam/ez_hash.opam
+74f3b1b2de228b9028c37d096bd9fd9b:opam/ez_hash.opam
+# end context for opam/ez_hash.opam
+
+# begin context for opam/solidity-alcotest.opam
+# file opam/solidity-alcotest.opam
+a4c9943f6f64e7ebeb56bba07d75e9c9:opam/solidity-alcotest.opam
+# end context for opam/solidity-alcotest.opam
+
+# begin context for opam/solidity-common.opam
+# file opam/solidity-common.opam
+e8e5dcb722a9c89e8064da1d6fec7517:opam/solidity-common.opam
+# end context for opam/solidity-common.opam
+
+# begin context for opam/solidity-parser.opam
+# file opam/solidity-parser.opam
+f9eadb3fd651933ab4c7b31ff7abbe6d:opam/solidity-parser.opam
+# end context for opam/solidity-parser.opam
+
+# begin context for opam/solidity-test.opam
+# file opam/solidity-test.opam
+6aae049e168c8380e47eb15b96fea0c1:opam/solidity-test.opam
+# end context for opam/solidity-test.opam
+
+# begin context for opam/solidity-typechecker.opam
+# file opam/solidity-typechecker.opam
+5bab3820e2de1026fd9ceb6d8ff00326:opam/solidity-typechecker.opam
+# end context for opam/solidity-typechecker.opam
 
 # begin context for scripts/after.sh
 # file scripts/after.sh
@@ -119,31 +147,6 @@ ae050b3099ac0b43d7c7f4295f6b2319:scripts/before.sh
 # file scripts/copy-bin.sh
 bb3a9d286f0dc64021db4194427263ee:scripts/copy-bin.sh
 # end context for scripts/copy-bin.sh
-
-# begin context for solidity-alcotest.opam
-# file solidity-alcotest.opam
-46c7ae6bddb0890e6e4aef40dcd859f6:solidity-alcotest.opam
-# end context for solidity-alcotest.opam
-
-# begin context for solidity-common.opam
-# file solidity-common.opam
-7ee642e4fb70f30e8d144390bc3fb0d8:solidity-common.opam
-# end context for solidity-common.opam
-
-# begin context for solidity-parser.opam
-# file solidity-parser.opam
-6940d87ea57a5ed719e6d8df015d6783:solidity-parser.opam
-# end context for solidity-parser.opam
-
-# begin context for solidity-test.opam
-# file solidity-test.opam
-fe2781ece8eb3681fcd92d1dcff3155c:solidity-test.opam
-# end context for solidity-test.opam
-
-# begin context for solidity-typechecker.opam
-# file solidity-typechecker.opam
-dbf3d1e4092a9ccd80a55946c961ec44:solidity-typechecker.opam
-# end context for solidity-typechecker.opam
 
 # begin context for sphinx/_static/css/fixes.css
 # file sphinx/_static/css/fixes.css
@@ -172,7 +175,7 @@ f481df414cb3f029bd800c66946eb287:sphinx/install.rst
 
 # begin context for sphinx/license.rst
 # file sphinx/license.rst
-be5b2f331733cbbbfed0aba411d34691:sphinx/license.rst
+29a935c9204f247218a88fb8aacd0306:sphinx/license.rst
 # end context for sphinx/license.rst
 
 # begin context for src/ez_hash/dune
@@ -197,7 +200,7 @@ e86f9a67236dac57aaae3ca819cb7dbb:src/ocaml-solidity/package.toml
 
 # begin context for src/solidity-alcotest/version.mlt
 # file src/solidity-alcotest/version.mlt
-275d671a55d9bee3b649991bd4823c43:src/solidity-alcotest/version.mlt
+c799168ebc3933d81375e3a5121e1062:src/solidity-alcotest/version.mlt
 # end context for src/solidity-alcotest/version.mlt
 
 # begin context for src/solidity-common/dune
@@ -217,7 +220,7 @@ e86f9a67236dac57aaae3ca819cb7dbb:src/ocaml-solidity/package.toml
 
 # begin context for src/solidity-common/version.mlt
 # file src/solidity-common/version.mlt
-275d671a55d9bee3b649991bd4823c43:src/solidity-common/version.mlt
+c799168ebc3933d81375e3a5121e1062:src/solidity-common/version.mlt
 # end context for src/solidity-common/version.mlt
 
 # begin context for src/solidity-parser/dune
@@ -237,7 +240,7 @@ be413a351ddaf3cdf0d44e91ad35680e:src/solidity-parser/main.ml
 
 # begin context for src/solidity-parser/version.mlt
 # file src/solidity-parser/version.mlt
-275d671a55d9bee3b649991bd4823c43:src/solidity-parser/version.mlt
+c799168ebc3933d81375e3a5121e1062:src/solidity-parser/version.mlt
 # end context for src/solidity-parser/version.mlt
 
 # begin context for src/solidity-test/dune
@@ -247,7 +250,7 @@ be413a351ddaf3cdf0d44e91ad35680e:src/solidity-parser/main.ml
 
 # begin context for src/solidity-test/version.mlt
 # file src/solidity-test/version.mlt
-275d671a55d9bee3b649991bd4823c43:src/solidity-test/version.mlt
+c799168ebc3933d81375e3a5121e1062:src/solidity-test/version.mlt
 # end context for src/solidity-test/version.mlt
 
 # begin context for src/solidity-typechecker/dune
@@ -267,5 +270,5 @@ be413a351ddaf3cdf0d44e91ad35680e:src/solidity-parser/main.ml
 
 # begin context for src/solidity-typechecker/version.mlt
 # file src/solidity-typechecker/version.mlt
-275d671a55d9bee3b649991bd4823c43:src/solidity-typechecker/version.mlt
+c799168ebc3933d81375e3a5121e1062:src/solidity-typechecker/version.mlt
 # end context for src/solidity-typechecker/version.mlt

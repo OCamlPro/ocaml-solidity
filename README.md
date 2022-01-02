@@ -1,5 +1,5 @@
 
-[![Actions Status](https://github.com/OCamlPro/ocaml-solidity/workflows/Main%20Workflow/badge.svg)](https://github.com/OCamlPro/ocaml-solidity/actions)[![Actions Status](https://github.com/OCamlPro/ocaml-solidity/workflows/doc-deploy/badge.svg)](https://github.com/OCamlPro/ocaml-solidity/actions)
+[![Actions Status](https://github.com/OCamlPro/ocaml-solidity/workflows/Main%20Workflow/badge.svg)](https://github.com/OCamlPro/ocaml-solidity/actions)
 [![Release](https://img.shields.io/github/release/OCamlPro/ocaml-solidity.svg)](https://github.com/OCamlPro/ocaml-solidity/releases)
 
 # ocaml-solidity
