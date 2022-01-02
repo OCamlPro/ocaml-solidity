@@ -201,13 +201,13 @@
     | AmbiguousIdentifier l ->
        begin
          match List.map (fun id -> id.contents) l with
-         | [ id ] when !for_freeton
+(*         | [ id ] when !for_freeton
                        && ( match Ident.to_string id with
                             | "TvmCell"
                             | "TvmBuilder"
                             | "TvmSlice"-> true
                             | _ -> false ) ->
-            ElementaryType ( TypeAbstract ( Ident.to_string id ) )
+            ElementaryType ( TypeAbstract ( Ident.to_string id ) ) *)
          | list ->
             let contents =
               LongIdent.of_ident_list_rel list in
@@ -266,6 +266,7 @@
 %token OPTIONAL (* freeton *)
 %token ONBOUNCE (* freeton *)
 %token REPEAT  (* freeton *)
+%token <string> TYPEABSTRACT
 %token PRIVATE
 %token EXTERNAL
 %token INTERNAL
@@ -977,6 +978,7 @@ elementary_type_name:
   | BYTES                      { TypeBytes ($1) }
   | BYTE                       { TypeBytes (Some 1) }
   | BOOL                       { TypeBool }
+  | TYPEABSTRACT               { TypeAbstract $1 }
   | INT                        { TypeInt (Option.value ~default:256 $1) }
   | UINT                       { TypeUint (Option.value ~default:256 $1) }
   | FIXED

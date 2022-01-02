@@ -523,7 +523,7 @@ let add_primitive id p =
   begin
     match prim_by_id.(id) with
     | None -> prim_by_id.(id) <- Some p;
-    | Some _ -> error "Primitive id already defined"
+    | Some _ -> error "Primitive id %d already defined" id
   end;
   begin
     match prim_of_ident (Ident.of_string p.prim_name) with
