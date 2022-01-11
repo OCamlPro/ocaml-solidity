@@ -10,11 +10,19 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(** Parse a Solidity file and all its imported files. *)
 val parse_file :
   ?freeton:bool ->
   ?preprocess:( string -> string ) ->
   ?cpp:bool ->
   string -> Solidity_ast.program
+
+(** Parse a list of Solidity files and all their imported files. *)
+val parse_files :
+  ?freeton:bool ->
+  ?preprocess:( string -> string ) ->
+  ?cpp:bool ->
+  string list -> Solidity_ast.program
 
 val add_temporary_file : string -> unit
 val keep_temporary_files : unit -> unit
