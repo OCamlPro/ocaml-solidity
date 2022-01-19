@@ -263,10 +263,10 @@ module ExtList = struct
     match l1, l2 with
     | [], [] -> 0
     | hd1 :: tl1, hd2 :: tl2 ->
-       let hd_cmp = cmp hd1 hd2 in
-       if hd_cmp = 0
-       then compare cmp tl1 tl2
-       else hd_cmp
+        let hd_cmp = cmp hd1 hd2 in
+        if hd_cmp = 0
+        then compare cmp tl1 tl2
+        else hd_cmp
     | [], _ -> -1
     | _, [] -> 1
 
@@ -474,10 +474,10 @@ let replace_annot n annot =
 
 let make_absolute_path base path =
   FilePath.reduce ~no_symlink:true @@
-    if FilePath.is_relative path then
-      FilePath.make_absolute base path
-    else
-      path
+  if FilePath.is_relative path then
+    FilePath.make_absolute base path
+  else
+    path
 
 
 
@@ -528,7 +528,8 @@ let add_primitive id p =
   begin
     match prim_of_ident (Ident.of_string p.prim_name) with
     | None -> prim_by_name := StringMap.add p.prim_name (id, p) !prim_by_name
-    | Some _ -> error "Primitive name already defined"
+    | Some (_, { prim_name; _ }) ->
+        error "Primitive name already defined (%s)@." prim_name
   end;
   if id > !max_prim_id then
     max_prim_id := id
