@@ -162,6 +162,7 @@ and function_options = {
   varInit : bool; (* freeton *)
   flag : bool; (* freeton *)
   callback : bool; (* freeton *)
+  bounce : bool; (* freeton *)
   fields : StringSet.t ;
 }
 

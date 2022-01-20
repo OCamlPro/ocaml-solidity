@@ -33,7 +33,8 @@ let compute_selector pos ~library id args =
 let new_fun_options = {
   kind = KOther; value = false; gas = false; salt = false;
   stateInit = false; code = false; pubkey = false; varInit = false;
-  flag = false; callback = false; fields = StringSet.empty ;
+  flag = false; callback = false; bounce = false;
+  fields = StringSet.empty ;
 }
 
 let eval_array_length_exp env e =
@@ -502,6 +503,25 @@ let primitive_fun_desc ?(returns_lvalue=false)
     function_purity = purity;
   }
 
+
+let primitive_fun_named_args_desc ?(returns_lvalue=false)
+    ?(purity=PurityPure)
+    arg_names_types ret_types function_mutability =
+  { function_abs_name = LongIdent.empty;
+    function_params = arg_names_types;
+    function_returns = List.map (fun t -> (t, None)) ret_types;
+    function_returns_lvalue = returns_lvalue;
+    function_visibility = VPublic;
+    function_mutability;
+    function_override = None;
+    function_selector = None;
+    function_is_method = false; (* can be true *)
+    function_is_primitive = true;
+    function_def = None;
+    function_ops = [];
+    function_purity = purity;
+  }
+
 let primitive_fun_type ?(kind=KOther) ?(returns_lvalue=false)
     arg_types ret_types function_mutability =
   let fd = primitive_fun_desc ~returns_lvalue
@@ -512,6 +532,12 @@ let primitive_fun ?(returns_lvalue=false) ?purity
     arg_types ret_types function_mutability =
   let fd = primitive_fun_desc ~returns_lvalue ?purity
              arg_types ret_types function_mutability in
+  Function (fd)
+
+let primitive_fun_named_args ?(returns_lvalue=false) ?purity
+    arg_names_types ret_types function_mutability =
+  let fd = primitive_fun_named_args_desc ~returns_lvalue ?purity
+             arg_names_types ret_types function_mutability in
   Function (fd)
 
 let primitive_var_desc (*?(is_lvalue=false)*) variable_type =

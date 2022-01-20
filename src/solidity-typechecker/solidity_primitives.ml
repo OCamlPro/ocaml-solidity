@@ -46,6 +46,8 @@ module UTILS = struct
 
   let make_fun = Solidity_type_builder.primitive_fun
 
+  let make_fun_named_args = Solidity_type_builder.primitive_fun_named_args
+
   let make_var = Solidity_type_builder.primitive_var
 
   let make_prim_args pos opt =
@@ -557,26 +559,27 @@ let register_primitives ~(freeton: bool) () =
                  )
 
              | Some (ANamed args) ->
-                 let pair_to_ty (id, ty) =
-                   match Ident.to_string id, ty with
-                   | "value", _ -> Some (TUint 128)
-                   | "bounce", _ -> Some TBool
-                   | "flag", _ -> Some (TUint 16)
-                   | "body", _ -> Some (TAbstract TvmCell)
-                   | "currencies", _ ->
-                       Some (TMapping (TUint 32, TUint 256, LStorage false)) (*?*)
-                   | "stateInit", _ -> Some (TAbstract TvmCell)
-                   |  _ -> None
+                 let get_expected_type id =
+                   match Ident.to_string id with
+                   | "value" -> TUint 128
+                   | "bounce" -> TBool
+                   | "flag" -> TUint 16
+                   | "body" -> TAbstract TvmCell
+                   | "currencies" ->
+                       TMapping (
+                         TUint 32,
+                         TUint 256,
+                         LStorage false
+                       ) (*?*)
+                   | "stateInit" -> TAbstract TvmCell
+                   | str ->
+                       error pos
+                         "transfer: Unknown argument field name: \"%s\"" str
                  in
                  let ss =
                    StringSet.of_list
                      (List.map (fun (id, _) -> Ident.to_string id) args)
                  in
-                 if StringSet.cardinal ss < List.length args
-                 then error pos
-                     "<address>.transfer(...): duplicated \
-                      field in named parameters"
-                 else
                  if StringSet.mem "value" ss
                  then
                    let supported_fields = StringSet.of_list [
@@ -591,10 +594,14 @@ let register_primitives ~(freeton: bool) () =
                            "<address>.transfer(...): unknown parameter \
                             \"%s\"" str
                    ) ss;
+                   let expected_args =
+                     List.map (
+                       fun (id, _) ->
+                         get_expected_type id, Some id
+                     ) args
+                   in
                    Some (
-                     make_fun (
-                       List.map (fun p -> Option.get (pair_to_ty p)) args
-                     ) [] MNonPayable
+                     make_fun_named_args expected_args [] MNonPayable
                    )
                  else error pos
                      "<address>.transfer(...): missing \
@@ -1906,18 +1913,18 @@ let register_additional_freeton_primitives () =
   register (next_pid ())
     { prim_name = "buildStateInit";
       prim_kind = PrimMemberFunction }
-    (fun _pos opt t_opt ->
-       let pair_to_ty (id, ty) =
+    (fun pos opt t_opt ->
+       let get_expected_type id ty =
          match Ident.to_string id, ty with
-         | "code", TAbstract TvmCell
-         | "data", TAbstract TvmCell ->
-             Some (TAbstract TvmCell)
-         | "splitDepth", TUint _ -> Some (TUint 8)
-         | "pubkey", TUint _ -> Some (TUint 256)
+         | "code", _ | "data", _ -> TAbstract TvmCell
+         | "splitDepth", _ -> TUint 8
+         | "pubkey", _ -> TUint 256
          | "contr", TContract (id, desc, super) ->
-             Some (TContract (id, desc, super))
-         | "varInit", _ -> Some TDots (*?*)
-         |  _ -> None
+             TContract (id, desc, super) (*?*)
+         | "varInit", _ -> TDots (*?*)
+         |  str, _ ->
+             error pos
+               "buildStateInit: Unknown argument field name: \"%s\"" str
        in
        match t_opt, opt.call_args with
        | Some (TMagic TTvm),
@@ -1938,13 +1945,11 @@ let register_additional_freeton_primitives () =
 
        | Some (TMagic TTvm),
          Some (ANamed [id, ty]) when Ident.to_string id = "code" ->
-           let arg_type_opt = pair_to_ty (id, ty) in
-           if Option.is_none arg_type_opt
-           then None
-           else Some (
-               make_fun [Option.get arg_type_opt] [
-                 TAbstract TvmCell] MView
-             )
+           let expected_ty = get_expected_type id ty in
+           Some (
+             make_fun_named_args
+               [expected_ty, Some id] [TAbstract TvmCell] MView
+           )
 
        | Some (TMagic TTvm), Some (ANamed args) ->
            begin
@@ -1970,14 +1975,13 @@ let register_additional_freeton_primitives () =
              | ["code"; "data"]
              | ["code"; "splitDepth"]
              | ["code"; "pubkey"] ->
-                 let arg_type_opts = List.map pair_to_ty args in
-                 if List.exists Option.is_none arg_type_opts
-                 then None
-                 else Some (
-                     make_fun
-                       (List.map Option.get arg_type_opts)
-                       [TAbstract TvmCell] MView
-                   )
+                 let expected_args = List.map (
+                     fun (id, ty) ->
+                       get_expected_type id ty, Some id
+                   ) args in
+                 Some (
+                   make_fun_named_args expected_args [TAbstract TvmCell] MView
+                 )
 
              | _ -> None
            end
@@ -1994,7 +1998,8 @@ let register_additional_freeton_primitives () =
     { prim_name = "buildDataInit";
       prim_kind = PrimMemberFunction }
     (fun _pos opt t_opt ->
-       let pair_to_ty (id, ty) =
+       let aux (id, ty) =
+         Some id,
          match Ident.to_string id, ty with
          | "contr", TContract (id, desc, super) ->
              Some (TContract (id, desc, super))
@@ -2007,11 +2012,12 @@ let register_additional_freeton_primitives () =
          Some (ANamed [id, ty])
          when Ident.to_string id = "contr" || Ident.to_string id = "pubkey"
          ->
-           let arg_type_opt = pair_to_ty (id, ty) in
-           if Option.is_none arg_type_opt
+           let id_opt, ty_opt = aux (id, ty) in
+           if Option.is_none ty_opt
            then None
            else Some (
-               make_fun [Option.get arg_type_opt]
+               make_fun_named_args
+                 [Option.get ty_opt, id_opt]
                  [TAbstract TvmCell] MView
              )
 
@@ -2024,13 +2030,18 @@ let register_additional_freeton_primitives () =
 
              | [ "contr"; "varInit"]
              | [ "contr"; "pubkey"] ->
-                 let arg_type_opts = List.map pair_to_ty args in
-                 if List.exists Option.is_none arg_type_opts
+                 let arg_type_opts = List.map aux args in
+                 if List.exists (
+                     fun (_, t_opt) -> Option.is_none t_opt
+                   ) arg_type_opts
                  then None
                  else Some (
-                     make_fun
-                       (List.map Option.get arg_type_opts)
-                       [TAbstract TvmCell] MView
+                     make_fun_named_args (
+                       List.map (
+                         fun (id_opt, t_opt) ->
+                           Option.get t_opt, id_opt
+                       ) arg_type_opts
+                     ) [TAbstract TvmCell] MView
                    )
              | _ -> None
            end
@@ -2215,24 +2226,26 @@ let register_additional_freeton_primitives () =
   register (next_pid ())
     { prim_name = "buildExtMsg";
       prim_kind = PrimMemberFunction }
-    (fun _pos opt t_opt ->
-       let pair_to_ty (id, ty) =
+    (fun pos opt t_opt ->
+       let get_expected_type id ty =
          match Ident.to_string id, ty with
-         | "callbackId", TUint _ -> Some (TUint 32)
          | "callbackId", TFunction (desc, opt) ->
-             Some (TFunction (desc, opt))
+             TFunction (desc, opt)
+         | "callbackId", _ -> TUint 32
          | "call", TTuple (Some (TFunction (desc, opt)) :: f_arg_opts) ->
-             Some (TTuple (Some (TFunction (desc, opt)) :: f_arg_opts)) (*?*)
-         | "dest", TAddress b -> Some (TAddress b)
-         | "expire", TUint _ -> Some (TUint 32)
-         | "pubkey", TOptional (TUint _) -> Some (TOptional (TUint 256))
-         | "onErrorId", TUint _ -> Some (TUint 32)
-         | "onErrorId", TFunction (desc, opt) -> Some (TFunction (desc, opt))
-         | "signBoxHandle", TOptional (TUint _) -> Some (TOptional (TUint 32))
-         | "sign", TBool -> Some TBool
-         | "stateInit", TAbstract TvmCell -> Some (TAbstract TvmCell)
-         | "time", TUint _ -> Some (TUint 64)
-         |  _ -> None
+             TTuple (Some (TFunction (desc, opt)) :: f_arg_opts) (*?*)
+         | "dest", TAddress b -> TAddress b
+         | "expire", _ -> TUint 32
+         | "pubkey", _ -> TOptional (TUint 256)
+         | "onErrorId", TFunction (desc, opt) -> TFunction (desc, opt)
+         | "onErrorId", _ -> TUint 32
+         | "signBoxHandle", _ -> TOptional (TUint 32)
+         | "sign", _ -> TBool
+         | "stateInit", _ -> TAbstract TvmCell
+         | "time", _ -> TUint 64
+         |  str, _ ->
+             error pos
+               "buildExtMsg: Unknown argument field name: \"%s\"" str
        in
        match t_opt, opt.call_args with
        | Some (TMagic (TTvm)),  Some (ANamed args) ->
@@ -2260,14 +2273,13 @@ let register_additional_freeton_primitives () =
              | [ "callbackId"; "call"; "dest"; "expire"; "onErrorId";
                  "stateInit"; "time" ]
                ->
-                 let arg_type_opts = List.map pair_to_ty args in
-                 if List.exists Option.is_none arg_type_opts
-                 then None
-                 else Some (
-                     make_fun
-                       (List.map Option.get arg_type_opts)
-                       [TAbstract TvmCell] MView
-                   )
+                 let expected_args = List.map (
+                     fun (id, ty) ->
+                       get_expected_type id ty, Some id
+                   ) args in
+                 Some (
+                   make_fun_named_args expected_args [TAbstract TvmCell] MView
+                 )
 
              | _ -> None
            end
@@ -2286,21 +2298,22 @@ let register_additional_freeton_primitives () =
   register (next_pid ())
     { prim_name = "buildIntMsg";
       prim_kind = PrimMemberFunction }
-    (fun _pos opt t_opt ->
-       let pair_to_ty (id, ty) =
+    (fun pos opt t_opt ->
+       let get_expected_type id ty =
          match Ident.to_string id, ty with
-         | "bounce", TBool -> Some TBool
-         | "call", TTuple (Some (TFunction (desc, opt)) :: f_arg_opts) ->
-             Some (TTuple (Some (TFunction (desc, opt)) :: f_arg_opts)) (*?*)
-         | "currencies", TMapping (TUint _, TUint _, _) ->
-             Some (TMapping (TUint 32, TUint 256, LStorage false)) (*?*)
-         | "dest", TAddress b -> Some (TAddress b)
-         | "stateInit", TAbstract TvmCell -> Some (TAbstract TvmCell)
-         | "value", TBool -> Some TBool
-         |  _ -> None
+         | "bounce", _ -> TBool
+         | "call", _ -> TAny (*?*)
+         | "currencies", _ ->
+             TMapping (TUint 32, TUint 256, LStorage false) (*?*)
+         | "dest", TAddress b -> TAddress b
+         | "stateInit", _ -> TAbstract TvmCell
+         | "value", _ -> TBool
+         |  str, _ ->
+             error pos
+               "buildIntMsg: Unknown argument field name: \"%s\"" str
        in
        match t_opt, opt.call_args with
-       | Some (TMagic (TTvm)),  Some (ANamed args) ->
+       | Some (TMagic (TTvm)), Some (ANamed args) ->
            begin match
                List.sort String.compare
                  (List.map (fun (id, _) -> Ident.to_string id) args)
@@ -2317,14 +2330,13 @@ let register_additional_freeton_primitives () =
 
              | [ "call"; "dest"; "value" ]
                ->
-                 let arg_type_opts = List.map pair_to_ty args in
-                 if List.exists Option.is_none arg_type_opts
-                 then None
-                 else Some (
-                     make_fun
-                       (List.map Option.get arg_type_opts)
-                       [TAbstract TvmCell] MPure
-                   )
+                 let expected_args = List.map (
+                     fun (id, ty) ->
+                       get_expected_type id ty, Some id
+                   ) args in
+                 Some (
+                   make_fun_named_args expected_args [TAbstract TvmCell] MView
+                 )
              | _ -> None
            end
        | _ -> None);
@@ -2520,8 +2532,8 @@ let register_additional_freeton_primitives () =
     (fun _pos opt t_opt ->
        match t_opt, opt.call_args with
        | Some (TMagic TRnd), Some (AList [(TInt _| TUint _) as ty]) ->
-           let rty = to_upper_bound ty in
-           Some (make_fun [rty] [rty] MPure)
+           (* let rty = to_upper_bound ty in *)
+           Some (make_fun [ty] [ty] MPure)
        | Some (TMagic TRnd), Some (AList []) ->
            Some (make_fun [] [TUint 256] MPure)
        | Some (TMapping (ty1, ty2, _)), _ ->
