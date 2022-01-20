@@ -33,7 +33,7 @@ let compute_selector pos ~library id args =
 let new_fun_options = {
   kind = KOther; value = false; gas = false; salt = false;
   stateInit = false; code = false; pubkey = false; varInit = false;
-  fields = StringSet.empty ;
+  flag = false; callback = false; fields = StringSet.empty ;
 }
 
 let eval_array_length_exp env e =

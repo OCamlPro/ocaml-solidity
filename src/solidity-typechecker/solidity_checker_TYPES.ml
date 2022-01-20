@@ -160,6 +160,8 @@ and function_options = {
   code : bool; (* freeton *)
   pubkey : bool; (* freeton *)
   varInit : bool; (* freeton *)
+  flag : bool; (* freeton *)
+  callback : bool; (* freeton *)
   fields : StringSet.t ;
 }
 

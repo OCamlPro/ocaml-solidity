@@ -1066,17 +1066,26 @@ and type_options_fun opt env pos is_payable fo opts =
         | "salt", KNewContract ->
             expect_expression_type opt env e (TFixBytes 32);
             { fo with salt = true }, fo.salt
-        (* there should be a test that makes sure that we're in freeton mode *)
-        | "stateInit", KNewContract -> (* freeton / everscale *)
+        | "value", (KReturn) when !for_freeton ->
+            expect_expression_type opt env e (TUint 256);
+            { fo with value = true }, fo.value
+        | "flag", (KReturn | KExtContractFun) when !for_freeton ->
+            expect_expression_type opt env e (TUint 8); (* or TUint 16? *)
+            { fo with flag = true }, fo.flag
+        | "callback", (KExtContractFun) when !for_freeton ->
+            (* should be a function type *)
+            expect_expression_type opt env e (TAny);
+            { fo with callback = true }, fo.callback
+        | "stateInit", KNewContract when !for_freeton  ->
             expect_expression_type opt env e (TAbstract TvmCell);
             { fo with stateInit = true }, fo.stateInit
-        | "code", KNewContract -> (* freeton / everscale *)
+        | "code", KNewContract when !for_freeton ->
             expect_expression_type opt env e (TAbstract TvmCell);
             { fo with code = true }, fo.code
-        | "pubkey", KNewContract -> (* freeton / everscale *)
+        | "pubkey", KNewContract when !for_freeton ->
             expect_expression_type opt env e (TUint 256);
             { fo with pubkey = true }, fo.pubkey
-        | "varInit", KNewContract -> (* freeton / everscale *)
+        | "varInit", KNewContract when !for_freeton ->
             (*?*) (* what type should be used for a struct of arguments? *)
             expect_expression_type opt env e (TDots);
             { fo with varInit = true }, fo.varInit

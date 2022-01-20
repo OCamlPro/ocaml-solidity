@@ -2472,6 +2472,8 @@ let register_additional_freeton_primitives () =
        | Some (TMagic TRnd), Some (AList [(TInt _| TUint _) as ty]) ->
            let rty = to_upper_bound ty in
            Some (make_fun [rty] [rty] MPure)
+       | Some (TMagic TRnd), Some (AList []) ->
+           Some (make_fun [] [TUint 256] MPure)
        | Some (TMapping (ty1, ty2, _)), _ ->
            Some (
              make_fun [ty1] [TOptional (TTuple [Some ty1; Some ty2])] MView
