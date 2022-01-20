@@ -204,6 +204,18 @@ let register_primitives ~(freeton: bool) () =
        | Some (TMagic (TTx)) -> Some (make_var (TUint 256))
        | _ -> None);
 
+  (*  the "now" keyword has been deprecated in solidity ^0.7.0 but it's still
+      used in ton-solidity. It's an alias for "block.timestamp".
+      And since ton-solidity 0.31 (2020-09-16)
+        it returns a uint32 instead of a uint256 *)
+  register (next_pid ())
+    { prim_name = "now";
+      prim_kind = PrimVariable }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | None when freeton -> Some (make_var (TUint 32))
+       | _ -> None);
+
   register (next_pid ())
     { prim_name = "msg";
       prim_kind = PrimVariable }
@@ -778,6 +790,36 @@ let register_primitives ~(freeton: bool) () =
 let register_additional_freeton_primitives () =
   (* Evescale/Freeton specific primitives *)
 
+  (* address.makeAddrStd() *)
+  register (next_pid ())
+    { prim_name = "makeAddrStd";
+      prim_kind = PrimVariable }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TType (TAddress _)) ->
+           Some (make_fun [TInt 8; TUint 256] [TAddress true] MPure)
+       | _ -> None);
+
+  (* address.makeAddrNone() *)
+  register (next_pid ())
+    { prim_name = "makeAddrNone";
+      prim_kind = PrimVariable }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TType (TAddress _)) ->
+           Some (make_fun [] [TAddress true] MPure)
+       | _ -> None);
+
+  (* address.makeAddrExtern() *)
+  register (next_pid ())
+    { prim_name = "makeAddrExtern";
+      prim_kind = PrimVariable }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TType (TAddress _)) ->
+           Some (make_fun [TUint 256; TUint 256] [TAddress true] MPure)
+       | _ -> None);
+
   (* TvmCell *)
   register (next_pid ())
     { prim_name = "TvmCell";
@@ -863,6 +905,16 @@ let register_additional_freeton_primitives () =
        match t_opt with
        | Some (TAbstract TvmCell | TAbstract TvmBuilder | TBytes _) ->
            Some (make_fun [] [TAbstract TvmSlice] MNonPayable) (*?*)
+       | _ -> None);
+
+  (* <TvmBuilder>.toCell() returns (TvmCell) *)
+  register (next_pid ())
+    { prim_name = "toCell";
+      prim_kind = PrimMemberFunction }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | Some (TAbstract TvmBuilder) ->
+           Some (make_fun [] [TAbstract TvmCell] MNonPayable) (*?*)
        | _ -> None);
 
   (*  <TvmSlice>.empty() returns (bool)

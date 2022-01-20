@@ -31,7 +31,8 @@ let compute_selector pos ~library id args =
   Bytes.to_string (Bytes.sub (sha3kec (Bytes.of_string fun_sig)) 0 4)
 
 let new_fun_options = {
-  kind = KOther; value = false; gas = false; salt = false ;
+  kind = KOther; value = false; gas = false; salt = false;
+  stateInit = false; code = false; pubkey = false; varInit = false;
   fields = StringSet.empty ;
 }
 

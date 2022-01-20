@@ -31,7 +31,9 @@ let same_location l1 l2 =
 let same_options o1 o2 =
   o1.value = o2.value &&
   o1.gas = o2.gas &&
-  o1.salt = o2.salt
+  o1.salt = o2.salt &&
+  o1.stateInit = o2.stateInit &&
+  o1.code = o2.code
 
 let rec same_type ?(ignore_loc=false) t1 t2 =
   match t1, t2 with

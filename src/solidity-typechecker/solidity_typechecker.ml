@@ -1066,6 +1066,20 @@ and type_options_fun opt env pos is_payable fo opts =
         | "salt", KNewContract ->
             expect_expression_type opt env e (TFixBytes 32);
             { fo with salt = true }, fo.salt
+        (* there should be a test that makes sure that we're in freeton mode *)
+        | "stateInit", KNewContract -> (* freeton / everscale *)
+            expect_expression_type opt env e (TAbstract TvmCell);
+            { fo with stateInit = true }, fo.stateInit
+        | "code", KNewContract -> (* freeton / everscale *)
+            expect_expression_type opt env e (TAbstract TvmCell);
+            { fo with code = true }, fo.code
+        | "pubkey", KNewContract -> (* freeton / everscale *)
+            expect_expression_type opt env e (TUint 256);
+            { fo with pubkey = true }, fo.pubkey
+        | "varInit", KNewContract -> (* freeton / everscale *)
+            (*?*) (* what type should be used for a struct of arguments? *)
+            expect_expression_type opt env e (TDots);
+            { fo with varInit = true }, fo.varInit
         | "gas", KNewContract ->
             error pos "Function call option \"%s\" cannot \
                        be used with \"new\""

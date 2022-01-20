@@ -156,6 +156,10 @@ and function_options = {
   value : bool;
   gas : bool;
   salt : bool;
+  stateInit : bool; (* freeton *)
+  code : bool; (* freeton *)
+  pubkey : bool; (* freeton *)
+  varInit : bool; (* freeton *)
   fields : StringSet.t ;
 }
 
