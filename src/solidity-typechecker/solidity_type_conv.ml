@@ -84,6 +84,11 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   | TFixed (size1, udec1), TFixed (size2, udec2) ->
       (udec1 <= udec2) &&
       (integer_part_size size1 udec1 <= integer_part_size size2 udec2)
+  (* should a hex const be converted to an int ? *)
+  | TRationalConst (q1, Some sz1), TRationalConst (q2, Some sz2) ->
+      Q.compare q1 q2 = 0 && sz1 = sz2
+  | TRationalConst (q1, None), TRationalConst (q2, None) ->
+      Q.compare q1 q2 = 0
   | TRationalConst (q, sz_opt), TFixBytes (bsz) ->
       ExtQ.is_int q &&
       not (ExtQ.is_neg q) &&
@@ -120,14 +125,14 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
       LongIdent.equal lid1 lid2
   | TArray (from, _, loc1), TArray (to_, _, loc2) ->
       (ignore_loc || convertible_location ~from:loc1 ~to_:loc2) &&
-       implicitly_convertible ~ignore_loc ~from ~to_ ()
+      implicitly_convertible ~ignore_loc ~from ~to_ ()
   | TMapping (tk1, tv1, loc1), TMapping (tk2, tv2, loc2) ->
       (ignore_loc ||
        ( !for_freeton ||
          ( is_storage loc1 && is_storage_ptr loc2 ) )
       ) &&
-       implicitly_convertible ~ignore_loc ~from:tk1 ~to_:tk2 () &&
-       implicitly_convertible ~ignore_loc ~from:tv1 ~to_:tv2 ()
+      implicitly_convertible ~ignore_loc ~from:tk1 ~to_:tk2 () &&
+      implicitly_convertible ~ignore_loc ~from:tv1 ~to_:tv2 ()
   | TTuple (tl1), TTuple (tl2) ->
       implicitly_convertible_ol ~ignore_loc ~from:tl1 ~to_:tl2 ()
   | TOptional t1, TOptional t2 ->
@@ -179,7 +184,7 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
       if not payable then Some (to_)
       else
         let idl = Solidity_tenv.lookup_ident cd.contract_env
-                    ~upper:false ~lookup:LAny Ident.receive in
+            ~upper:false ~lookup:LAny Ident.receive in
         let payable =
           List.exists (function
               | Function { function_mutability = MPayable; _ } -> true
@@ -190,7 +195,7 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
 
   | TContract (_, derived, _), TContract (base, _, _) ->
       if_true (List.exists (fun (derived, _) ->
-                   LongIdent.equal derived base) derived.contract_hierarchy)
+          LongIdent.equal derived base) derived.contract_hierarchy)
 
   | (TInt _ | TUint _), TAddress (false) ->
       Some (TAddress (true))
@@ -242,7 +247,7 @@ let rec explicitly_convertible ~from ~to_ : type_ option =
 
   | TStruct (lid1, _, loc1), TStruct (lid2, _, loc2) ->
       if_true (convertible_location ~from:loc1 ~to_:loc2 &&
-                 LongIdent.equal lid1 lid2)
+               LongIdent.equal lid1 lid2)
 
   | (TInt _ | TUint _), (TInt _ | TUint _ | TAddress _ | TContract _ | TEnum _)
   | TFixBytes _, TFixBytes _

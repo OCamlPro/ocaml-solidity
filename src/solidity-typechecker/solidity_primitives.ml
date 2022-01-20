@@ -548,13 +548,57 @@ let register_primitives ~(freeton: bool) () =
                        TMapping (TUint 32, TUint 256, LStorage false)]
                      [] MNonPayable
                  )
-             | Some ( AList [_; _; _; _; _; _]) ->
+             | Some (AList [_; _; _; _; _; _]) ->
                  Some (
                    make_fun
                      [ TUint 128; TBool; TUint 16; TAbstract TvmCell;
                        TMapping (TUint 32, TUint 256, LStorage false);
                        TAbstract TvmCell] [] MNonPayable
                  )
+
+             | Some (ANamed args) ->
+                 let pair_to_ty (id, ty) =
+                   match Ident.to_string id, ty with
+                   | "value", _ -> Some (TUint 128)
+                   | "bounce", _ -> Some TBool
+                   | "flag", _ -> Some (TUint 16)
+                   | "body", _ -> Some (TAbstract TvmCell)
+                   | "currencies", _ ->
+                       Some (TMapping (TUint 32, TUint 256, LStorage false)) (*?*)
+                   | "stateInit", _ -> Some (TAbstract TvmCell)
+                   |  _ -> None
+                 in
+                 let ss =
+                   StringSet.of_list
+                     (List.map (fun (id, _) -> Ident.to_string id) args)
+                 in
+                 if StringSet.cardinal ss < List.length args
+                 then error pos
+                     "<address>.transfer(...): duplicated \
+                      field in named parameters"
+                 else
+                 if StringSet.mem "value" ss
+                 then
+                   let supported_fields = StringSet.of_list [
+                       "body"; "bounce"; "currencies";
+                       "flag"; "stateInit"; "value" ]
+                   in
+                   StringSet.iter (
+                     fun str ->
+                       if StringSet.mem str supported_fields
+                       then ()
+                       else error pos
+                           "<address>.transfer(...): unknown parameter \
+                            \"%s\"" str
+                   ) ss;
+                   Some (
+                     make_fun (
+                       List.map (fun p -> Option.get (pair_to_ty p)) args
+                     ) [] MNonPayable
+                   )
+                 else error pos
+                     "<address>.transfer(...): missing \
+                      mandatory parameter \"value\""
              | _ -> None
            end
        | Some (TAddress (true)) ->
@@ -725,6 +769,10 @@ let register_primitives ~(freeton: bool) () =
       prim_kind = PrimMemberFunction }
     (fun _pos opt t_opt ->
        match t_opt, opt.call_args with
+       | Some (TArray (t, _, LMemory)), Some _ when freeton ->
+           Some (make_fun [t] [] MNonPayable)
+       | Some (TBytes (LStorage _)), Some _ when freeton->
+           Some (make_fun [TFixBytes (1)] [] MNonPayable)
        | Some (TArray (t, None, (LStorage _))),
          (None | Some (AList [] | ANamed [])) ->
            (* Note: since push only works on storage arrays,
@@ -752,6 +800,8 @@ let register_primitives ~(freeton: bool) () =
       prim_kind = PrimMemberFunction }
     (fun _pos _opt t_opt ->
        match t_opt with
+       | Some (TArray (_, _, LMemory) | TBytes LMemory) when freeton ->
+           Some (make_fun [] [] MNonPayable)
        | Some (TArray (_, None, (LStorage _)) | TBytes (LStorage _)) ->
            Some (make_fun [] [] MNonPayable)
        | _ -> None);
