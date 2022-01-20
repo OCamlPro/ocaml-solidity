@@ -85,7 +85,7 @@ module UTILS = struct
 end
 open UTILS
 
-let register_primitives () =
+let register_primitives ~(freeton: bool) () =
 
   (* Error handling *)
 
@@ -105,12 +105,14 @@ let register_primitives () =
        match t_opt, opt.call_args with
        (* freeton/everscale:
           require(bool cond, int error_code);  *)
-       | None, Some ((AList [_; (TInt _ | TUint _ | TRationalConst _)])) ->
-           Some (make_fun [TBool; TInt 256] [] MPure)
+       | None, Some ((AList [_; (TInt _ | TUint _ | TRationalConst _)]))
+         when freeton ->
+           Some (make_fun [TBool; TUint 256] [] MPure)
        (* freeton/everscale:
           require(bool cond, int error_code; exceptionArgument arg);  *)
-       | None, Some ((AList [_; (TInt _ | TUint _ | TRationalConst _); _])) ->
-           Some (make_fun [TBool; TInt 256; TAny] [] MPure)
+       | None, Some ((AList [_; (TInt _ | TUint _ | TRationalConst _); _]))
+         when freeton ->
+           Some (make_fun [TBool; TUint 256; TAny] [] MPure)
 
        | None, Some ((AList [_] | ANamed [_])) ->
            Some (make_fun [TBool] [] MPure)
@@ -123,6 +125,10 @@ let register_primitives () =
       prim_kind = PrimFunction }
     (fun _pos opt t_opt ->
        match t_opt, opt.call_args with
+       | None, Some (AList [_]) when freeton ->
+           Some (make_fun [TUint 256] [] MPure)
+       | None, Some (AList [_; _]) when freeton ->
+           Some (make_fun [TUint 256; TAny] [] MPure)
        | None, Some ((AList [] | ANamed [])) ->
            Some (make_fun [] [] MPure)
        | None, Some ((AList [_] | ANamed [_])) ->
@@ -235,7 +241,11 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun pos _opt t_opt ->
        match t_opt with
-       | Some (TMagic TMsg | TAddress _) ->
+       | Some (TMagic TMsg) when freeton ->
+           Some (make_var (TUint 128))
+       | Some (TAddress _) when freeton ->
+           Some (make_var (TUint 256))
+       | Some (TMagic (TMsg)) ->
            Some (make_var (TUint 256))
        | Some (TFunction (fd, _fo)) when is_external fd.function_visibility ->
            error pos "Using \".value(...)\" is deprecated. \
@@ -313,7 +323,7 @@ let register_primitives () =
                             but %d were provided" (List.length atl)
            in
            Some (make_fun atl rtl MPure)
-       | Some (TAbstract TvmSlice)  ->
+       | Some (TAbstract TvmSlice) when freeton ->
            let is_supported_type = function
              | TInt _ | TUint _ | TFixBytes _ | TBool | TUfixed _ | TFixed _
              | TAddress _ | TContract _ | TAbstract TvmCell | TBytes _ | TString _
@@ -420,11 +430,11 @@ let register_primitives () =
       prim_kind = PrimFunction }
     (fun _pos opt t_opt ->
        match t_opt, opt.call_args with
-       | None, Some (AList [TAbstract TvmSlice]) ->
+       | None, Some (AList [TAbstract TvmSlice]) when freeton ->
            Some (make_fun [TAbstract TvmSlice] [TUint 256] MPure)
-       | None, Some (AList [TBytes LMemory]) ->
+       | None, Some (AList [TBytes LMemory]) when freeton ->
            Some (make_fun [TBytes LMemory] [TUint 256] MPure)
-       | None, Some (AList [TString LMemory]) ->
+       | None, Some (AList [TString LMemory]) when freeton ->
            Some (make_fun [TString LMemory] [TUint 256] MPure)
        | None, _ ->
            Some (make_fun [TBytes LMemory] [TFixBytes 32] MPure)
@@ -490,6 +500,8 @@ let register_primitives () =
       prim_kind = PrimMemberVariable }
     (fun _pos _opt t_opt ->
        match t_opt with
+       | Some (TAddress (_)) when freeton ->
+           Some (make_var (TUint 128))
        | Some (TAddress (_)) ->
            Some (make_var (TUint 256))
        | _ -> None);
@@ -498,45 +510,44 @@ let register_primitives () =
     { prim_name = "transfer";
       prim_kind = PrimMemberFunction }
     (fun pos opt t_opt ->
-       match t_opt, opt.call_args with
-
+       match t_opt with
        (* <address>.transfer(uint128 value, bool bounce,
             uint16 flag, TvmCell body, ExtraCurrencyCollection currencies,
             TvmCell stateInit) *)
-       | Some (TAddress (true)),
-         Some (AList [TUint _]) ->
-           Some (make_fun [TUint 128] [] MNonPayable)
-       | Some (TAddress (true)),
-         Some (AList [TUint _; TBool]) ->
-           Some (make_fun [TUint 128; TBool] [] MNonPayable)
-       | Some (TAddress (true)),
-         Some (AList [TUint _; TBool; TUint _]) ->
-           Some (make_fun [TUint 128; TBool; TUint 16] [] MNonPayable)
-       | Some (TAddress (true)),
-         Some (AList [TUint _; TBool; TUint _; TAbstract TvmCell]) ->
-           Some ( make_fun
-                    [TUint 128; TBool; TUint 16; TAbstract TvmCell]
-                    [] MNonPayable)
-       | Some (TAddress (true)),
-         Some ( AList [ TUint _; TBool; TUint _; TAbstract TvmCell;
-                        TMapping (TUint 32, TUint 256, LStorage false)]) ->
-           Some ( make_fun
-                    [ TUint 128; TBool; TUint 16; TAbstract TvmCell;
-                      TMapping (TUint 32, TUint 256, LStorage false)]
-                    [] MNonPayable)
-       | Some (TAddress (true)),
-         Some ( AList [ TUint _; TBool; TUint _; TAbstract TvmCell;
-                        TMapping (TUint 32, TUint 256, LStorage false);
-                        TAbstract TvmCell]) ->
-           Some ( make_fun
-                    [ TUint 128; TBool; TUint 16; TAbstract TvmCell;
-                      TMapping (TUint 32, TUint 256, LStorage false);
-                      TAbstract TvmCell]
-                    [] MNonPayable)
-
-       | Some (TAddress (true)), _ ->
+       | Some (TAddress _) when freeton ->
+           begin
+             match opt.call_args with
+             | Some (AList [_])  ->
+                 Some (make_fun [TUint 128] [] MNonPayable)
+             | Some (AList [_; _]) ->
+                 Some (make_fun [TUint 128; TBool] [] MNonPayable)
+             | Some (AList [_; _; _]) ->
+                 Some (make_fun [TUint 128; TBool; TUint 16] [] MNonPayable)
+             | Some (AList [ _; _; _; _]) ->
+                 Some (
+                   make_fun
+                     [TUint 128; TBool; TUint 16; TAbstract TvmCell]
+                     [] MNonPayable
+                 )
+             | Some (AList [_; _; _; _; _]) ->
+                 Some (
+                   make_fun
+                     [ TUint 128; TBool; TUint 16; TAbstract TvmCell;
+                       TMapping (TUint 32, TUint 256, LStorage false)]
+                     [] MNonPayable
+                 )
+             | Some ( AList [_; _; _; _; _; _]) ->
+                 Some (
+                   make_fun
+                     [ TUint 128; TBool; TUint 16; TAbstract TvmCell;
+                       TMapping (TUint 32, TUint 256, LStorage false);
+                       TAbstract TvmCell] [] MNonPayable
+                 )
+             | _ -> None
+           end
+       | Some (TAddress (true)) ->
            Some (make_fun [TUint 256] [] MNonPayable)
-       | Some (TAddress (false)), _ ->
+       | Some (TAddress (false)) ->
            error pos "\"send\" and \"transfer\" are only available \
                       for objects of type \"address payable\", \
                       not \"address\""
@@ -643,7 +654,7 @@ let register_primitives () =
            Some (make_var (t))
        (* math.min(T a, T b, ...) returns (T) *)
        (* PrimMemberFunction *)
-       | Some (TMagic TMath), Some (AList ((_ :: _) as args)) ->
+       | Some (TMagic TMath), Some (AList ((_ :: _) as args)) when freeton ->
            let n_args = List.map to_upper_bound args in
            begin match n_args with
              | arg_l_hd :: arg_l_tl ->
@@ -655,7 +666,7 @@ let register_primitives () =
            end
        (* <map>.min() returns (optional(KeyType, ValueType)) *)
        (* PrimMemberFunction *)
-       | Some (TMapping (ty1, ty2, _)), _ ->
+       | Some (TMapping (ty1, ty2, _)), _ when freeton ->
            Some (make_fun [] [TOptional (TTuple [Some ty1; Some ty2])] MView)
        | _ -> None);
 
@@ -668,7 +679,7 @@ let register_primitives () =
            Some (make_var (t))
        (* math.max(T a, T b, ...) returns (T)  *)
        (* PrimMemberFunction *)
-       | Some (TMagic TMath), Some (AList ((_ :: _) as args)) ->
+       | Some (TMagic TMath), Some (AList ((_ :: _) as args)) when freeton ->
            let n_args = List.map to_upper_bound args in
            begin match n_args with
              | arg_l_hd :: arg_l_tl ->
@@ -680,7 +691,7 @@ let register_primitives () =
            end
        (* <map>.max() returns (optional(KeyType, ValueType)) *)
        (* PrimMemberFunction *)
-       | Some (TMapping (ty1, ty2, _)), _ ->
+       | Some (TMapping (ty1, ty2, _)), _ when freeton ->
            Some (make_fun [] [TOptional (TTuple [Some ty1; Some ty2])] MView)
        | _ -> None);
 
@@ -762,7 +773,9 @@ let register_primitives () =
            error pos "Using \".gas(...)\" is deprecated. \
                       Use \"{gas: ...}\" instead"
        | _ -> None);
+  ()
 
+let register_additional_freeton_primitives () =
   (* Evescale/Freeton specific primitives *)
 
   (* TvmCell *)
@@ -2229,6 +2242,15 @@ let register_primitives () =
 
   (* Additional arithmetic primitives (freeton's math namespace) *)
 
+  (* math *)
+  register (next_pid ())
+    { prim_name = "math";
+      prim_kind = PrimVariable }
+    (fun _pos _opt t_opt ->
+       match t_opt with
+       | None -> Some (make_var (TMagic TMath))
+       | _ -> None);
+
   (* math.abs(intM val) returns (intM)
      math.abs(fixedMxN val) returns (fixedMxN)
   *)
@@ -2253,7 +2275,6 @@ let register_primitives () =
            Some (make_fun [TUint 256; TUint 256] [TUint 256] MPure)
        | _ -> None);
 
-  (* TODO: T1 X T2 -> T? *)
   (* math.divc(T a, T b) returns (T) *)
   register (next_pid ())
     { prim_name = "divc";
@@ -2263,9 +2284,9 @@ let register_primitives () =
        | Some (TMagic TMath), Some (AList ([ty1; ty2])) ->
            let rty1 = to_upper_bound ty1 in
            let rty2 = to_upper_bound ty2 in
-           if is_numeric rty1 && rty1 = rty2 (*?*)
+           if is_numeric rty1 && is_numeric rty2 (*?*)
            then
-             Some (make_fun [rty1; rty1] [rty1] MPure)
+             Some (make_fun [rty1; rty2] [rty1] MPure)
            else None
        | _ -> None);
 
@@ -2472,5 +2493,7 @@ let register_primitives () =
 
   ()
 
-let init () =
-  register_primitives ()
+let init ?(freeton = false) () =
+  register_primitives ~freeton ();
+  if freeton then
+    register_additional_freeton_primitives ()

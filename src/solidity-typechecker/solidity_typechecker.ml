@@ -1417,7 +1417,7 @@ let modifier_or_constructor_params ~constructor env lid =
       error lid.pos "Multiple definitions found for contract/modifier !"
   | [] ->
       if !for_freeton && LongIdent.to_string lid.contents = "functionID" then
-        [ TUint 16, None ], false
+        [ TUint 32, None ], false
       else
         error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
 
@@ -2166,10 +2166,10 @@ let resolve_program_imports p =
 
 let initialized = ref false
 
-let type_program ?(init = Solidity_primitives.init) p =
+let type_program ?(freeton = false) ?(init = Solidity_primitives.init) p =
 
   if not !initialized then begin
-    init ();
+    init ~freeton ();
     initialized := true
   end;
 

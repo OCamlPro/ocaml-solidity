@@ -13,8 +13,8 @@
 (** Types a program and, if successful, returns the
     annoted program where the program_modules are ordered wrt.
     their dependencies. *)
-val type_program :
-  ?init:(unit -> unit) ->
+val type_program : ?freeton:bool ->
+  ?init:(?freeton:bool -> unit -> unit) ->
   Solidity_ast.program -> Solidity_ast.program
 
 

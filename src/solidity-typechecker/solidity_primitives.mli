@@ -10,7 +10,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val init : unit -> unit
+val init : ?freeton:bool -> unit -> unit
 
 module UTILS : sig
   val register :

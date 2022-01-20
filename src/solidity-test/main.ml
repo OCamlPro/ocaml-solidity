@@ -73,7 +73,7 @@ let main () =
 
       let program : Solidity_ast.program =
         if !typecheck then
-          Solidity_typechecker.type_program program
+          Solidity_typechecker.type_program ~freeton program
         else
           program
       in
