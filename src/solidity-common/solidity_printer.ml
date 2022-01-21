@@ -671,6 +671,9 @@ and string_of_expression ?(paren=true) e =
       Format.sprintf "new %s" (string_of_type t)
   | TypeExpression t ->
       Format.sprintf "%s" (string_of_type t)
+  | SetOfArgs el ->
+      Format.sprintf "{%s}"
+        (String.concat ", " (List.map string_of_expression el))
 
 and block b indent stmt_list =
   List.iter (statement b (indent + 2)) stmt_list

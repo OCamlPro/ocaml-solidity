@@ -267,6 +267,7 @@ and raw_expression =
   | CallOptions of expression * (ident * expression) list
   | NewExpression of type_
   | TypeExpression of type_
+  | SetOfArgs of expression list
 
 and block = statement list
 

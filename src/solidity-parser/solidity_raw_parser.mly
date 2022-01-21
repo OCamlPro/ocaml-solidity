@@ -1153,7 +1153,7 @@ name_value:
         ($1, mk $loc @@ CallOptions (
                             make_ident_expr $loc "@call",
                             [ mk $loc @@ Ident.of_string "args" ,
-                              mk $loc @@ ImmediateArray $4 ] ))
+                              mk $loc @@ SetOfArgs $4 ] ))
       }
 ;;
 

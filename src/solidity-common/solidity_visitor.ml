@@ -473,6 +473,7 @@ and visitExpression (v : #ast_visitor) (e : expression) : unit =
         visitList (visitXY (visitNode visitIdent) visitExpression) v l
     | NewExpression t
     | TypeExpression t -> visitType v t
+    | SetOfArgs el -> visitList visitExpression v el
   in
   handleAction v#visitExpression continueVisit e
 
