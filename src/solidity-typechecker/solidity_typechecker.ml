@@ -1417,7 +1417,7 @@ let modifier_or_constructor_params ~constructor env lid =
       error lid.pos "Multiple definitions found for contract/modifier !"
   | [] ->
       if !for_freeton && LongIdent.to_string lid.contents = "functionID" then
-        [ TUint 16, None ], false
+        [ TUint 32, None ], false
       else
         error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
 
