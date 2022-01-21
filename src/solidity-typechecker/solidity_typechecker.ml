@@ -1044,6 +1044,28 @@ and expect_type pos ~expected ~provided =
       (Solidity_type_printer.string_of_type provided)
       (Solidity_type_printer.string_of_type expected)
 
+and expect_expression_types opt env exp expected_types =
+  expect_types exp.pos ~expected_types ~provided:(type_expression opt env exp)
+
+and expect_types pos ~expected_types ~provided =
+  let rec aux = function
+    | h :: t ->
+        if not (Solidity_type_conv.implicitly_convertible
+                  ~from:provided ~to_:h ())
+        then aux t
+        else ()
+    | [] ->
+        let exp_strs =
+          List.map Solidity_type_printer.string_of_type expected_types
+        in
+        error pos
+          "Type %s is not implicitly convertible to any of the expected types: \
+           [%s]"
+          (Solidity_type_printer.string_of_type provided)
+          (String.concat ";" exp_strs)
+  in
+  aux expected_types
+
 and type_options_fun opt env pos is_payable fo opts =
   List.fold_left (fun fo (id, e) ->
       let id = strip id in
@@ -1125,7 +1147,11 @@ let rec type_statement opt env s =
       type_statement { opt with in_loop = true } env s
 
   | RepeatStatement (e, s) ->
-      expect_expression_type opt env e TBool;
+      if !for_freeton
+      then
+        expect_expression_types opt env e [TBool; TUint 256]
+      else
+        expect_expression_type opt env e TBool;
       type_statement opt env s
 
   | ForRangeStatement ( var_decl_list, e, s) ->
