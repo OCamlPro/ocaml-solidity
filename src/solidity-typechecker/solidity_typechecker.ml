@@ -376,21 +376,21 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
     | None ->
         (* No result *)
         (fun () ->
-           error pos "Undeclared identifier: %S" (Ident.to_string id)),
-        (*        error "Undeclared identifier. %S is not (or not yet) \
-                         visible at this point" (Ident.to_string id)) *)
+          error pos "Undeclared identifier: %S" (Ident.to_string id)),
+(*        error "Undeclared identifier. %S is not (or not yet) \
+                 visible at this point" (Ident.to_string id)) *)
         (* Multiple results and no args given (resolution impossible) *)
         (fun () ->
-           error pos
-             "No matching declaration found after variable lookup"),
+          error pos
+            "No matching declaration found after variable lookup"),
         (* Multiple results and no match (resolution failed) *)
         (fun () ->
-           error pos
-             "No matching declaration found after argument-dependent lookup"),
+          error pos
+            "No matching declaration found after argument-dependent lookup"),
         (* Multiple results and multiple match *)
         (fun () ->
-           error pos
-             "No unique declaration found after argument-dependent lookup")
+          error pos
+            "No unique declaration found after argument-dependent lookup")
     | Some (t) ->
         (* No result or multiple results and no match *)
         let err_notfound () =
@@ -473,7 +473,7 @@ let resolve_overloads pos opt base_t_opt id iddl uf_iddl =
                   match base_t_opt, fd.function_params with
                   | Some (at), (ft, _id_opt) :: fp
                     when Solidity_type_conv.implicitly_convertible
-                        ~from:at ~to_:ft () ->
+                           ~from:at ~to_:ft () ->
                       let fd = { fd with function_params = fp } in
                       add_if_compatible idd uf_iddl fd args
                   | _ ->
@@ -532,7 +532,7 @@ let type_ident opt env base_t_opt id_node =
         | TType (TContract (lid, cd, _super)) -> (* super should be false *)
             let is_parent = List.mem lid opt.current_hierarchy in
             let lookup = Solidity_tenv.LStatic (
-                cd.contract_def.contract_kind, is_parent) in
+                             cd.contract_def.contract_kind, is_parent) in
             Solidity_tenv.find_ident cd.contract_env ~lookup id
 
         (* Enum value *)
@@ -555,8 +555,8 @@ let type_ident opt env base_t_opt id_node =
               match IdentAList.find_opt id sd.struct_fields with
               | Some (t) ->
                   let fd = {
-                    field_struct_desc = sd;
-                    field_name = id; field_type = t; }
+                      field_struct_desc = sd;
+                      field_name = id; field_type = t; }
                   in
                   [Field (fd)]
               | None ->
@@ -590,9 +590,9 @@ let type_ident opt env base_t_opt id_node =
         let envs =
           AbsLongIdentMap.fold (fun _lid (env, tl) envs ->
               if tl = [] ||
-                 List.exists (fun t' ->
-                     Solidity_type_conv.implicitly_convertible
-                       ~from:t ~to_:t' ()) tl then
+                   List.exists (fun t' ->
+                       Solidity_type_conv.implicitly_convertible
+                         ~from:t ~to_:t' ()) tl then
                 env :: envs
               else
                 envs
@@ -1005,7 +1005,7 @@ and type_expression_lv opt env exp
           | TFunction (fd, fo) ->
               let is_payable = is_payable fd.function_mutability in
               let fo = type_options opt env pos is_payable fo opts in
-              TFunction (fd, fo), RightValue
+                TFunction (fd, fo), RightValue
           | _ ->
               error pos "Expected callable expression before call options"
         end
@@ -1202,7 +1202,7 @@ let rec type_statement opt env s =
                       "Incompatible types in assignment: %S expected, got %S"
                       ( Solidity_type_printer.string_of_type t')
                       ( Solidity_type_printer.string_of_type t )
-                ) var_decl_opt
+                    ) var_decl_opt
             ) var_decl_list tl;
         let annot =
           match var_decl_list with
@@ -1464,7 +1464,7 @@ let modifier_or_constructor_params ~constructor env lid =
         error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
 
 let typecheck_function_body pos opt cenv
-    id params returns modifiers block =
+      id params returns modifiers block =
 
   let env = Solidity_tenv_builder.new_env ~upper_env:cenv () in
 
@@ -1607,7 +1607,7 @@ let typecheck_code menv m =
             | None ->
                 ()
           end
-      (* typecheck_free_function_code unit_node.pos menv fd' *)
+          (* typecheck_free_function_code unit_node.pos menv fd' *)
       | Pragma (_) | Import (_)
       | GlobalTypeDefinition (_) ->
           ()
@@ -1652,7 +1652,7 @@ let postprocess_module_contracts m =
                   ()
             ) cd.contract_parts;
           if not cd.contract_abstract &&
-             not (is_interface cd.contract_kind) then
+               not (is_interface cd.contract_kind) then
             begin
               (* Note: may be abstract even if all functions implemented *)
               match Solidity_tenv.has_abstract_function cd' with
@@ -1817,7 +1817,7 @@ let preprocess_contract_definitions cd =
           if is_external vd.var_visibility then
             error pos "Variable visibility set to external";
           if is_constant vd.var_mutability &&
-             is_none vd.var_init then
+               is_none vd.var_init then
             error pos "Uninitialized \"constant\" variable";
           if not (is_public vd.var_visibility) && is_some vd.var_override then
             error pos "Override can only be used with public state variables";
@@ -1904,7 +1904,7 @@ let preprocess_contract_definitions cd =
               if
                 not !for_freeton &&
                 not (is_payable fd.fun_mutability ||
-                     is_nonpayable fd.fun_mutability) then
+                      is_nonpayable fd.fun_mutability) then
                 error pos "Fallback function must be payable or \
                            non-payable, but is \"%s\""
                   (Solidity_printer.string_of_fun_mutability fd.fun_mutability)
@@ -2067,20 +2067,20 @@ let preprocess_free_function_definition menv (mlid : absolute LongIdent.t) fd =
   if is_payable fd.fun_mutability then
     error pos "Free functions can not be payable";
   let fd' = {
-    function_abs_name = lid;
-    function_params = [];
-    function_returns = [];
-    function_visibility = fd.fun_visibility;
-    function_mutability = fd.fun_mutability;
-    function_returns_lvalue = false;
-    function_override = None;
-    function_selector = None;
-    function_is_method = false;
-    function_is_primitive = false;
-    function_def = Some (fd);
-    function_ops = [] ;
-    function_purity = PurityUnknown;
-  }
+      function_abs_name = lid;
+      function_params = [];
+      function_returns = [];
+      function_visibility = fd.fun_visibility;
+      function_mutability = fd.fun_mutability;
+      function_returns_lvalue = false;
+      function_override = None;
+      function_selector = None;
+      function_is_method = false;
+      function_is_primitive = false;
+      function_def = Some (fd);
+      function_ops = [] ;
+      function_purity = PurityUnknown;
+    }
   in
   Solidity_tenv_builder.add_module_ident menv id (Function (fd'));
   fd'
