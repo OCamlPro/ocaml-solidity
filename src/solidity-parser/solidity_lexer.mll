@@ -157,7 +157,7 @@ rule token = parse
   | "}"   { RBRACE }
   | ","   { COMMA }
 
-  | ((['0'-'9']+ as i) ('.' (['0'-'9']+ as d))?
+  | ((['0'-'9']+['_' '0'-'9']* as i) ('.' (['0'-'9']+ as d))?
                      | ('.' (['0'-'9']+ as d)))
     (['e' 'E'] (['0'-'9']+ as e))?
       { let i = Option.map Z.of_string i in

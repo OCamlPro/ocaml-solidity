@@ -62,7 +62,7 @@ let is_visible lookup visibility ~origin ~variable =
   | LStatic (Interface, _) ->
       !for_freeton
   | LStatic (Contract, false) ->
-      false
+      is_statically_visible visibility ~library:true
   | LStatic (Contract, true) ->
       (* Fabrice: I set ~library:true for a freeton contract in
          tvm.functionId(D4Auct) *)

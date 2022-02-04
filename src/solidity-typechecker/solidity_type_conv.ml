@@ -130,6 +130,8 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
        implicitly_convertible ~ignore_loc ~from:tv1 ~to_:tv2 ()
   | TTuple (tl1), TTuple (tl2) ->
       implicitly_convertible_ol ~ignore_loc ~from:tl1 ~to_:tl2 ()
+  | TOptional TAny, TOptional _ when !for_freeton -> true
+  (* For the special case of the "null" *)
   | TOptional t1, TOptional t2 ->
       implicitly_convertible ~ignore_loc ~from:t1 ~to_:t2 ()
   | t1, TOptional t2 ->

@@ -987,7 +987,17 @@ and type_expression_lv opt env exp
         TMagic ( TStatic
                    (List.map (fun ({ contents = id ; _ }, e) ->
                         let type_ = type_expression opt env e in
-                        id, type_
+                        Some id, type_
+                      ) opts )), RightValue (* TODO *)
+    | CallOptions ( { contents =
+                        IdentifierExpression { contents = id ; _ } ;
+                      _ }, opts)
+      when Ident.to_string id = "@call"
+      ->
+        TMagic ( TStatic
+                   (List.map (fun ({ contents = id ; _ }, e) ->
+                        let type_ = type_expression opt env e in
+                        Some id, type_
                       ) opts )), RightValue (* TODO *)
     | CallOptions (e, opts) ->
         begin
@@ -999,7 +1009,13 @@ and type_expression_lv opt env exp
           | _ ->
               error pos "Expected callable expression before call options"
         end
-
+    | SetOfArgs el ->
+        TMagic (
+          TStatic
+            (List.map (fun e ->
+                 let type_ = type_expression opt env e in
+                 None, type_
+               ) el )), RightValue (* TODO *)
   in
   set_annot exp (AType t);
   t, lv
@@ -1043,6 +1059,28 @@ and expect_type pos ~expected ~provided =
     error pos "Type %s is not implicitly convertible to expected type %s"
       (Solidity_type_printer.string_of_type provided)
       (Solidity_type_printer.string_of_type expected)
+
+and expect_expression_types opt env exp expected_types =
+  expect_types exp.pos ~expected_types ~provided:(type_expression opt env exp)
+
+and expect_types pos ~expected_types ~provided =
+  let rec aux = function
+    | h :: t ->
+        if not (Solidity_type_conv.implicitly_convertible
+                  ~from:provided ~to_:h ())
+        then aux t
+        else ()
+    | [] ->
+        let exp_strs =
+          List.map Solidity_type_printer.string_of_type expected_types
+        in
+        error pos
+          "Type %s is not implicitly convertible to any of the expected types: \
+           [%s]"
+          (Solidity_type_printer.string_of_type provided)
+          (String.concat ";" exp_strs)
+  in
+  aux expected_types
 
 and type_options_fun opt env pos is_payable fo opts =
   List.fold_left (fun fo (id, e) ->
@@ -1125,7 +1163,11 @@ let rec type_statement opt env s =
       type_statement { opt with in_loop = true } env s
 
   | RepeatStatement (e, s) ->
-      expect_expression_type opt env e TBool;
+      if !for_freeton
+      then
+        expect_expression_types opt env e [TBool; TUint 256]
+      else
+        expect_expression_type opt env e TBool;
       type_statement opt env s
 
   | ForRangeStatement ( var_decl_list, e, s) ->
@@ -1417,7 +1459,7 @@ let modifier_or_constructor_params ~constructor env lid =
       error lid.pos "Multiple definitions found for contract/modifier !"
   | [] ->
       if !for_freeton && LongIdent.to_string lid.contents = "functionID" then
-        [ TUint 16, None ], false
+        [ TUint 32, None ], false
       else
         error lid.pos "Undeclared identifier: %a" LongIdent.printf lid.contents
 

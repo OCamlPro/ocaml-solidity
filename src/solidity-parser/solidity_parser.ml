@@ -121,3 +121,45 @@ let parse_file ?(freeton=false) ?preprocess ?cpp filename =
   in
 
   { program_modules; program_modules_by_id; program_modules_by_file }
+
+(* Parse a list of Solidity files and all their imported files. *)
+let parse_files ?(freeton=false) ?preprocess ?cpp filenames =
+
+  Solidity_lexer.init ~freeton;
+  Solidity_common.for_freeton := freeton ;
+
+  let files =
+    ref @@
+    List.fold_left (
+      fun file_set filename ->
+        StringSet.add
+          (make_absolute_path (Sys.getcwd ()) filename)
+          file_set
+    ) StringSet.empty filenames
+  in
+
+  let to_parse = Queue.create () in
+  StringSet.iter (fun file -> Queue.push file to_parse) !files;
+
+  let modules = ref [] in
+  let id = ref (-1) in
+
+  while not (Queue.is_empty to_parse) do
+    let file = Queue.pop to_parse in
+    let m = parse_module (id := !id + 1; !id) ?preprocess ?cpp file in
+    modules := m :: !modules;
+    let imported_files = get_imported_files m in
+    let new_files = StringSet.diff imported_files !files in
+    files := StringSet.union new_files !files;
+    StringSet.iter (fun file -> Queue.push file to_parse) new_files
+  done;
+
+  let program_modules, program_modules_by_id, program_modules_by_file =
+    List.fold_left (fun (mods, mods_by_id, mods_by_file) m ->
+        m :: mods,
+        IdentMap.add m.module_id m mods_by_id,
+        StringMap.add m.module_file m mods_by_file
+      ) ([], IdentMap.empty, StringMap.empty) !modules
+  in
+
+  { program_modules; program_modules_by_id; program_modules_by_file }
