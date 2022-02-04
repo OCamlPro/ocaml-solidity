@@ -1136,13 +1136,13 @@ let rec type_statement opt env s =
           List.map (fun var_decl_opt ->
               Option.map (fun (t, loc_opt, var_name) ->
                   Solidity_type_builder.var_type_to_type
-                    pos env ~arg:false ~ext:false loc_opt t,
+                    pos env' ~arg:false ~ext:false loc_opt t,
                   var_name
                 ) var_decl_opt
             ) var_decl_list
         in
         let tl =
-          match type_expression opt env e with
+          match type_expression opt env' e with
           | TArray (t, _, _) -> [t]
           | TMapping (tk, tv, _) -> [tk ; tv]
           | _ ->
@@ -1171,7 +1171,7 @@ let rec type_statement opt env s =
         List.iter (function
             | None -> ()
             | Some (t, var_name) ->
-                Solidity_tenv_builder.add_local_variable pos env
+                Solidity_tenv_builder.add_local_variable pos env'
                   (strip var_name) (Solidity_type_builder.local_variable_desc t)
           ) var_decl_list
 
