@@ -17,8 +17,17 @@ open Solidity_exceptions
 
 let error = type_error
 
-let error_already_declared pos ident =
-  error pos "Identifier %s already declared" (Ident.to_string ident)
+let error_module_already_declared pos ident =
+  error pos "Identifier %s already declared in module" (Ident.to_string ident)
+
+let error_local_already_declared pos ident =
+  error pos "Identifier %s already declared in scope" (Ident.to_string ident)
+
+let error_contract_already_declared pos ident =
+  error pos "Identifier %s already declared in contract" (Ident.to_string ident)
+
+let error_inheritance_already_declared pos ident =
+  error pos "Identifier %s already declared in inheritance" (Ident.to_string ident)
 
 let error_defined_twice pos kind =
   error pos "%s with same name and arguments defined twice" kind
@@ -150,7 +159,7 @@ let check_clashes_in_module menvs (m : Solidity_ast.module_) =
                     (Ident.to_string (LongIdent.last ad.alias_abs_name))
               | Module (_) | Contract (_) | Type (_) | Variable (_) ->
                   if not (ExtList.is_empty iddl) then
-                    error_already_declared (idd_pos idd) id
+                    error_module_already_declared (idd_pos idd) id
               | Function (_fd) ->
                   ()
             end;
@@ -273,7 +282,8 @@ let add_inherited_definitions cd =
                             else Fail
                       in
                       match action with
-                      | Fail -> error_already_declared (idd_pos idd) id
+                      | Fail -> error_inheritance_already_declared
+                                  (idd_pos idd) id
                       | Skip -> new_iddl
                       | Add ->
                           List.rev ((idd, Inherited) :: (List.rev new_iddl))
@@ -310,7 +320,7 @@ let add_contract_ident cd id idd =
       IdentMap.add id
         (List.rev ((idd, Defined) :: (List.rev iddl))) cenv.ident_map
   else
-    error_already_declared (idd_pos idd) id
+    error_contract_already_declared (idd_pos idd) id
 
 (* type_opt = None => all_types = * *)
 let add_using_for env lib type_opt =
@@ -625,6 +635,6 @@ let check_and_filter_overloads menvs m =
 let add_local_variable pos env id vd =
   match IdentMap.find_opt id env.ident_map with
   | Some (_) ->
-      error_already_declared pos id
+      error_local_already_declared pos id
   | None ->
       env.ident_map <- IdentMap.add id [(Variable (vd), Defined)] env.ident_map
