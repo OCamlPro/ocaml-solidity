@@ -170,6 +170,8 @@ let rec has_mapping = function
   | TAbstract TvmCell -> true
   | TAbstract TvmSlice -> true
   | TAbstract TvmBuilder -> true
+  | TAbstract TvmCall -> false
+  | TAbstract TvmExtCall -> false
   | TOptional t -> has_mapping t
   | TAny -> assert false
   | TDots -> assert false
@@ -201,6 +203,8 @@ let rec is_comparable op t =
   | TAbstract TvmCell -> true
   | TAbstract TvmSlice -> true
   | TAbstract TvmBuilder -> true
+  | TAbstract TvmCall -> false
+  | TAbstract TvmExtCall -> false
   | TOptional t -> is_comparable op t
   | TAny -> assert false
   | TDots -> assert false
@@ -231,6 +235,8 @@ let rec is_reference_type = function
   | TAbstract TvmCell -> true
   | TAbstract TvmSlice -> true
   | TAbstract TvmBuilder -> true
+  | TAbstract TvmCall -> false
+  | TAbstract TvmExtCall -> false
   | TOptional _ -> true
   | TAny -> assert false
   | TDots -> assert false
@@ -273,6 +279,8 @@ let rec is_storage_type = function
   | TAbstract TvmCell -> false
   | TAbstract TvmSlice -> false
   | TAbstract TvmBuilder -> false
+  | TAbstract TvmCall -> false
+  | TAbstract TvmExtCall -> false
   | TOptional _ -> false
   | TAny -> assert false
   | TDots -> assert false

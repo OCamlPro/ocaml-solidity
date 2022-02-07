@@ -894,7 +894,7 @@ and type_expression_lv opt env exp
           match t, args with
 
           (* Function call *)
-          | TFunction (fd, _fo), args ->
+          | TFunction (fd, fo), args ->
               check_function_application pos "function call"
                 fd.function_params args;
 
@@ -915,10 +915,15 @@ and type_expression_lv opt env exp
               end;
 
               begin
-                match fd.function_returns with
-                | [t, _id_opt] ->
-                    t, lv_of_bool fd.function_returns_lvalue
-                | tl -> TTuple (List.map (fun (t, _id_opt) -> Some (t)) tl),
+                match fo.kind with
+                | KExtContractFun when !for_freeton ->
+                    TAbstract TvmCall, RightValue
+                | _ ->
+                    match fd.function_returns with
+                    | [t, _id_opt] ->
+                        t, lv_of_bool fd.function_returns_lvalue
+                    | tl ->
+                        TTuple (List.map (fun (t, _id_opt) -> Some (t)) tl),
                         lv_of_bool fd.function_returns_lvalue
               end
 
@@ -1005,7 +1010,7 @@ and type_expression_lv opt env exp
           | TFunction (fd, fo) ->
               let is_payable = is_payable fd.function_mutability in
               let fo = type_options opt env pos is_payable fo opts in
-                TFunction (fd, fo), RightValue
+              TFunction (fd, fo), RightValue
           | _ ->
               error pos "Expected callable expression before call options"
         end
