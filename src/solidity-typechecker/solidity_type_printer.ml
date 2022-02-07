@@ -25,6 +25,8 @@ let string_of_abstract_type = function
   | TvmCell -> "TvmCell"
   | TvmSlice -> "TvmSlice"
   | TvmBuilder -> "TvmBuilder"
+  | TvmCall -> "TVM call"
+  | TvmExtCall -> "external TVM call"
 
 let rec string_of_magic_type = function
   | TMetaType (t) -> Format.sprintf "metatype(%s)" (string_of_type t)

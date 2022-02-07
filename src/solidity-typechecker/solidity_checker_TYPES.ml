@@ -168,6 +168,8 @@ and abstract_type =
   | TvmCell
   | TvmSlice
   | TvmBuilder
+  | TvmCall
+  | TvmExtCall (* TvmCall with .extMsg *)
 
 and type_ =
   | TBool
