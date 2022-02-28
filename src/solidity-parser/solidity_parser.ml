@@ -144,15 +144,25 @@ let parse_files ?(freeton=false) ?preprocess ?cpp filenames =
   let modules = ref [] in
   let id = ref (-1) in
 
-  while not (Queue.is_empty to_parse) do
+  let rec aux parsed =
     let file = Queue.pop to_parse in
-    let m = parse_module (id := !id + 1; !id) ?preprocess ?cpp file in
-    modules := m :: !modules;
-    let imported_files = get_imported_files m in
-    let new_files = StringSet.diff imported_files !files in
-    files := StringSet.union new_files !files;
-    StringSet.iter (fun file -> Queue.push file to_parse) new_files
-  done;
+    if not (StringSet.mem file parsed)
+    then
+      begin
+        let m = parse_module (id := !id + 1; !id) ?preprocess ?cpp file in
+        let parsed = StringSet.add file parsed in
+        modules := m :: !modules;
+        let imported_files = get_imported_files m in
+        StringSet.iter (
+          fun file ->
+            if not (StringSet.mem file parsed)
+            then
+              Queue.push file to_parse
+        ) imported_files;
+        aux parsed
+      end
+  in
+  aux StringSet.empty;
 
   let program_modules, program_modules_by_id, program_modules_by_file =
     List.fold_left (fun (mods, mods_by_id, mods_by_file) m ->
