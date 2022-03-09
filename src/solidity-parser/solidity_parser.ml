@@ -10,6 +10,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+open Ez_file.V1
+
 open Solidity_common
 open Solidity_ast
 

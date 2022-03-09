@@ -39,7 +39,7 @@ pack-modules = false
 hex = "1"
 zarith = ""
 fileutils = "0.6"
-ez_file = "0.1"
+ez_file = "0.3"
 
 # package tools dependencies
 [tools]
