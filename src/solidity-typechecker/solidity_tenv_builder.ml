@@ -60,11 +60,34 @@ let idd_pos = function
   | Modifier (md) -> md.modifier_def.mod_name.pos
   | Event (ed) -> ed.event_def.event_name.pos
 
+(** [idd_eq_pos id1 id2] returns true if the idds [id1] and [id2] are of the
+    same type and located in the same position. *)
+let idd_eq_pos id1 id2 =
+  match id1, id2 with
+  | Alias (ad1), Alias (ad2) ->
+      ad1.alias_pos = ad2.alias_pos
+  | Module (md1), Module (md2) ->
+      md1.module_pos = md2.module_pos
+  | Contract (cd1), Contract (cd2) ->
+      cd1.contract_def.contract_name.pos = cd2.contract_def.contract_name.pos
+  | Type (TDStruct (sd1)), Type (TDStruct (sd2)) ->
+      (fst sd1.struct_def).pos = (fst sd2.struct_def).pos
+  | Type (TDEnum (ed1)), Type (TDEnum (ed2)) ->
+      ed1.enum_pos = ed2.enum_pos
+  | Variable ({ variable_def = Some (vd1); _ }),
+    Variable ({ variable_def = Some (vd2); _ }) ->
+      vd1.var_name.pos = vd2.var_name.pos
+  | Function ({ function_def = Some (fd1); _ }),
+    Function ({ function_def = Some (fd2); _ }) ->
+      fd1.fun_name.pos = fd2.fun_name.pos
+  | Modifier (md1), Modifier (md2) ->
+      md1.modifier_def.mod_name.pos = md2.modifier_def.mod_name.pos
+  | Event (ed1), Event (ed2) ->
+      ed1.event_def.event_name.pos = ed2.event_def.event_name.pos
+  | _ -> false
 
 let new_env ?upper_env () =
   { upper_env;  ident_map = IdentMap.empty; using_for = AbsLongIdentMap.empty }
-
-
 
 (* Functions for building and checking module environments *)
 
@@ -130,18 +153,27 @@ let resolve_aliases menvs m =
       ()
     ) menv.ident_map;
   let rec aux iddl =
-    List.flatten @@
-      List.map (fun (idd, id_origin) ->
-          match idd with
-          | Alias ({ alias_abs_name; alias_pos; alias_targets = []; _ }) ->
-              error alias_pos "Alias %s not resolved"
-                (Ident.to_string (LongIdent.last alias_abs_name))
-          | Alias ({ alias_targets; _ }) ->
-              let at_iddl = aux alias_targets in
-              List.map (fun (idd, _id_origin) -> (idd, Imported)) at_iddl
-          | _ ->
-              [(idd, id_origin)]
-        ) iddl
+    List.fold_left (
+      fun acc (idd, id_origin) ->
+        match idd with
+        | Alias ({ alias_abs_name; alias_pos; alias_targets = []; _ }) ->
+            error alias_pos "Alias %s not resolved"
+              (Ident.to_string (LongIdent.last alias_abs_name))
+        | Alias ({ alias_targets; _ }) ->
+            let at_iddl = aux alias_targets in
+            List.fold_left (
+              fun acc (idd, _id_origin) ->
+                (idd, Imported) ::
+                List.filter (fun (it_idd, _) ->
+                    not (idd_eq_pos idd it_idd)
+                  ) acc
+            ) acc at_iddl
+        | _ ->
+            (idd, id_origin) ::
+            List.filter (fun (it_idd, _) ->
+                not (idd_eq_pos idd it_idd)
+              ) acc
+    ) [] iddl
   in
   menv.ident_map <- IdentMap.map aux menv.ident_map
 
