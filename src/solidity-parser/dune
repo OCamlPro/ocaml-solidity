@@ -4,9 +4,9 @@
   (name solidity_parser)
   (public_name solidity-parser)
   (wrapped false)
-  (libraries solidity-common hex )
-
-
+  (libraries solidity-common hex ez_file )
+  
+  
   )
 
 (ocamllex solidity_lexer)

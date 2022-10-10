@@ -10,8 +10,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-open Ez_file.V1
-
 open Solidity_common
 open Solidity_ast
 
@@ -59,12 +57,12 @@ let parse_module id ?(cpp=false) ?preprocess file =
       let res = Sys.command cmd in
       if res = 0 then begin
         add_temporary_file tmp_file ;
-        EzFile.read_file tmp_file
+        Ez_file.FileString.read_file tmp_file
       end else
         Printf.kprintf
           failwith "Warning: %s failed with error %d\n%!" cmd res
     else
-      EzFile.read_file file
+      Ez_file.FileString.read_file file
   in
   let content = match preprocess with
     | None -> content

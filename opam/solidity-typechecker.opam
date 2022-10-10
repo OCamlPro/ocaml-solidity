@@ -46,7 +46,8 @@ depends: [
   "uutf" {>= "1"}
   "solidity-parser" {= version}
   "solidity-common" {= version}
-  "ez_hash" {= version}
+  "hacl-star" {= version}
+  "ez_file" {>= "0.3.0" & < "1.0.0"}
   "ppx_inline_test" {with-test}
   "ppx_expect" {with-test}
   "odoc" {with-doc}

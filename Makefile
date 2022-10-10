@@ -15,7 +15,7 @@ all: build
 build:
 	./scripts/before.sh build
 	opam exec -- dune build @install
-	./scripts/copy-bin.sh ez_hash solidity-common solidity-parser solidity-typechecker solidity-test solidity-alcotest
+	./scripts/copy-bin.sh solidity-common solidity-parser solidity-typechecker solidity-test solidity-alcotest
 	./scripts/after.sh build
 
 build-deps:

@@ -10,8 +10,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-open Ez_file.V1
-
 type pos = string * (int * int) * (int * int)
 
 let dummy_pos = "", (-1, -1), (-1, -1)
@@ -439,7 +437,7 @@ let string_of_pos (file, pos1, pos2)  =
     try
       let line1 = fst pos1 in
       let line2 = fst pos2 in
-      let lines = EzFile.read_lines file in
+      let lines = Ez_file.FileString.read_lines file in
       let b = Buffer.create 1000 in
       Array.iteri (fun l line ->
           let l = l+1 in

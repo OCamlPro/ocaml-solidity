@@ -1,11 +1,11 @@
 # Keep this file in your GIT repo to help drom track generated files
 # begin version
-version:0.6.0
+version:0.6.1
 # end version
 
 # hash of toml configuration files
 # used for generation of all files
-e658c3548b3ea3f0cec17d76996252f0:.
+9f54bfa8ab3caba10ff5e27606d58e95:.
 # end context for .
 
 # begin context for .github/workflows/workflow.yml
@@ -98,11 +98,6 @@ c8281f46ba9a11d0b61bc8ef67eaa357:docs/style.css
 667063f9252b60f6b17f2ef101b69c34:dune-project
 # end context for dune-project
 
-# begin context for opam/ez_hash.opam
-# file opam/ez_hash.opam
-ca5798d87a01b461e0ba43e67647c9bd:opam/ez_hash.opam
-# end context for opam/ez_hash.opam
-
 # begin context for opam/solidity-alcotest.opam
 # file opam/solidity-alcotest.opam
 6ce0516a26315399738cd3396ea4f67d:opam/solidity-alcotest.opam
@@ -172,16 +167,6 @@ f481df414cb3f029bd800c66946eb287:sphinx/install.rst
 # file sphinx/license.rst
 29a935c9204f247218a88fb8aacd0306:sphinx/license.rst
 # end context for sphinx/license.rst
-
-# begin context for src/ez_hash/dune
-# file src/ez_hash/dune
-594545939b2217afd68d7306ba87ca42:src/ez_hash/dune
-# end context for src/ez_hash/dune
-
-# begin context for src/ez_hash/index.mld
-# file src/ez_hash/index.mld
-99d0d4548d69d4d4b4fd2068e5ebec13:src/ez_hash/index.mld
-# end context for src/ez_hash/index.mld
 
 # begin context for src/ocaml-solidity/package.toml
 # file src/ocaml-solidity/package.toml

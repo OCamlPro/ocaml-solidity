@@ -38,6 +38,7 @@ pack-modules = false
 [dependencies]
 hex = "1"
 solidity-common = "version"
+ez_file="0.3.0"
 
 # package tools dependencies
 [tools]

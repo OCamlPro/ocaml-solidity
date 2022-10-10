@@ -70,8 +70,8 @@ share-dirs = ["share"]
 dir = "src/ocaml-solidity"
 # edit 'src/ocaml-solidity/package.toml' for package-specific options
 
-[[package]]
-dir = "src/ez_hash"
+# [[package]]
+# dir = "src/ez_hash"
 # edit 'src/ez_hash/package.toml' for package-specific options
 
 [[package]]

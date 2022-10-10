@@ -15,10 +15,11 @@ open Solidity_ast
 open Solidity_checker_TYPES
 open Solidity_exceptions
 
+
 let error = type_error
 
 let sha3kec msg =
-  Bytes.unsafe_of_string (EzHash.SHA3KEC.digest (Bytes.unsafe_to_string msg))
+  Bytes.to_string @@ Hacl_star.Hacl.Keccak.shake256 ~msg ~size:4
 
 let compute_selector pos ~library id args =
   let arg_types =
@@ -28,7 +29,7 @@ let compute_selector pos ~library id args =
   in
   let fun_sig =
     Format.asprintf "%a(%s)" Ident.printf id (String.concat "," arg_types) in
-  Bytes.to_string (Bytes.sub (sha3kec (Bytes.of_string fun_sig)) 0 4)
+  sha3kec (Bytes.of_string fun_sig)
 
 let new_fun_options = {
   kind = KOther; value = false; gas = false; salt = false ;

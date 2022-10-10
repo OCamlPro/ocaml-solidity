@@ -37,9 +37,10 @@ pack-modules = false
 #   base-unix = { libname = "unix", version = ">=base" } 
 [dependencies]
 uutf = "1"
-ez_hash = "version"
+hacl-star = "version"
 solidity-common = "version"
 solidity-parser = "version"
+ez_file = "0.3.0"
 
 # package tools dependencies
 [tools]

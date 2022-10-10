@@ -23,20 +23,6 @@
  )
 
 (package
- (name ez_hash)
- (synopsis "Hash functions: sha3, sha256, blake2b")
- (description "\nHash functions: sha3, sha256, blake2b\n")
- (depends
-   (ocaml (>= 4.08.0))
-   blake2
-   ppx_inline_test
-   ppx_expect
-   odoc
-   ocamlformat
-  )
- )
-
-(package
  (name solidity-common)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
@@ -45,7 +31,7 @@
    zarith
    (hex ( >= 1 ))
    (fileutils ( >= 0.6 ))
-   (ez_file ( >= 0.3 ))
+   (ez_file (and (>= 0.3.0) (< 1.0.0)))
    ppx_inline_test
    ppx_expect
    odoc
@@ -61,6 +47,7 @@
    (ocaml (>= 4.08.0))
    (solidity-common (= version))
    (hex ( >= 1 ))
+   (ez_file (and (>= 0.3.0) (< 1.0.0)))
    menhir
    ppx_inline_test
    ppx_expect
@@ -78,7 +65,8 @@
    (uutf ( >= 1 ))
    (solidity-parser (= version))
    (solidity-common (= version))
-   (ez_hash (= version))
+   (hacl-star (= version))
+   (ez_file (and (>= 0.3.0) (< 1.0.0)))
    ppx_inline_test
    ppx_expect
    odoc

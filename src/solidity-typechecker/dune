@@ -4,7 +4,7 @@
   (name solidity_typechecker)
   (public_name solidity-typechecker)
   (wrapped false)
-  (libraries uutf solidity-parser solidity-common ez_hash )
+  (libraries uutf solidity-parser solidity-common hacl-star ez_file )
   
   (private_modules
         solidity_c3
