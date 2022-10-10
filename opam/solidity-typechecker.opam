@@ -2,7 +2,7 @@
 # Do not modify, or add to the `skip` field of `drom.toml`.
 opam-version: "2.0"
 name: "solidity-typechecker"
-version: "0.5.2"
+version: "0.5.2~dev"
 license: "LGPL-2.1-only with OCaml-LGPL-linking-exception"
 synopsis: "The ocaml-solidity project"
 description: """
@@ -46,7 +46,7 @@ depends: [
   "uutf" {>= "1"}
   "solidity-parser" {= version}
   "solidity-common" {= version}
-  "hacl-star" {= version}
+  "hacl-star" {>= "0.5.0" & < "1.0.0"}
   "ez_file" {>= "0.3.0" & < "1.0.0"}
   "ppx_inline_test" {with-test}
   "ppx_expect" {with-test}
