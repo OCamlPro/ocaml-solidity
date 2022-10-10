@@ -5,7 +5,7 @@
 (name ocaml-solidity)
 (allow_approximate_merlin)
 (generate_opam_files false)
-(version 0.5.2)
+(version 0.5.3)
 (formatting (enabled_for ocaml reason))
 (using menhir 2.0)
 
@@ -13,19 +13,6 @@
  (name ocaml-solidity)
  (synopsis "The ocaml-solidity project")
  (description "\nOcaml-solidity provides a Solidity parser and typechecker\n")
- (depends
-   (ocaml (>= 4.08.0))
-   ppx_inline_test
-   ppx_expect
-   odoc
-   ocamlformat
-  )
- )
-
-(package
- (name ez_hash)
- (synopsis "Hash functions: sha3, sha256, blake2b")
- (description "\nHash functions: sha3, sha256, blake2b\n")
  (depends
    (ocaml (>= 4.08.0))
    ppx_inline_test
@@ -77,7 +64,7 @@
    (uutf ( >= 1 ))
    (solidity-parser (= version))
    (solidity-common (= version))
-   (ez_hash (= version))
+   ez_hash
    ppx_inline_test
    ppx_expect
    odoc
