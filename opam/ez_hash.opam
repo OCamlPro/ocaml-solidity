@@ -40,7 +40,6 @@ install: [
 depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "2.7.0"}
-  "blake2" {}
   "ppx_inline_test" {with-test}
   "ppx_expect" {with-test}
   "odoc" {with-doc}

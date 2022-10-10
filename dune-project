@@ -28,7 +28,6 @@
  (description "\nHash functions: sha3, sha256, blake2b\n")
  (depends
    (ocaml (>= 4.08.0))
-   blake2
    ppx_inline_test
    ppx_expect
    odoc
