@@ -10,7 +10,12 @@
   )
 
 (ocamllex solidity_lexer)
-(menhir (modules solidity_raw_parser))
+(menhir
+  (modules solidity_raw_parser)
+  (flags
+    --explain
+    --strict
+    --unused-token RESERVEDKEYWORD))
 
 (rule
     (targets version.ml)
@@ -19,5 +24,3 @@
 
 (documentation
   (package solidity-parser))
-
-
