@@ -33,7 +33,7 @@ let same_options o1 o2 =
   o1.gas = o2.gas &&
   o1.salt = o2.salt
 
-let rec same_type ?(ignore_loc=false) t1 t2 =
+let rec same_type ?(ignore_loc=false) ?(relax_visibility=false) t1 t2 =
   match t1, t2 with
   | TBool, TBool ->
       true
@@ -73,7 +73,8 @@ let rec same_type ?(ignore_loc=false) t1 t2 =
       same_type_pl ~ignore_loc fd1.function_params fd2.function_params &&
       same_type_pl ~ignore_loc fd1.function_returns fd2.function_returns &&
       same_mutability fd1.function_mutability fd2.function_mutability &&
-      same_visibility fd1.function_visibility fd2.function_visibility &&
+      (if relax_visibility then convertible_visibility_hof fd1.function_visibility fd2.function_visibility
+      else same_visibility fd1.function_visibility fd2.function_visibility) &&
       same_options fo1 fo2
   | TModifier (md1), TModifier (md2) ->
       same_type_pl ~ignore_loc md1.modifier_params md2.modifier_params
@@ -117,10 +118,10 @@ and same_type_ol ?(ignore_loc=false) tl1 tl2 =
       | None, None -> true
     ) tl1 tl2
 
-and same_type_pl ?(ignore_loc=false) tl1 tl2 =
+and same_type_pl ?(ignore_loc=false) ?(relax_visibility=false) tl1 tl2 =
   List.length tl1 = List.length tl2 &&
   List.for_all2 (fun (t1, _) (t2, _) ->
-      same_type ~ignore_loc t1 t2
+      same_type ~ignore_loc ~relax_visibility t1 t2
     ) tl1 tl2
 
 and same_magic_type ?(ignore_loc=false) t1 t2 =

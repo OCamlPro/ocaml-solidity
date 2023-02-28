@@ -140,6 +140,11 @@ let rec implicitly_convertible ?(ignore_loc=false) ~from ~to_ () =
   | TBytes _, TString _ when !for_freeton -> true
   | TString _, TBytes _ when !for_freeton -> true
   | _, TDots when !for_freeton -> true
+  | TFunction (fd1, _), TFunction (fd2, _) ->
+      Solidity_type.same_type_pl ~ignore_loc ~relax_visibility:true fd1.function_params fd2.function_params &&
+      Solidity_type.same_type_pl ~ignore_loc fd1.function_returns fd2.function_returns &&
+      Solidity_ast.mutability_is_more_restrictive fd1.function_mutability fd2.function_mutability &&
+      Solidity_ast.convertible_visibility_hof fd1.function_visibility fd2.function_visibility
   | _ ->
       Solidity_type.same_type from to_
 

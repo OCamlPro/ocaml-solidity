@@ -399,6 +399,10 @@ val is_inheritable : visibility -> bool
 (** Checks the equality of mutabilities *)
 val same_mutability : fun_mutability -> fun_mutability -> bool
 
+(** Checks if the first mutability is more restrictive than the second mutability
+    according to https://docs.soliditylang.org/en/v0.6.0/types.html#function-types *)
+val mutability_is_more_restrictive : fun_mutability -> fun_mutability -> bool
+
 (** Tests if a function with `from` mutability can be overridden by a
     function with `to` mutability. *)
 val convertible_mutability :
@@ -406,6 +410,10 @@ val convertible_mutability :
 
 (** Checks the equality of visibilities *)
 val same_visibility : visibility -> visibility -> bool
+
+(** Checks if a function expecting the second visibility can accept function
+    arguments (of function type) of the first visibility *)
+val convertible_visibility_hof : visibility -> visibility -> bool
 
 (** Tests if a function with `from` visibility can be overridden by a
     function with `to` visibility. *)
