@@ -236,6 +236,41 @@ and end_pragma = parse
 
  {
    let initialized = ref false
+
+(*
+ * Reserved keywords that should be known to the parser, but are currently unused.
+ * https://docs.soliditylang.org/en/v0.6.0/miscellaneous.html#reserved-keywords
+ *)
+let reserved_keywords =
+  [
+    "after", RESERVEDKEYWORD;
+    "alias", RESERVEDKEYWORD;
+    "apply", RESERVEDKEYWORD;
+    "auto", RESERVEDKEYWORD;
+    "copyof", RESERVEDKEYWORD;
+    "define", RESERVEDKEYWORD;
+    "final", RESERVEDKEYWORD;
+    "implements", RESERVEDKEYWORD;
+    "in", RESERVEDKEYWORD;
+    "macro", RESERVEDKEYWORD;
+    "match", RESERVEDKEYWORD;
+    "mutable", RESERVEDKEYWORD;
+    "null", RESERVEDKEYWORD;
+    "of", RESERVEDKEYWORD;
+    "partial", RESERVEDKEYWORD;
+    "promise", RESERVEDKEYWORD;
+    "reference", RESERVEDKEYWORD;
+    "relocatable", RESERVEDKEYWORD;
+    "sealed", RESERVEDKEYWORD;
+    "sizeof", RESERVEDKEYWORD;
+    "supports", RESERVEDKEYWORD;
+    "typedef", RESERVEDKEYWORD;
+    "typeof", RESERVEDKEYWORD;
+    "unchecked", RESERVEDKEYWORD;
+  ]
+  (* Other keywords already handled:
+   *  case, default, immutable, inline, let, static, switch *)
+
 let init2 ?(list=[]) () =
   if not !initialized then begin
     initialized := true;
@@ -312,7 +347,7 @@ let init2 ?(list=[]) () =
           "days", NUMBERUNIT (Days);
           "weeks", NUMBERUNIT (Weeks);
           "years", NUMBERUNIT (Years);
-        ] @ list)
+        ] @ reserved_keywords @ list)
   end
 
 let init ~freeton =

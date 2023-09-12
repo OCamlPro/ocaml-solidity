@@ -375,6 +375,9 @@
 %token <Solidity_common.Ident.t> IDENTIFIER
 %token EOF
 
+(* Reserved Keywords *)
+%token RESERVEDKEYWORD
+
 (* Some convenience precedences *)
 %nonassoc below_IDENTIFIER
 %nonassoc IDENTIFIER
