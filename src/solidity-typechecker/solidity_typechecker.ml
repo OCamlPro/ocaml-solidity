@@ -1926,6 +1926,18 @@ let preprocess_contract_definitions cd =
                            payable, but is \"%s\""
                   (Solidity_printer.string_of_fun_mutability fd.fun_mutability)
             end;
+
+          (* if the function has function-typed parameters, the function cannot be
+             `public` or `external` if the parameters are `internal` *)
+          List.iter (fun param ->
+            match param with
+            | FunctionType(f), _, _ ->
+                (match f.fun_type_visibility, fd.fun_visibility with
+                | VInternal, (VPublic|VExternal) -> error pos "Internal type is not allowed for public or external functions";
+                | _ -> ())
+            | _ -> ()
+            ) fd.fun_params;
+
           let fd, method_ =
             match contract_kind with
             | Interface -> { fd with fun_virtual = true }, true

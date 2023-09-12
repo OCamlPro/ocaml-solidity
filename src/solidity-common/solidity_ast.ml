@@ -362,6 +362,18 @@ let same_mutability m1 m2 =
   | MNonPayable, MNonPayable -> true
   | _ -> false
 
+(* allowed conversions according to https://docs.soliditylang.org/en/v0.6.0/types.html#function-types *)
+let mutability_is_more_restrictive m1 m2 =
+  match m1, m2 with
+  | MPure, (MView | MNonPayable) -> true
+  | MView, MNonPayable -> true
+  | MPayable, MNonPayable -> true
+  | MPure, MPure -> true
+  | MView, MView -> true
+  | MPayable, MPayable -> true
+  | MNonPayable, MNonPayable -> true
+  | _ -> false
+
 (* for the purpose of overriding *)
 let convertible_mutability ~from ~to_ =
   match from, to_ with
@@ -382,6 +394,17 @@ let same_visibility v1 v2 =
   | VInternal, VInternal -> true
   | VPublic, VPublic -> true
   | VPrivate, VPrivate -> true
+  | _ -> false
+
+(* visbility checks when passing functions as arguments *)
+(* v2 is the expected visibility and v1 is the actual visibility *)
+let convertible_visibility_hof v1 v2 =
+  match v1, v2 with
+  | VPublic, VInternal -> true
+  | VPrivate, VInternal -> true
+  | VInternal, VInternal -> true
+  | VExternal, VExternal -> true
+  | VPublic, VExternal -> true
   | _ -> false
 
 (* for the purpose of overriding *)
